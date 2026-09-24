@@ -4,6 +4,11 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Added
+
+- Stubs: `run --stub "<node>=<file>"` (repeatable) and `.flowretest/<workflow>/stubs.yml` answer a node with the items in a JSON or YAML file instead of running or replaying it: a database write, a read the recording never took, a recording over 1 MB. The case runs instead of being skipped, gets a `stub:` warning, and `coverage.stubbed` lists the nodes. `upgrade-check` takes `--stub` too; `scan` and the skip message point at it.
+- Every `run` checks the seal of its sandbox before executing anything (internal network, proxy on that network only, no direct connection out) and stops with exit code 4 if a check fails. The checks are in `report.json` under `sandbox`; the plan footer says "sandbox sealed (checked before the run)" only when they passed.
+
 ### Fixed
 
 - Errors that escape a command exit with 4 (usage or environment) or 5 (internal) instead of 1, which means DIFF; the GitHub Action no longer reports a crashed run as DIFF with a green job.
@@ -24,7 +29,7 @@ All notable changes to this project are documented here. The format follows Keep
 - Schemas: `pathValue`, multi-value query parameters and `multipart[].contentType` in reports and baselines.
 - `run`: a case whose workflow cannot be prepared (the recorded trigger was renamed) is ERROR on its own instead of aborting the whole run.
 - `run` removes the sandbox temp dirs (rewritten workflows with fixture data, captured requests) on Ctrl+C and on SIGTERM from a cancelled CI job, before exiting.
-- Linux hosts: the proxy container runs as the host user and the directories n8n writes to are opened up inside the private temp dir, so GitHub runners (uid 1001) can write the CA, captures and snapshots. Not yet tried on a Linux runner.
+- Linux hosts: the proxy container runs as the host user and the directories n8n writes to are opened up inside the private temp dir, so GitHub runners (uid 1001) can write the CA, captures and snapshots; confirmed on `ubuntu-latest`.
 - `init` updates an existing `config.yml` (instance, engine tag, timezone when given, a managed proxy image) and keeps `normalize`, `run`, `engine.env` and a custom proxy image; `--force` replaces it. The Action runs `init` on every job and no longer wipes the committed settings.
 - GitHub Action: inputs reach the shell only through environment variables; the pull request comment and the uploaded report are the redacted plan unless `values: 'true'`.
 - `redact --report` also writes `plan.redacted.md`; shapes use an HMAC with a random key per report, only the normaliser's placeholders pass unchanged, and error texts have emails, quoted strings and digit runs replaced.

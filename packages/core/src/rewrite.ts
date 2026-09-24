@@ -14,6 +14,12 @@ export interface RewriteOptions {
   executionTimeoutSeconds?: number;
   /** Add an X-FlowRetest-Node header to HTTP Request write nodes so the proxy can attribute calls without timing (default true). */
   tagHttpRequests?: boolean;
+  /**
+   * User stubs: node name -> the `json` of each output item. A stubbed node is replaced like a replayed read, with
+   * the stub instead of the recording, whatever its role (a database write, a read without a recording, a node whose
+   * recording is too large). Its real calls are not made and not in the plan.
+   */
+  stubs?: Record<string, unknown[]>;
 }
 
 export const NODE_TAG_HEADER = 'X-FlowRetest-Node';
@@ -36,7 +42,7 @@ function tagHttpRequest(node: N8nNode): boolean {
 
 export interface ReplacedNode {
   node: string;
-  kind: 'trigger' | 'read' | 'respond';
+  kind: 'trigger' | 'read' | 'stub' | 'respond';
   variant: ReplayVariant | 'noop';
   runs: number;
 }
@@ -193,13 +199,31 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
   workflow.connections[START_NODE] = { main: [[{ node: firstReplayNode, type: 'main', index: 0 }]] };
   replaced.push({ node: triggerName, kind: 'trigger', variant: options.replayVariant, runs: 1 });
 
-  // 3. Replace read nodes that have a recording; leave the rest for the proxy to block.
+  // 3a. User stubs first: they answer for nodes that cannot be replayed from the recording.
+  const stubs = options.stubs ?? {};
+  for (const [name, items] of Object.entries(stubs)) {
+    const node = workflow.nodes.find((n) => n.name === name);
+    if (!node) {
+      warnings.push(`stub for "${name}" ignored: no such node in this version`);
+      continue;
+    }
+    if (name === triggerName || name === START_NODE) {
+      warnings.push(`stub for "${name}" ignored: the trigger is replayed from the recording`);
+      continue;
+    }
+    const run: RecordedItem[] = items.map((json, i) => ({ json, pairedItem: { item: i } }));
+    replaceWithReplay(workflow, node, [run], options.replayVariant, true);
+    replaced.push({ node: name, kind: 'stub', variant: options.replayVariant, runs: 1 });
+    dropAiFeedersOf(workflow, name, replaced, removedSubNodes);
+  }
+
+  // 3b. Replace read nodes that have a recording; leave the rest for the proxy to block.
   for (const node of [...workflow.nodes]) {
-    if (roles[node.name] !== 'read') continue;
+    if (roles[node.name] !== 'read' || node.name in stubs) continue;
     const runs = recordedRuns(fixture, node.name);
     if (!runs || runs.length === 0) {
       unreplayed.push(node.name);
-      warnings.push(`"${node.name}" is a read node without a recording; the proxy will block it (add --stub)`);
+      warnings.push(`"${node.name}" is a read node without a recording; the proxy will block it (answer it with --stub "${node.name}=<file.json>")`);
       continue;
     }
     if (runs.some((r) => r.outputs.length > 1 && r.outputs.slice(1).some((o) => o.length > 0))) {
@@ -211,21 +235,12 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
     const bytes = Buffer.byteLength(JSON.stringify(outputs));
     if (bytes > maxBytes) {
       unreplayed.push(node.name);
-      warnings.push(`"${node.name}" recording is ${bytes} bytes, above the ${maxBytes} byte limit; add --stub`);
+      warnings.push(`"${node.name}" recording is ${bytes} bytes, above the ${maxBytes} byte limit; answer it with --stub "${node.name}=<file.json>"`);
       continue;
     }
     replaceWithReplay(workflow, node, outputs, options.replayVariant, true);
     replaced.push({ node: node.name, kind: 'read', variant: options.replayVariant, runs: outputs.length });
-    // An AI root replayed from its recording no longer needs its model, memory, tools or parsers. A sub-node that
-    // also feeds a root that still runs (an agent on another branch without a recording) stays; only its link to
-    // the replayed root goes.
-    const feeders = aiFeeders(workflow, node.name);
-    const removable = removableFeeders(workflow, feeders, new Set(replaced.map((x) => x.node)));
-    detachAiInputs(workflow, node.name);
-    for (const sub of removable) {
-      removeNode(workflow, sub);
-      removedSubNodes.push(sub);
-    }
+    dropAiFeedersOf(workflow, node.name, replaced, removedSubNodes);
   }
 
   // 3b. Tag HTTP Request write nodes so captured requests carry their node name.
@@ -258,6 +273,21 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
   };
 
   return { workflow: importable, id, name, replaced, removedTriggers, removedSubNodes, warnings, unreplayed, credentials: collectCredentials(importable) };
+}
+
+/**
+ * An AI root replayed from its recording (or a stub) no longer needs its model, memory, tools or parsers. A sub-node
+ * that also feeds a root that still runs (an agent on another branch without a recording) stays; only its link to
+ * the replayed root goes.
+ */
+function dropAiFeedersOf(workflow: N8nWorkflow, root: string, replaced: ReplacedNode[], removedSubNodes: string[]): void {
+  const feeders = aiFeeders(workflow, root);
+  const removable = removableFeeders(workflow, feeders, new Set(replaced.map((x) => x.node)));
+  detachAiInputs(workflow, root);
+  for (const sub of removable) {
+    removeNode(workflow, sub);
+    removedSubNodes.push(sub);
+  }
 }
 
 /** Targets a node feeds through non-main (`ai_*`) connections. */

@@ -125,3 +125,12 @@ Wnioski warte zapamiętania:
 Po wypchnięciu `main`: `ci` zielone na Ubuntu, Windows i macOS; `e2e` przez `flowretest run` zielone na 2.40.5 i `next`. Na Linuksie `doctor` przeszedł, więc poprawka uprawnień z audytu (punkt 18) działa na runnerze GitHuba (uid 1001).
 
 `v3-nightly` z tego dnia (raportuje 2.41.0) padł na `import:credentials` z komunikatem "No active encryption key found". n8n włącza domyślnie rotację kluczy szyfrowania (`N8N_ENV_FEAT_ENCRYPTION_KEY_ROTATION`, wyłączana tylko wartością `false`): poświadczenia szyfruje klucz danych zapisany w bazie, a tworzą go wyłącznie procesy serwera (`n8n start` oraz tryby webhook i worker, pole `seedsInstanceIdentity`). Sandbox ma świeżą bazę i używa tylko komend CLI, więc klucza nie było. Sandbox ustawia teraz tę flagę na `false`; n8n szyfruje wtedy kluczem instancji jak w 2.40. Gdy n8n usunie flagę, trzeba będzie jednorazowo zasiać klucz (np. krótkim `n8n start` na wolumenie sandboxa); macierz e2e z `v3-nightly` pokaże to od razu.
+
+## Stuby i szczelność w każdym przebiegu (2026-09-24)
+
+Dwa brakujące elementy planu z ADR 0006:
+
+- `run` sprawdza szczelność każdego sandboxa przed wykonaniem czegokolwiek: sieć ma `Internal=true`, proxy jest podpięte tylko do niej, a `wget` z obrazu n8n bez proxy nie dochodzi do `example.com`. Przy nieudanym sprawdzeniu przebieg kończy się kodem 4 bez uruchomienia workflow. Wynik jest w `report.json` (`sandbox`), a stopka planu pisze o szczelności tylko wtedy, gdy sprawdzenie przeszło. Stare raporty bez tego pola są renderowane jako niesprawdzone.
+- Stuby na poziomie węzła: `--stub "<węzeł>=<plik>"` i `.flowretest/<workflow>/stubs.yml`. Rewriter zastępuje węzeł węzłem Code z podanymi elementami, więc stub działa także dla węzłów spoza HTTP (Postgres, SMTP), dla odczytów bez nagrania i dla nagrań ponad 1 MB. Przypadek dostaje ostrzeżenie `stub:`, a `coverage.stubbed` wymienia takie węzły.
+
+E2E przez `run`: 15 z 15 przypadków z potwierdzoną szczelnością, a przypadek 14 ze stubem dla nowego zapisu `Audit` daje PASS zamiast SKIPPED. Sprawdzenie szczelności wydłuża każdy przebieg o kilka sekund (test `wget` czeka na odmowę); pełne e2e trwa lokalnie około 12 minut.

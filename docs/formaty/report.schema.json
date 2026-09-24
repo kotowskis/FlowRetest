@@ -778,6 +778,12 @@
           "items": {
             "type": "string"
           }
+        },
+        "stubbed": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
         }
       },
       "required": [
@@ -785,6 +791,46 @@
         "writeNodesCaptured",
         "replayedNodes",
         "unsupported"
+      ],
+      "additionalProperties": false
+    },
+    "sandbox": {
+      "type": "object",
+      "properties": {
+        "sealed": {
+          "type": "boolean"
+        },
+        "checks": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "network": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "ok": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "network",
+              "name",
+              "ok",
+              "detail"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "sealed",
+        "checks"
       ],
       "additionalProperties": false
     }

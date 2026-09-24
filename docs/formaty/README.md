@@ -1,12 +1,13 @@
 # Formaty plików
 
-Każdy format ma schemat zod w `packages/schemas/src/index.ts` i wygenerowany z niego JSON Schema w tym katalogu (`npm run build`, potem `node scripts/export-schemas.mjs`). Dziś CLI waliduje schematem tylko `config.yml` przy wczytaniu; pozostałe schematy opisują pliki, które CLI pisze, i służą integracjom. Po zmianie schematu trzeba uruchomić `npm run schemas`, inaczej pliki w tym katalogu się zestarzeją.
+Każdy format ma schemat zod w `packages/schemas/src/index.ts` i wygenerowany z niego JSON Schema w tym katalogu (`npm run build`, potem `node scripts/export-schemas.mjs`). Dziś CLI waliduje schematem przy wczytaniu `config.yml` i `stubs.yml`; pozostałe schematy opisują pliki, które CLI pisze, i służą integracjom. Po zmianie schematu trzeba uruchomić `npm run schemas`, inaczej pliki w tym katalogu się zestarzeją.
 
 | Format | Plik | Kto pisze | Kto czyta |
 |---|---|---|---|
 | konfiguracja | `.flowretest/config.yml` | `init`, człowiek | każda komenda |
 | fixture | `.flowretest/<workflow>/fixtures/<wykonanie>.json` | `pull` | `run`, `scan`, `redact` |
-| reguły proxy | `<sandbox>/rules/rules.json` | `run` (z tabel usług i stubów użytkownika) | obraz proxy |
+| reguły proxy | `<sandbox>/rules/rules.json` | `run` (z tabel usług i nagłówków arkusza z nagrań) | obraz proxy |
+| stuby | `.flowretest/<workflow>/stubs.yml` | człowiek | `run`, `upgrade-check` |
 | przechwycenie | `<sandbox>/capture/requests.jsonl` | obraz proxy | `run` |
 | raport | `.flowretest/<workflow>/runs/<czas>/report.json` | `run`, `upgrade-check` | `diff`, `accept`, `redact --report` |
 | baseline | `.flowretest/<workflow>/baseline/<przypadek>.json` | `accept` | `diff --against baseline` |
@@ -31,9 +32,13 @@ Jedna linia JSON na żądanie. `version` i `case` pochodzą z `current.json` zap
 
 ## Raport (`report.schema.json`)
 
-`cases[]` to wynik diffu per przypadek: `status`, `entries[]` (`op` jako `=`, `~`, `+`, `-`, `!`, węzeł, metoda, host, szablon ścieżki, `fieldDiffs[]`, `flags[]`), `summary`, `error`, `warnings[]`. `calls` to znormalizowane rejestry obu stron, pola zmienne i znacznik `stable` per przypadek, z których korzystają `accept` i `diff --against baseline`. Ścieżki w `fieldDiffs[].path` to pola ciała (`a.b[2].c`, klucz z kropką jako `["a.b"]`) oraz trzy pola spoza ciała: `@path` (konkretna ścieżka URL, więc wywołanie do innego rekordu jest zmianą), `@contentType` (typ mediów bez parametrów) i `?nazwa` (parametr zapytania, powtórzony jako `?nazwa[1]`). Pola zmienne w `calls[].volatile` mają postać `<klucz wywołania> :: <ścieżka pola>` i maskują pole tylko w wywołaniach o tym kluczu. `coverage` liczy węzły piszące przechwycone i odtworzone oraz nieobsługiwane. `engine` i `engines` opisują obrazy z digestami. Flagi: `empty-value`, `missing-field`, `type-changed`, `expression-residue`, `duplicate-bodies`, `count-changed`, `count-per-item-changed`, `node-not-executed`, `blocked`.
+`cases[]` to wynik diffu per przypadek: `status`, `entries[]` (`op` jako `=`, `~`, `+`, `-`, `!`, węzeł, metoda, host, szablon ścieżki, `fieldDiffs[]`, `flags[]`), `summary`, `error`, `warnings[]`. `calls` to znormalizowane rejestry obu stron, pola zmienne i znacznik `stable` per przypadek, z których korzystają `accept` i `diff --against baseline`. Ścieżki w `fieldDiffs[].path` to pola ciała (`a.b[2].c`, klucz z kropką jako `["a.b"]`) oraz trzy pola spoza ciała: `@path` (konkretna ścieżka URL, więc wywołanie do innego rekordu jest zmianą), `@contentType` (typ mediów bez parametrów) i `?nazwa` (parametr zapytania, powtórzony jako `?nazwa[1]`). Pola zmienne w `calls[].volatile` mają postać `<klucz wywołania> :: <ścieżka pola>` i maskują pole tylko w wywołaniach o tym kluczu. `coverage` liczy węzły piszące przechwycone i odtworzone oraz nieobsługiwane, a `stubbed` wymienia węzły obsłużone stubem. `sandbox` zapisuje sprawdzenie szczelności wykonane przed przebiegiem, osobno dla każdej sieci sandboxa: sieć `--internal`, proxy podpięte tylko do niej, bezpośrednie połączenie z obrazu n8n odrzucone. Raport bez tego pola (sprzed 0.3.0) jest renderowany jako „seal not verified”. `engine` i `engines` opisują obrazy z digestami. Flagi: `empty-value`, `missing-field`, `type-changed`, `expression-residue`, `duplicate-bodies`, `count-changed`, `count-per-item-changed`, `node-not-executed`, `blocked`.
 
 Wersja po `redact --report` (`report.redacted.json` i `plan.redacted.md`) ma kształt planu, a nie pełnego raportu: `cases`, `coverage`, etykiety wersji i silnika, bez rejestrów `calls`. Nie przechodzi więc `report.schema.json`. Wartości pól są zastąpione przez `<string 13 #a1b2c3d4>` (typ, długość, skrót HMAC z losowym kluczem na raport, więc równe skróty znaczą równe wartości tylko w obrębie jednego raportu). Ścieżki żądań są zastąpione szablonami. W tekście błędu e-maile, fragmenty w cudzysłowie i ciągi co najmniej czterech cyfr są zastąpione kształtem. Zostają tylko znane placeholdery normalizacji (`<ts>`, `<uuid>`, `<epoch>`, `<token>`, `<volatile>`, `<ignored>`).
+
+## Stuby (`stubs.schema.json`)
+
+Odpowiedzi dla węzłów, których nie da się odtworzyć z nagrania: zapis do bazy, odczyt na gałęzi, której nagranie nie przeszło, nagranie ponad 1 MB. `stubs` to mapa nazwa węzła na `items` (lista obiektów `json` kolejnych elementów wyjścia) albo `file` (plik JSON lub YAML względem `stubs.yml`: tablica elementów, obiekt z `items` albo jeden obiekt). Flaga `--stub "<węzeł>=<plik>"` wygrywa z wpisem w pliku. Rewriter zastępuje taki węzeł węzłem Code, który zwraca te elementy przy każdym uruchomieniu; węzeł przestaje być nieobsługiwany, nie liczy się do węzłów piszących, jest wymieniony w `coverage.stubbed`, a przypadek dostaje ostrzeżenie `stub: ...`.
 
 ## Baseline (`baseline.schema.json`)
 

@@ -10,7 +10,7 @@ export interface PlanReport {
   oldLabel: string;
   newLabel: string;
   cases: CaseDiff[];
-  coverage: { writeNodesTotal: number; writeNodesCaptured: number; replayedNodes: number; unsupported: string[] };
+  coverage: { writeNodesTotal: number; writeNodesCaptured: number; replayedNodes: number; unsupported: string[]; stubbed?: string[] };
   sealed: boolean;
 }
 
@@ -86,7 +86,7 @@ export function renderPlan(report: PlanReport): string {
   lines.push('');
   const cov = report.coverage;
   const pct = cov.writeNodesTotal === 0 ? 100 : Math.round((cov.writeNodesCaptured / cov.writeNodesTotal) * 100);
-  lines.push(`Coverage: ${cov.writeNodesCaptured} of ${cov.writeNodesTotal} write nodes captured (${pct}%) · nodes replayed from recordings: ${cov.replayedNodes}${cov.unsupported.length ? ` · unsupported: ${cov.unsupported.join(', ')}` : ''} · ${report.sealed ? '0 requests left the sandbox' : 'sandbox seal NOT verified'}`);
+  lines.push(`Coverage: ${cov.writeNodesCaptured} of ${cov.writeNodesTotal} write nodes captured (${pct}%) · nodes replayed from recordings: ${cov.replayedNodes}${cov.unsupported.length ? ` · unsupported: ${cov.unsupported.join(', ')}` : ''}${cov.stubbed?.length ? ` · stubbed: ${cov.stubbed.join(', ')}` : ''} · ${report.sealed ? 'sandbox sealed (checked before the run), 0 requests left it' : 'sandbox seal NOT verified'}`);
   const status = overallStatus(report.cases);
   lines.push(`Result: ${status} (exit code ${exitCodeFor(status)})`);
   return lines.join('\n');

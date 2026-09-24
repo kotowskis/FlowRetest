@@ -30,7 +30,7 @@ export function runDiff(options: DiffOptions): { plan: string; exitCode: number;
       return diffCase(c.caseId, maskVolatile(fromBaseline(baseline), volatile), maskVolatile(calls.new, volatile), { newError: c.error });
     });
   }
-  const plan = renderPlan({ runner: report.runner, workflowName: report.workflowName ?? report.workflowId, workflowId: report.workflowId, engine: report.engine, oldLabel, newLabel: report.new, cases, coverage: report.coverage, sealed: true });
+  const plan = renderPlan({ runner: report.runner, workflowName: report.workflowName ?? report.workflowId, workflowId: report.workflowId, engine: report.engine, oldLabel, newLabel: report.new, cases, coverage: report.coverage, sealed: report.sandbox?.sealed === true });
   const status = overallStatus(cases);
   if (options.json) options.log(JSON.stringify({ run, against: options.against, status, cases }, null, 2));
   else options.log(`Run ${run}\n${plan}`);

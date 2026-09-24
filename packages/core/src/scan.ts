@@ -113,7 +113,7 @@ export function scanWorkflow(workflow: N8nWorkflow, classification: Classificati
     if (node.type === 'n8n-nodes-base.code' ? /process\.env|\$env\b/.test(joined) : /\{\{[^}]*\$env\b/.test(joined)) findings.push({ rule: 'S008', severity: 'warn', node: node.name, message: `${node.type === 'n8n-nodes-base.code' ? 'Code' : 'An expression'} reads process.env or $env; the sandbox has no production environment (N8N_BLOCK_ENV_ACCESS_IN_NODE=true)` });
     if (node.disabled) findings.push({ rule: 'S011', severity: 'info', node: node.name, message: 'node is disabled and passes data through' });
   }
-  for (const u of classification.unsupportedOnPath) findings.push({ rule: 'S000', severity: 'error', node: u, message: `unsupported node on the execution path (${classification.notes[u] ?? 'no role table'}); cases reaching it are skipped` });
+  for (const u of classification.unsupportedOnPath) findings.push({ rule: 'S000', severity: 'error', node: u, message: `unsupported node on the execution path (${classification.notes[u] ?? 'no role table'}); cases reaching it are skipped unless a stub answers for it (--stub \"${u}=<file.json>\" or stubs.yml)` });
   // S007: two IF or Filter nodes with identical conditions, a known editor slip when a branch is copied.
   const byConditions = new Map<string, string[]>();
   for (const node of workflow.nodes) {

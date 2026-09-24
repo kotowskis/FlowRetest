@@ -180,3 +180,19 @@ export function classify(workflow: N8nWorkflow, options: ClassifyOptions): Class
   const unsupportedOnPath = workflow.nodes.filter((n) => roles[n.name] === 'unsupported' && reachable.has(n.name)).map((n) => n.name);
   return { triggerNode: options.triggerNode, roles, unsupportedOnPath, reachable, notes };
 }
+
+/**
+ * User stubs answer for these nodes: they become replayed reads, so they no longer make a case SKIPPED and are not
+ * counted as write nodes. The trigger that started the recording is never stubbed.
+ */
+export function applyStubs(classification: Classification, stubbed: string[]): Classification {
+  if (stubbed.length === 0) return classification;
+  const roles = { ...classification.roles };
+  const notes = { ...classification.notes };
+  const applied = stubbed.filter((name) => name in roles && name !== classification.triggerNode);
+  for (const name of applied) {
+    roles[name] = 'read';
+    notes[name] = 'answered by a user stub';
+  }
+  return { ...classification, roles, notes, unsupportedOnPath: classification.unsupportedOnPath.filter((n) => !applied.includes(n)) };
+}

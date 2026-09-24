@@ -44,8 +44,11 @@ export async function runSpikeDay7(options: SpikeDay7Options): Promise<{ plan: s
   let writeNodesCaptured = 0;
   let replayedNodes = 0;
   const unsupported = new Set<string>();
+  let sealed = false;
   try {
     await session.start(rules);
+    sealed = (await session.verifySeal()).sealed;
+    if (!sealed) throw new Error('the sandbox is not sealed, nothing was run');
     mkdirSync(join(session.dirs.work, 'cases'), { recursive: true });
     const selected = catalogCases().filter((c) => !options.only || options.only.some((o) => c.id.startsWith(o)));
     const prepared: Array<{ caseId: string; version: 'old' | 'new'; id: string; writeNodes: string[] }> = [];
@@ -176,7 +179,7 @@ export async function runSpikeDay7(options: SpikeDay7Options): Promise<{ plan: s
     newLabel: 'catalog new',
     cases: diffs,
     coverage: { writeNodesTotal, writeNodesCaptured, replayedNodes, unsupported: [...unsupported] },
-    sealed: true,
+    sealed,
   });
   for (const n of notes) options.log(`note: ${n}`);
   if (options.outFile) {

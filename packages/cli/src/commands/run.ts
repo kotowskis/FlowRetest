@@ -3,12 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  aiReplayWarnings, replayInputWarnings, attributeRecord, attributeToNode, classify, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
+  aiReplayWarnings, applyStubs, replayInputWarnings, attributeRecord, attributeToNode, classify, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
   type CaptureRecord, type CaseDiff, type Fixture, type N8nWorkflow, type NormalizedCall, type PlanFormat, type PlanReport, type RunTimings,
 } from '@flowretest/core';
 import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules, sheetHeadersFromRecordings } from '@flowretest/services';
 import { loadConfig, workflowDir, type Config } from '../config.ts';
-import { SandboxSession } from '../sandbox/session.ts';
+import { SandboxSession, type SealReport } from '../sandbox/session.ts';
+import { loadStubs } from '../stubs.ts';
 import { extractRun, logErrors } from '../sandbox/probe-workflow.ts';
 import { imageDigest } from '../sandbox/docker.ts';
 import { CLI_VERSION } from '../index.ts';
@@ -22,6 +23,8 @@ export interface RunOptions {
   old?: string;
   cases?: string[];
   stabilize?: boolean;
+  /** `--stub "<node>=<file>"` flags; they win over `.flowretest/<workflow>/stubs.yml`. */
+  stubs?: string[];
   keep?: boolean;
   formats?: PlanFormat[];
   /** Image tags; default from config for both sides. Different tags mean two sandboxes. */
@@ -58,6 +61,8 @@ interface Prepared {
   failed?: string;
   /** Read nodes replayed from the recording, for the replay-input-mismatch check. */
   replayed?: string[];
+  /** Nodes answered by a user stub in this case. */
+  stubbed?: string[];
 }
 
 function loadFixtures(dir: string, only?: string[]): Fixture[] {
@@ -175,10 +180,18 @@ class SideRunner {
   }
 }
 
+/** The `sandbox` section of report.json: the seal checks of every sandbox of the run. */
+export function sandboxSection(seals: SealReport[]): { sealed: boolean; checks: Array<{ network: string; name: string; ok: boolean; detail: string }> } {
+  return { sealed: seals.length > 0 && seals.every((s) => s.sealed), checks: seals.flatMap((s) => s.checks.map((c) => ({ network: s.network, ...c }))) };
+}
+
 export async function runRun(options: RunOptions): Promise<RunResult> {
   const config = loadConfig(options.cwd);
   const dir = workflowDir(options.cwd, options.workflowId);
   const fixtures = loadFixtures(dir, options.cases);
+  const stubs = loadStubs(options.cwd, options.workflowId, options.stubs);
+  const stubItemsByNode = Object.fromEntries(Object.entries(stubs).map(([node, s]) => [node, s.items]));
+  for (const [node, s] of Object.entries(stubs)) options.log(`stub: "${node}" answered with ${s.items.length} item${s.items.length === 1 ? '' : 's'} from ${s.source}`);
   if (fixtures.length === 0) throw new Error('no fixtures selected');
   const oldSide = resolveOld(dir, fixtures, options.old, options.log);
   const upgrade = !options.newFile;
@@ -223,31 +236,37 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
   process.once('SIGTERM', onSignal);
 
   const diffs: CaseDiff[] = [];
+  const seals: SealReport[] = [];
   const callsByCase: Record<string, { old: NormalizedCall[]; new: NormalizedCall[]; volatile: string[]; stable?: boolean }> = {};
   let writeNodesTotal = 0;
   let writeNodesCaptured = 0;
   let replayedNodes = 0;
   const unsupported = new Set<string>();
+  const stubbedNodes = new Set<string>();
   const prepared: Prepared[] = [];
   try {
     const sheetHeaders = sheetHeadersFromRecordings(fixtures.flatMap((f) => Object.values(f.nodes)));
     if (sheetHeaders) options.log(`sheet header row from the recordings: ${sheetHeaders.join(', ')}`);
     for (const s of distinctSessions) await s.start({ schemaVersion: 1, rules: [...serviceRules({ sheetHeaders }), genericSinkRule(), blockRule()] });
+    // Checked before any workflow runs: an unsealed sandbox could send the draft's writes to real services.
+    for (const s of distinctSessions) seals.push(await s.verifySeal());
+    const failed = seals.flatMap((seal) => seal.checks.filter((c) => !c.ok).map((c) => `${seal.network} ${c.name}: ${c.detail}`));
+    if (failed.length) throw new Error(`the sandbox is not sealed, nothing was run (${failed.join('; ')})`);
     const uses: Record<Side, Array<{ type: string; id?: string; name?: string; node: string }>> = { old: [], new: [] };
     for (const fixture of fixtures) {
       const caseId = fixture.source.executionId;
       for (const side of ['old', 'new'] as const) {
         const workflow = side === 'old' ? oldSide.workflow : newWorkflow;
-        const cls = classify(workflow, { triggerNode: fixture.trigger.node, serviceRole });
+        const cls = applyStubs(classify(workflow, { triggerNode: fixture.trigger.node, serviceRole }), Object.keys(stubs));
         const writeNodes = Object.entries(cls.roles).filter(([, r]) => r === 'write').map(([n]) => n);
         if (cls.unsupportedOnPath.length > 0) {
-          prepared.push({ caseId, side, id: '', writeNodes, skipped: `unsupported on path: ${cls.unsupportedOnPath.join(', ')}` });
+          prepared.push({ caseId, side, id: '', writeNodes, skipped: `unsupported on path: ${cls.unsupportedOnPath.join(', ')}; answer ${cls.unsupportedOnPath.length === 1 ? 'it' : 'them'} with --stub "<node>=<file.json>" or stubs.yml` });
           for (const u of cls.unsupportedOnPath) unsupported.add(u);
           continue;
         }
         let r: ReturnType<typeof rewriteWorkflow>;
         try {
-          r = rewriteWorkflow(workflow, fixture, cls.roles, { version: side, caseId, replayVariant: 'code', executionTimeoutSeconds: config.run.timeoutSeconds });
+          r = rewriteWorkflow(workflow, fixture, cls.roles, { version: side, caseId, replayVariant: 'code', executionTimeoutSeconds: config.run.timeoutSeconds, stubs: stubItemsByNode });
         } catch (e) {
           // One case that cannot be prepared (a renamed trigger, a broken recording) must not abort the others.
           const message = e instanceof Error ? e.message : String(e);
@@ -263,7 +282,9 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
           replayedNodes += r.replaced.filter((x) => x.kind === 'read').length;
         }
         for (const w of r.warnings) options.log(`  case ${caseId} [${side}]: ${w}`);
-        prepared.push({ caseId, side, id: r.id, writeNodes, replayed: r.replaced.filter((x) => x.kind === 'read').map((x) => x.node) });
+        const stubbed = r.replaced.filter((x) => x.kind === 'stub').map((x) => x.node);
+        if (side === 'new') for (const n of stubbed) stubbedNodes.add(n);
+        prepared.push({ caseId, side, id: r.id, writeNodes, replayed: r.replaced.filter((x) => x.kind === 'read').map((x) => x.node), stubbed });
       }
     }
     const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -329,7 +350,9 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
         oldNodesRun: Object.keys(oldRun.runData),
         newNodesRun: Object.keys(newRun.runData),
       });
-      const warnings = [...aiReplayWarnings(oldSide.workflow, newWorkflow), ...replayInputWarnings(fixture, newP.replayed ?? [], inputCounts(newRun.runData))];
+      const warnings = [...aiReplayWarnings(oldSide.workflow, newWorkflow), ...replayInputWarnings(fixture, newP.replayed ?? [], inputCounts(newRun.runData)),
+        ...[...new Set([...(oldP.stubbed ?? []), ...(newP.stubbed ?? [])])].map((n) => `stub: "${n}" answered from ${stubs[n]?.source ?? 'a stub'}; its real calls are not made and not in the plan`),
+      ];
       if (warnings.length) d.warnings = warnings;
       diffs.push(d);
       writeNodesCaptured += newP.writeNodes.filter((n) => newCalls.some((c) => c.node === n && !c.blocked)).length;
@@ -356,12 +379,12 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
     oldLabel: upgrade ? `${oldSide.label} on ${engineOld}` : oldSide.label,
     newLabel: upgrade ? `same workflow on ${engineNew}` : (options.newFile as string),
     cases: diffs,
-    coverage: { writeNodesTotal, writeNodesCaptured, replayedNodes, unsupported: [...unsupported] },
-    sealed: true,
+    coverage: { writeNodesTotal, writeNodesCaptured, replayedNodes, unsupported: [...unsupported].filter((n) => !stubbedNodes.has(n)), ...(stubbedNodes.size ? { stubbed: [...stubbedNodes] } : {}) },
+    sealed: seals.length > 0 && seals.every((s) => s.sealed),
   };
   const status = overallStatus(diffs);
   const reportPath = join(runDir, 'report.json');
-  writeFileSync(reportPath, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), runner: CLI_VERSION, mode: upgrade ? 'upgrade' : 'change', workflowId: options.workflowId, workflowName: newWorkflow.name, engine: report.engine, engines: { old: imageOld, new: imageNew, digestOld, digestNew }, old: report.oldLabel, new: report.newLabel, status, cases: diffs, calls: callsByCase, coverage: report.coverage }, null, 2));
+  writeFileSync(reportPath, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), runner: CLI_VERSION, mode: upgrade ? 'upgrade' : 'change', workflowId: options.workflowId, workflowName: newWorkflow.name, engine: report.engine, engines: { old: imageOld, new: imageNew, digestOld, digestNew }, old: report.oldLabel, new: report.newLabel, status, cases: diffs, calls: callsByCase, coverage: report.coverage, sandbox: sandboxSection(seals) }, null, 2));
   const plan = renderFormat(report, 'terminal');
   writeFileSync(join(runDir, 'plan.txt'), plan + '\n');
   if (formats.includes('junit')) writeFileSync(join(runDir, 'junit.xml'), renderFormat(report, 'junit'));

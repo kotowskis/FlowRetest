@@ -150,7 +150,8 @@ export const RunReportSchema = z.object({
   status: z.string(),
   cases: z.array(CaseDiffSchema),
   calls: z.record(z.string(), z.object({ old: z.array(NormalizedCallSchema), new: z.array(NormalizedCallSchema), volatile: z.array(z.string()), stable: z.boolean().optional() })),
-  coverage: z.object({ writeNodesTotal: z.number(), writeNodesCaptured: z.number(), replayedNodes: z.number(), unsupported: z.array(z.string()) }),
+  coverage: z.object({ writeNodesTotal: z.number(), writeNodesCaptured: z.number(), replayedNodes: z.number(), unsupported: z.array(z.string()), stubbed: z.array(z.string()).optional() }),
+  sandbox: z.object({ sealed: z.boolean(), checks: z.array(z.object({ network: z.string(), name: z.string(), ok: z.boolean(), detail: z.string() })) }).optional(),
 });
 export type RunReport = z.infer<typeof RunReportSchema>;
 
@@ -168,6 +169,17 @@ export const BaselineSchema = z.object({
 });
 export type Baseline = z.infer<typeof BaselineSchema>;
 
+/**
+ * .flowretest/<workflow>/stubs.yml: output items for nodes that cannot be replayed from the recording (a database
+ * write, a read without a recording, a recording over the size limit). Each entry gives the items inline or points
+ * at a JSON or YAML file relative to stubs.yml.
+ */
+export const StubsFileSchema = z.object({
+  schemaVersion: z.literal(1),
+  stubs: z.record(z.string(), z.union([z.object({ items: z.array(z.unknown()) }).strict(), z.object({ file: z.string().min(1) }).strict()])),
+});
+export type StubsFile = z.infer<typeof StubsFileSchema>;
+
 export const ALL_SCHEMAS = {
   config: ConfigSchema,
   fixture: FixtureSchema,
@@ -175,6 +187,7 @@ export const ALL_SCHEMAS = {
   capture: CaptureRecordSchema,
   report: RunReportSchema,
   baseline: BaselineSchema,
+  stubs: StubsFileSchema,
 } as const;
 
 /** Validates and returns a typed value or throws a readable error listing the first issues. */
@@ -188,5 +201,5 @@ export function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, what: stri
 /** JSON Schema (draft 2020-12) for one of the formats, for docs and editors. */
 export function jsonSchemaOf(name: keyof typeof ALL_SCHEMAS): Record<string, unknown> {
   // config.yml is written by people: fields with a default are optional there, so it is exported as an input schema.
-  return z.toJSONSchema(ALL_SCHEMAS[name], { target: 'draft-2020-12', unrepresentable: 'any', io: name === 'config' ? 'input' : 'output' }) as Record<string, unknown>;
+  return z.toJSONSchema(ALL_SCHEMAS[name], { target: 'draft-2020-12', unrepresentable: 'any', io: name === 'config' || name === 'stubs' ? 'input' : 'output' }) as Record<string, unknown>;
 }

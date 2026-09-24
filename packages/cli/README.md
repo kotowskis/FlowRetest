@@ -42,6 +42,28 @@ Exit codes: 0 PASS, 1 DIFF, 2 ERROR (the new version failed), 3 BLOCKED (a block
 - Write nodes (POST, PUT, app nodes such as HubSpot, Slack, Google Sheets, Airtable, Notion) run for real against a proxy that answers with plausible responses and records what was sent.
 - Nodes that write to databases, mail or files never reach the network; the case is reported as SKIPPED and the run ends as BLOCKED (exit code 3), never as PASS.
 - `--stabilize` runs both versions twice and masks fields that differ between the runs (random ids, nonces).
+- Before anything runs, `run` checks the seal of the sandbox: the Docker network is internal, the proxy sits on that network only, and a client in the n8n image cannot connect out without the proxy. If a check fails the run stops with exit code 4 and executes nothing. The result is in `report.json` under `sandbox`.
+
+### Stubs
+
+A node that cannot be replayed from the recording can be answered from a file instead: a database write, a read on a branch the recording never took, or a recording over the 1 MB limit. The stubbed node returns the given items to the nodes after it; its own calls are not made and not in the plan, and the case gets a warning saying so.
+
+```bash
+npx flowretest run --workflow <workflowId> --new draft.json --stub "Upsert order=stubs/upsert.json"
+```
+
+The file holds an array of items (`[{"id": 42}]`), an object with `items`, or a single item object, as JSON or YAML. Stubs used on every run go into `.flowretest/<workflowId>/stubs.yml`; a `--stub` flag wins for the same node:
+
+```yaml
+schemaVersion: 1
+stubs:
+  Upsert order:
+    items:
+      - id: 42
+        status: created
+  Lookup customer:
+    file: stubs/lookup.json   # relative to stubs.yml
+```
 
 The runner contains no n8n code. It pulls the official `n8nio/n8n` image of your version, imports the rewritten workflow with `n8n import:workflow`, runs it with the n8n CLI and reads the result. Your instance is only read through the public API.
 

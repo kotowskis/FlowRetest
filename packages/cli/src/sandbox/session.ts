@@ -35,6 +35,19 @@ export function hostUserArgs(platform: NodeJS.Platform = process.platform, uid =
   return ['--user', `${uid}:${gid}`];
 }
 
+export interface SealCheck {
+  name: string;
+  ok: boolean;
+  detail: string;
+}
+
+/** Result of `verifySeal`: what was checked before any workflow ran in this sandbox. */
+export interface SealReport {
+  sealed: boolean;
+  network: string;
+  checks: SealCheck[];
+}
+
 /** One sealed sandbox: internal network, proxy container, n8n volume. Every n8n command is its own `docker run --rm`. */
 export class SandboxSession {
   readonly id: string;
@@ -128,6 +141,30 @@ export class SandboxSession {
       await new Promise((r) => setTimeout(r, 300));
     }
     throw new Error('proxy did not produce a CA certificate within 30 s');
+  }
+
+  /**
+   * Checks that this sandbox cannot reach the outside before a workflow runs in it: the network is internal, the
+   * proxy sits on that network only, and a client in the n8n image without proxy settings cannot connect out.
+   * The proxy itself has no route out either, so every request is either answered by a rule or closed.
+   */
+  async verifySeal(): Promise<SealReport> {
+    const checks: SealCheck[] = [];
+    const internal = await docker(['network', 'inspect', '--format', '{{.Internal}}', this.network], { timeoutMs: 30_000 });
+    checks.push({ name: 'internal network', ok: internal.code === 0 && internal.stdout.trim() === 'true', detail: internal.code === 0 ? `${this.network} Internal=${internal.stdout.trim()}` : internal.stderr.trim() });
+    const nets = await docker(['inspect', '--format', '{{json .NetworkSettings.Networks}}', this.proxyName], { timeoutMs: 30_000 });
+    let attached: string[] = [];
+    try {
+      attached = Object.keys(JSON.parse(nets.stdout) as Record<string, unknown>);
+    } catch {
+      attached = [];
+    }
+    checks.push({ name: 'proxy networks', ok: attached.length === 1 && attached[0] === this.network, detail: attached.length ? attached.join(', ') : nets.stderr.trim() || 'none' });
+    const leak = await this.exec('wget', ['-T', '5', '-t', '1', '-qO-', 'https://example.com/'], { withProxy: false, timeoutMs: 30_000 });
+    checks.push({ name: 'direct connection without proxy', ok: leak.code !== 0, detail: leak.code !== 0 ? `refused (exit ${leak.code})` : 'reached example.com' });
+    const sealed = checks.every((c) => c.ok);
+    this.log(`sandbox ${this.id}: ${sealed ? 'sealed' : 'NOT sealed'} (${checks.map((c) => `${c.name}: ${c.detail}`).join('; ')})`);
+    return { sealed, network: this.network, checks };
   }
 
   /** Marks the capture context for the next command. */

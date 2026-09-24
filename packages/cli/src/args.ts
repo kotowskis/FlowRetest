@@ -34,3 +34,8 @@ export function formatList(value: string): PlanFormatName[] {
   if (unknown.length) throw new InvalidArgumentError(`unknown format ${unknown.join(', ')}; use ${PLAN_FORMATS.join(', ')}`);
   return formats as PlanFormatName[];
 }
+
+/** Collects a repeatable option (`--stub a=x.json --stub b=y.json`). */
+export function collect(value: string, previous: string[] = []): string[] {
+  return [...previous, value];
+}

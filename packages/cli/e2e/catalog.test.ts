@@ -67,18 +67,25 @@ interface Outcome {
   diff: CaseDiff;
   exitCode: number;
   logs: string[];
+  report: { cases: CaseDiff[]; sandbox?: { sealed: boolean }; coverage: { stubbed?: string[] } };
+  plan: string;
 }
 
-async function runCase(c: CatalogCase): Promise<Outcome> {
+async function runCase(c: CatalogCase, stubs: Record<string, unknown[]> = {}): Promise<Outcome> {
   const { cwd, newFile } = project(c);
   const logs: string[] = [];
+  const stubFlags = Object.entries(stubs).map(([node, items]) => {
+    const file = join(cwd, `stub-${Object.keys(stubs).indexOf(node)}.json`);
+    writeFileSync(file, JSON.stringify(items));
+    return `${node}=${file}`;
+  });
   // Case 01 is accepted afterwards, and accept needs a run that checked stability.
   const stabilize = c.stabilize === true || c.id.startsWith('01-');
-  const result = await runRun({ cwd, workflowId: WORKFLOW_ID, newFile, old: 'published', stabilize, formats: ['terminal', 'junit', 'md'], log: (l) => logs.push(l) });
-  const report = JSON.parse(readFileSync(result.reportPath, 'utf8')) as { cases: CaseDiff[] };
+  const result = await runRun({ cwd, workflowId: WORKFLOW_ID, newFile, old: 'published', stabilize, stubs: stubFlags, formats: ['terminal', 'junit', 'md'], log: (l) => logs.push(l) });
+  const report = JSON.parse(readFileSync(result.reportPath, 'utf8')) as Outcome['report'];
   assert.ok(existsSync(join(result.runDir, 'junit.xml')), `${c.id}: junit.xml`);
   assert.ok(existsSync(join(result.runDir, 'plan.md')), `${c.id}: plan.md`);
-  return { c, cwd, diff: report.cases[0] as CaseDiff, exitCode: result.exitCode, logs };
+  return { c, cwd, diff: report.cases[0] as CaseDiff, exitCode: result.exitCode, logs, report, plan: result.plan };
 }
 
 async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
@@ -100,12 +107,16 @@ test('catalogue cases produce the expected plan through `flowretest run`', { tim
   assert.equal(cases.length, Object.keys(EXPECT).length);
   const outcomes = await pool(cases, concurrency, runCase);
   try {
-    for (const { c, diff, exitCode, logs } of outcomes) {
+    for (const outcome of outcomes) {
+      const { c, diff, exitCode, logs } = outcome;
       const e = EXPECT[c.id];
       assert.ok(e, `unexpected case ${c.id}`);
       const context = `${c.id}\n${logs.join('\n')}`;
       console.log(`${c.id}: ${diff.status} ${JSON.stringify(diff.summary)}${diff.error ? ` ${diff.error}` : ''}`);
       assert.equal(diff.status, e.status, `${context}\nstatus`);
+      // Every run checks the seal before executing anything and records it.
+      assert.equal(outcome.report.sandbox?.sealed, true, `${c.id} sandbox seal`);
+      assert.match(outcome.plan, /sandbox sealed \(checked before the run\)/);
       assert.equal(exitCode, EXIT_FOR[e.status], `${c.id} exit code`);
       const flags = new Set(diff.entries.flatMap((x) => x.flags));
       for (const f of e.flags) assert.ok(flags.has(f), `${c.id} missing flag ${f}`);
@@ -121,6 +132,16 @@ test('catalogue cases produce the expected plan through `flowretest run`', { tim
     const againstBaseline = runDiff({ cwd: first.cwd, workflowId: WORKFLOW_ID, against: 'baseline', log: () => {} });
     assert.equal(againstBaseline.cases[0]?.status, 'PASS');
     assert.equal(againstBaseline.exitCode, EXIT_CODES.PASS);
+
+    // Case 14 is skipped for its new Postgres insert "Audit"; with a stub for it the case runs and passes.
+    const postgres = cases.find((c) => c.id.startsWith('14-')) as CatalogCase;
+    const stubbed = await runCase(postgres, { Audit: [{ id: 1 }, { id: 2 }] });
+    outcomes.push(stubbed);
+    assert.equal(stubbed.diff.status, 'PASS', stubbed.logs.join('\n'));
+    assert.equal(stubbed.exitCode, EXIT_CODES.PASS);
+    assert.ok((stubbed.diff.warnings ?? []).some((w) => w.startsWith('stub: "Audit"')), JSON.stringify(stubbed.diff.warnings));
+    assert.deepEqual(stubbed.report.coverage.stubbed, ['Audit']);
+    assert.equal(stubbed.diff.summary.newCalls, 2);
   } finally {
     for (const o of outcomes) if (o) rmSync(o.cwd, { recursive: true, force: true });
   }

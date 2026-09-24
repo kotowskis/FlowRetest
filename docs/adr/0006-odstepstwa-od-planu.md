@@ -24,7 +24,9 @@ Plan implementacji z 2026-09-23 opisuje narzędzia i flagi. Część z nich zmie
 
 ## Nie zrobione, nadal w planie
 
-`--stub` i `stubs.yml`, flagi globalne (`--json`, `--verbose`, `--no-color`, `--cwd`), `diff --format`, `sandbox export --compose`, sekcja "Engine differences" w `upgrade-check`, pola raportu `static` i `sandbox`, weryfikacja szczelności per przebieg (dziś `sealed: true` jest stałą, szczelność sprawdza `doctor`), eslint, c8 z progiem 80% i `npm audit` w CI, ręczne oczekiwania YAML z ADR 0005.
+Flagi globalne (`--json`, `--verbose`, `--no-color`, `--cwd`), `diff --format`, `sandbox export --compose`, sekcja "Engine differences" w `upgrade-check`, pole raportu `static`, eslint, c8 z progiem 80% i `npm audit` w CI, ręczne oczekiwania YAML z ADR 0005.
+
+Zrobione po audycie: `--stub` i `stubs.yml` (stub na poziomie węzła, także dla węzłów spoza HTTP; plan dopuszczał też regułę proxy `user-stub`, która dziś nie jest potrzebna) oraz sprawdzanie szczelności w każdym przebiegu z polem `sandbox` w raporcie.
 
 ## Skutki
 

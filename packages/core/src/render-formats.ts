@@ -77,7 +77,7 @@ export function renderMarkdown(report: PlanReport): string {
   head.push('');
   const cov = report.coverage;
   const pct = cov.writeNodesTotal === 0 ? 100 : Math.round((cov.writeNodesCaptured / cov.writeNodesTotal) * 100);
-  const foot = [`Coverage: ${cov.writeNodesCaptured} of ${cov.writeNodesTotal} write nodes captured (${pct}%), ${cov.replayedNodes} nodes replayed from recordings${cov.unsupported.length ? `, unsupported: ${cov.unsupported.join(', ')}` : ''}. ${report.sealed ? '0 requests left the sandbox.' : 'Sandbox seal not verified.'}`, `Engine ${report.engine.image}${report.engine.digest ? ` (${report.engine.digest.slice(0, 26)}…)` : ''}, old: ${report.oldLabel}, new: ${report.newLabel}, exit code ${exitCodeFor(status)}.`, ''];
+  const foot = [`Coverage: ${cov.writeNodesCaptured} of ${cov.writeNodesTotal} write nodes captured (${pct}%), ${cov.replayedNodes} nodes replayed from recordings${cov.unsupported.length ? `, unsupported: ${cov.unsupported.join(', ')}` : ''}${cov.stubbed?.length ? `, stubbed: ${cov.stubbed.join(', ')}` : ''}. ${report.sealed ? 'Sandbox sealed (checked before the run), 0 requests left it.' : 'Sandbox seal not verified.'}`, `Engine ${report.engine.image}${report.engine.digest ? ` (${report.engine.digest.slice(0, 26)}…)` : ''}, old: ${report.oldLabel}, new: ${report.newLabel}, exit code ${exitCodeFor(status)}.`, ''];
   const sections = report.cases.flatMap(caseSection);
   let body = [...head, ...sections, ...foot].join('\n');
   if (body.length > MARKDOWN_LIMIT) {

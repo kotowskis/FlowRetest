@@ -17,7 +17,9 @@ export interface RunReport {
   cases: CaseDiff[];
   mode?: 'change' | 'upgrade';
   calls: Record<string, { old: NormalizedCall[]; new: NormalizedCall[]; volatile: string[]; stable?: boolean }>;
-  coverage: { writeNodesTotal: number; writeNodesCaptured: number; replayedNodes: number; unsupported: string[] };
+  coverage: { writeNodesTotal: number; writeNodesCaptured: number; replayedNodes: number; unsupported: string[]; stubbed?: string[] };
+  /** Seal checks done before the run; absent in reports written before 0.3.0. */
+  sandbox?: { sealed: boolean; checks: Array<{ network: string; name: string; ok: boolean; detail: string }> };
 }
 
 export function runsDir(cwd: string, workflowId: string): string {

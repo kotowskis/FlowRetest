@@ -5,7 +5,7 @@ import { runDoctor } from './commands/doctor.ts';
 import { pruneSandboxes } from './sandbox/session.ts';
 import { defaultProxyImage } from './config.ts';
 import { describeError, exitCodeForError } from './errors.ts';
-import { byteSize, formatList, idList, positiveInt } from './args.ts';
+import { byteSize, collect, formatList, idList, positiveInt } from './args.ts';
 
 const program = new Command();
 // Commander exits with 1 on usage errors, and 1 means DIFF; errors are mapped to exit codes at the end of this file.
@@ -91,12 +91,13 @@ program
   .option('--old <choice>', 'recorded | published | <file>', 'recorded')
   .option('--cases <ids>', 'comma-separated execution ids to replay', idList)
   .option('--stabilize', 'run both versions twice and mask volatile fields; required before accept')
+  .option('--stub <node=file>', 'answer a node with the items in a JSON or YAML file instead of running or replaying it (repeatable; also .flowretest/<id>/stubs.yml)', collect, [])
   .option('--format <list>', 'comma-separated: terminal, json, junit, md (files land in the run directory)', formatList, ['terminal'])
   .option('--keep', 'keep the sandbox for inspection', false)
-  .action(async (opts: { workflow: string; new: string; old: string; cases?: string[]; stabilize?: boolean; format: Array<'terminal' | 'json' | 'junit' | 'md'>; keep: boolean }) => {
+  .action(async (opts: { workflow: string; new: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Array<'terminal' | 'json' | 'junit' | 'md'>; keep: boolean }) => {
     const { runRun } = await import('./commands/run.ts');
     const formats = opts.format;
-    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, formats, keep: opts.keep, log: (l) => console.log(l) });
+    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats, keep: opts.keep, log: (l) => console.log(l) });
     console.log('\n' + result.plan);
     console.log(`\nreport: ${result.reportPath}`);
     process.exit(result.exitCode);
@@ -111,12 +112,13 @@ program
   .option('--old <choice>', 'recorded | published | <file>', 'recorded')
   .option('--cases <ids>', 'comma-separated execution ids to replay', idList)
   .option('--stabilize', 'run both sides twice and mask volatile fields')
+  .option('--stub <node=file>', 'answer a node with the items in a JSON or YAML file (repeatable; also .flowretest/<id>/stubs.yml)', collect, [])
   .option('--format <list>', 'comma-separated: terminal, json, junit, md', formatList, ['terminal'])
   .option('--keep', 'keep the sandboxes for inspection', false)
-  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string[]; stabilize?: boolean; format: Array<'terminal' | 'json' | 'junit' | 'md'>; keep: boolean }) => {
+  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Array<'terminal' | 'json' | 'junit' | 'md'>; keep: boolean }) => {
     const { runRun } = await import('./commands/run.ts');
     const formats = opts.format;
-    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, formats, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log: (l) => console.log(l) });
+    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log: (l) => console.log(l) });
     console.log('\n' + result.plan);
     console.log(`\nreport: ${result.reportPath}`);
     process.exit(result.exitCode);
