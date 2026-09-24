@@ -187,5 +187,6 @@ export function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, what: stri
 
 /** JSON Schema (draft 2020-12) for one of the formats, for docs and editors. */
 export function jsonSchemaOf(name: keyof typeof ALL_SCHEMAS): Record<string, unknown> {
-  return z.toJSONSchema(ALL_SCHEMAS[name], { target: 'draft-2020-12', unrepresentable: 'any' }) as Record<string, unknown>;
+  // config.yml is written by people: fields with a default are optional there, so it is exported as an input schema.
+  return z.toJSONSchema(ALL_SCHEMAS[name], { target: 'draft-2020-12', unrepresentable: 'any', io: name === 'config' ? 'input' : 'output' }) as Record<string, unknown>;
 }

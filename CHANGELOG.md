@@ -32,6 +32,15 @@ All notable changes to this project are documented here. The format follows Keep
 - A disabled trigger that did not start the recording is removed like any other trigger; n8n's CLI would otherwise start from a disabled Execute Workflow Trigger.
 - An AI sub-node shared with a root that still runs (no recording) stays in the workflow; only its link to the replayed root is dropped.
 - `accept` notes that baselines hold request bodies; the README explains where to commit them.
+- `sandbox prune` keeps the volume and network of a sandbox whose proxy is still running; n8n commands run in named containers that are removed when the docker client times out.
+- The Edit Fields replay variant escapes braces inside string values and separates any run of structural braces, so `}}}` no longer ends the expression.
+- `replay-input-mismatch` warning when a replayed read node gets a different number of input items than recorded; recorded input counts follow the previous node's output and run.
+- A node named with the reserved `frt:` prefix makes the case ERROR with a clear message instead of colliding with the replay nodes.
+- Scanner: S013 catches expression URLs (`=http://localhost`), any 127.x address and `[::1]`; S008 catches `$env` in any expression.
+- JUnit output drops characters XML 1.0 does not allow.
+- Arguments: `--max-size 5mb`, positive `--last`, trimmed `--cases`, `--against` and `--format` checked against their choices; `accept` exits with 3 when it wrote no baseline; `spike` commands are hidden from `--help`.
+- Proxy image: base image pinned by digest, dependencies installed with `npm ci` from `packages/proxy/package-lock.json`, mockttp pinned exactly; `release-check` refuses a stale proxy lock.
+- `config.schema.json` is exported as an input schema, so fields with a default are optional in editors.
 - `release.yml` refuses a tag that differs from the package versions, picks the npm dist-tag from the version (a prerelease never goes to `latest`), writes the proxy digest into `proxy.lock.json` before publishing and stops when the package is private or the digest is missing.
 
 ## [0.3.0-next.1] - 2026-09-24

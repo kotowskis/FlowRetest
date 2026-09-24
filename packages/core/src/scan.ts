@@ -78,6 +78,9 @@ function usesItemAccess(text: string, target: string): boolean {
   return new RegExp(`\\$\\(\\s*['"]${escaped}['"]\\s*\\)\\.item\\b`).test(text) || new RegExp(`\\$node\\[\\s*['"]${escaped}['"]\\s*\\]\\.json`).test(text);
 }
 
+/** localhost, any 127.x address, 0.0.0.0 and [::1]. */
+const LOCAL_URL = /^https?:\/\/(localhost|127(?:\.\d{1,3}){3}|0\.0\.0\.0|\[::1\])([:/]|$)/i;
+
 /** Findings that concern one version on its own. */
 export function scanWorkflow(workflow: N8nWorkflow, classification: Classification): ScanResult {
   const findings: ScanFinding[] = [];
@@ -102,10 +105,12 @@ export function scanWorkflow(workflow: N8nWorkflow, classification: Classificati
     if (node.type === 'n8n-nodes-base.httpRequest') {
       const opts = (node.parameters.options ?? {}) as Record<string, unknown>;
       if (typeof opts.proxy === 'string' && opts.proxy.trim() !== '') findings.push({ rule: 'S006', severity: 'error', node: node.name, message: 'HTTP Request has its own Proxy option; it would bypass the sandbox and is treated as unsupported' });
-      const url = typeof node.parameters.url === 'string' ? node.parameters.url : '';
-      if (/^https?:\/\/(localhost|127\.0\.0\.1|0\.0\.0\.0)([:/]|$)/i.test(url)) findings.push({ rule: 'S013', severity: 'warn', node: node.name, message: `URL points at ${url.split('/')[2]}; inside the sandbox this bypasses the proxy and fails to connect` });
+      // Expressions are stored with a leading `=` (`=http://localhost:5678/...`), so strip it before matching.
+      const url = typeof node.parameters.url === 'string' ? node.parameters.url.replace(/^=\s*/, '') : '';
+      if (LOCAL_URL.test(url)) findings.push({ rule: 'S013', severity: 'warn', node: node.name, message: `URL points at ${url.split('/')[2]}; inside the sandbox this bypasses the proxy and fails to connect` });
     }
-    if (node.type === 'n8n-nodes-base.code' && /process\.env|\$env\b/.test(joined)) findings.push({ rule: 'S008', severity: 'warn', node: node.name, message: 'Code reads process.env or $env; the sandbox has no production environment (N8N_BLOCK_ENV_ACCESS_IN_NODE=true)' });
+    // $env works in any expression, not only in Code; the sandbox blocks it everywhere.
+    if (node.type === 'n8n-nodes-base.code' ? /process\.env|\$env\b/.test(joined) : /\{\{[^}]*\$env\b/.test(joined)) findings.push({ rule: 'S008', severity: 'warn', node: node.name, message: `${node.type === 'n8n-nodes-base.code' ? 'Code' : 'An expression'} reads process.env or $env; the sandbox has no production environment (N8N_BLOCK_ENV_ACCESS_IN_NODE=true)` });
     if (node.disabled) findings.push({ rule: 'S011', severity: 'info', node: node.name, message: 'node is disabled and passes data through' });
   }
   for (const u of classification.unsupportedOnPath) findings.push({ rule: 'S000', severity: 'error', node: u, message: `unsupported node on the execution path (${classification.notes[u] ?? 'no role table'}); cases reaching it are skipped` });

@@ -68,9 +68,15 @@ function replayNodeName(original: string): string {
   return `frt:replay:${original}`;
 }
 
-/** n8n ends an expression at the first `}}`, so JSON embedded in one must never contain that token. */
-function expressionSafeJson(value: unknown): string {
-  return JSON.stringify(value).replace(/\}\}/g, '} }').replace(/\{\{/g, '{ {');
+/**
+ * n8n ends an expression at the first `}}`, so JSON embedded in one must never contain `{{` or `}}`. Braces inside
+ * string values become \u007b / \u007d escapes (the JS literal still evaluates to the same text); consecutive
+ * structural braces get a space between them, as often as needed (`}}}` included).
+ */
+export function expressionSafeJson(value: unknown): string {
+  let out = JSON.stringify(value).replace(/"(?:[^"\\]|\\.)*"/g, (literal) => literal.replace(/\{/g, '\\u007b').replace(/\}/g, '\\u007d'));
+  while (/\}\}|\{\{/.test(out)) out = out.replace(/\}\}/g, '} }').replace(/\{\{/g, '{ {');
+  return out;
 }
 
 function normalisePaired(item: RecordedItem): RecordedItem {
@@ -154,6 +160,9 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
   const name = `frt/${options.version}/${options.caseId}`;
   const id = workflowId(name);
 
+  // The rewriter adds `frt:start` and `frt:replay:*` nodes; a user node with such a name would collide with them.
+  const reserved = workflow.nodes.find((n) => n.name.startsWith('frt:'));
+  if (reserved) throw new Error(`node "${reserved.name}" uses the reserved prefix "frt:"; rename it in the workflow`);
   const triggerName = fixture.trigger.node;
   if (!workflow.nodes.some((n) => n.name === triggerName)) {
     throw new Error(`trigger "${triggerName}" from the fixture does not exist in the workflow`);

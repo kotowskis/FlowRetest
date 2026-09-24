@@ -20,6 +20,13 @@ export interface SandboxOptions {
 }
 
 export const CA_CERT_FILE = 'flowretest-ca.pem';
+/** Exit code docker() reports when it killed the client on a timeout. */
+const TIMEOUT_EXIT = 124;
+
+/** `frt-1a2b3c4d` for any resource of that sandbox: `frt-1a2b3c4d-proxy`, `-n8n`, `-cmd-3` or the network itself. */
+export function sandboxOf(name: string): string {
+  return /^frt-[0-9a-f]+/.exec(name)?.[0] ?? name;
+}
 export const PROXY_PORT = 8080;
 
 /** `--user uid:gid` of the host user on Linux, where bind mounts keep host ownership; Docker Desktop maps it already. */
@@ -39,6 +46,7 @@ export class SandboxSession {
   private readonly envFile: string;
   private readonly caDir: string;
   private started = false;
+  private commands = 0;
 
   constructor(options: SandboxOptions) {
     this.options = options;
@@ -140,7 +148,7 @@ export class SandboxSession {
     // Commands such as list:workflow print through the n8n logger; `-e` after `--env-file` wins.
     if (options.consoleLog) dockerArgs.push('-e', 'N8N_LOG_OUTPUT=console', '-e', 'N8N_LOG_LEVEL=info', '-e', 'N8N_LOG_FORMAT=json');
     dockerArgs.push(this.options.n8nImage, ...args);
-    return docker(dockerArgs, { timeoutMs: options.timeoutMs ?? 180_000 });
+    return this.runCommand(dockerArgs, options.timeoutMs ?? 180_000);
   }
 
   /** Runs an arbitrary program inside the n8n image, bypassing the entrypoint (leak tests, log reads). */
@@ -152,7 +160,20 @@ export class SandboxSession {
     ];
     if (options.withProxy) dockerArgs.push('--env-file', this.envFile);
     dockerArgs.push(this.options.n8nImage, ...args);
-    return docker(dockerArgs, { timeoutMs: options.timeoutMs ?? 60_000 });
+    return this.runCommand(dockerArgs, options.timeoutMs ?? 60_000);
+  }
+
+  /**
+   * Runs one `docker run --rm` under a name of this sandbox. On a timeout only the docker client is killed (on Windows
+   * the signal does not reach the container), so the container is removed by name; `stop` removes any left over.
+   */
+  private async runCommand(dockerArgs: string[], timeoutMs: number): Promise<DockerResult> {
+    this.commands += 1;
+    const name = `${this.proxyName.replace(/-proxy$/, '')}-cmd-${this.commands}`;
+    const [run, ...rest] = dockerArgs;
+    const result = await docker([run as string, '--name', name, ...rest], { timeoutMs });
+    if (result.code === TIMEOUT_EXIT) await docker(['rm', '-f', name], { timeoutMs: 30_000 });
+    return result;
   }
 
   /** Writes a file into the work directory mounted read-only at /work. */
@@ -232,6 +253,8 @@ export class SandboxSession {
       return;
     }
     await docker(['rm', '-f', this.proxyName], { timeoutMs: 30_000 });
+    const commands = await docker(['ps', '-aq', '--filter', `name=^${this.network}-cmd-`], { timeoutMs: 30_000 });
+    for (const id of commands.stdout.split(/\s+/).filter(Boolean)) await docker(['rm', '-f', id], { timeoutMs: 30_000 });
     await docker(['volume', 'rm', '-f', this.volume], { timeoutMs: 30_000 });
     await docker(['network', 'rm', this.network], { timeoutMs: 30_000 });
     this.started = false;
@@ -247,6 +270,13 @@ export class SandboxSession {
 /** Removes leftover sandbox resources named `frt-*`. Running containers belong to a live run and are kept unless `force`. */
 export async function pruneSandboxes(log: (line: string) => void = () => {}, force = false): Promise<void> {
   const containers = await docker(['ps', '-a', '--filter', 'name=^frt-', '--format', '{{.ID}} {{.State}} {{.Names}}'], { timeoutMs: 30_000 });
+  // Between two n8n commands a live run has only its proxy running; its volume and network must stay too.
+  const live = new Set<string>();
+  for (const line of containers.stdout.split('\n').filter(Boolean)) {
+    const [, state, name] = line.split(' ');
+    if (state === 'running' && name) live.add(sandboxOf(name));
+  }
+  const keep = (name: string) => !force && live.has(sandboxOf(name));
   for (const line of containers.stdout.split('\n').filter(Boolean)) {
     const [id, state, name] = line.split(' ');
     if (state === 'running' && !force) {
@@ -258,12 +288,20 @@ export async function pruneSandboxes(log: (line: string) => void = () => {}, for
   }
   const volumes = await docker(['volume', 'ls', '-q', '--filter', 'name=^frt-'], { timeoutMs: 30_000 });
   for (const name of volumes.stdout.split(/\s+/).filter(Boolean)) {
+    if (keep(name)) {
+      log(`kept volume ${name} of a running sandbox`);
+      continue;
+    }
     await docker(['volume', 'rm', '-f', name], { timeoutMs: 30_000 });
     log(`removed volume ${name}`);
   }
-  const networks = await docker(['network', 'ls', '-q', '--filter', 'name=^frt-'], { timeoutMs: 30_000 });
-  for (const id of networks.stdout.split(/\s+/).filter(Boolean)) {
-    await docker(['network', 'rm', id], { timeoutMs: 30_000 });
-    log(`removed network ${id}`);
+  const networks = await docker(['network', 'ls', '--filter', 'name=^frt-', '--format', '{{.Name}}'], { timeoutMs: 30_000 });
+  for (const name of networks.stdout.split(/\s+/).filter(Boolean)) {
+    if (keep(name)) {
+      log(`kept network ${name} of a running sandbox`);
+      continue;
+    }
+    await docker(['network', 'rm', name], { timeoutMs: 30_000 });
+    log(`removed network ${name}`);
   }
 }

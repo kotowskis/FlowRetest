@@ -54,6 +54,11 @@ function checkPackage() {
   const bin = join(cliDir, 'dist', 'bin.js');
   if (!existsSync(bin) || !readFileSync(bin, 'utf8').startsWith('#!/usr/bin/env node')) fail('dist/bin.js is missing or has no shebang; run npm run build');
   for (const dep of Object.keys(pkg.dependencies ?? {})) if (dep.startsWith('@flowretest/')) fail(`${dep} is a dependency, but workspace packages are bundled and never published`);
+  // The proxy image installs from its own lock; one left behind after a dependency change would build a different image.
+  const proxyDir = join(root, 'packages', 'proxy');
+  const proxyDeps = readJson(join(proxyDir, 'package.json')).dependencies ?? {};
+  const lockedDeps = readJson(join(proxyDir, 'package-lock.json')).packages?.['']?.dependencies ?? {};
+  if (JSON.stringify(proxyDeps) !== JSON.stringify(lockedDeps)) fail('packages/proxy/package-lock.json is stale; run `npm install --package-lock-only` on a copy of packages/proxy/package.json and copy the lock back');
   console.log(`release-check: ${pkg.name}@${pkg.version} is ready, proxy ${lock.image}@${lock.digest}`);
 }
 

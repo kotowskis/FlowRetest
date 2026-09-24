@@ -1,10 +1,11 @@
 #!/usr/bin/env node
-import { Command, CommanderError } from 'commander';
+import { Command, CommanderError, Option } from 'commander';
 import { CLI_VERSION } from './index.ts';
 import { runDoctor } from './commands/doctor.ts';
 import { pruneSandboxes } from './sandbox/session.ts';
 import { defaultProxyImage } from './config.ts';
 import { describeError, exitCodeForError } from './errors.ts';
+import { byteSize, formatList, idList, positiveInt } from './args.ts';
 
 const program = new Command();
 // Commander exits with 1 on usage errors, and 1 means DIFF; errors are mapped to exit codes at the end of this file.
@@ -31,13 +32,13 @@ program
   .command('pull')
   .description('Fetch the published workflow and recent executions as fixtures.')
   .requiredOption('--workflow <id>', 'workflow id on the instance')
-  .option('--last <n>', 'number of successful executions to keep', '10')
+  .option('--last <n>', 'number of successful executions to keep', positiveInt, 10)
   .option('--since <date>', 'only executions started after this ISO date')
-  .option('--max-size <bytes>', 'skip fixtures larger than this', String(5 * 1024 * 1024))
+  .option('--max-size <size>', 'skip fixtures larger than this, e.g. 5mb or 5242880', byteSize, 5 * 1024 * 1024)
   .option('--include-errors', 'also pull failed executions', false)
-  .action(async (opts: { workflow: string; last: string; since?: string; maxSize: string; includeErrors: boolean }) => {
+  .action(async (opts: { workflow: string; last: number; since?: string; maxSize: number; includeErrors: boolean }) => {
     const { runPull } = await import('./commands/pull.ts');
-    await runPull({ cwd: process.cwd(), workflowId: opts.workflow, last: Number(opts.last), since: opts.since, maxSizeBytes: Number(opts.maxSize), includeErrors: opts.includeErrors, log: (l) => console.log(l) });
+    await runPull({ cwd: process.cwd(), workflowId: opts.workflow, last: opts.last, since: opts.since, maxSizeBytes: opts.maxSize, includeErrors: opts.includeErrors, log: (l) => console.log(l) });
   });
 
 program
@@ -58,11 +59,11 @@ program
   .description('Re-render a saved run, against the old version or against the accepted baselines.')
   .requiredOption('--workflow <id>', 'workflow id (as pulled)')
   .option('--run <stamp>', 'run directory name (default: latest)')
-  .option('--against <what>', 'old | baseline', 'old')
+  .addOption(new Option('--against <what>', 'compare with the old version or with the accepted baselines').choices(['old', 'baseline']).default('old'))
   .option('--json', 'machine-readable output', false)
   .action(async (opts: { workflow: string; run?: string; against: string; json: boolean }) => {
     const { runDiff } = await import('./commands/diff.ts');
-    const out = runDiff({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, against: opts.against === 'baseline' ? 'baseline' : 'old', json: opts.json, log: (l) => console.log(l) });
+    const out = runDiff({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, against: opts.against as 'old' | 'baseline', json: opts.json, log: (l) => console.log(l) });
     process.exit(out.exitCode);
   });
 
@@ -71,13 +72,15 @@ program
   .description("Store the new version's calls of a run as the accepted baseline per case (like jest -u).")
   .requiredOption('--workflow <id>', 'workflow id (as pulled)')
   .option('--run <stamp>', 'run directory name (default: latest)')
-  .option('--cases <ids>', 'comma-separated case ids to accept')
+  .option('--cases <ids>', 'comma-separated case ids to accept', idList)
   .option('--message <text>', 'why this change is intended')
   .option('--force', 'accept without a stability check', false)
-  .action(async (opts: { workflow: string; run?: string; cases?: string; message?: string; force: boolean }) => {
+  .action(async (opts: { workflow: string; run?: string; cases?: string[]; message?: string; force: boolean }) => {
     const { runAccept } = await import('./commands/accept.ts');
-    const written = runAccept({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, cases: opts.cases?.split(','), message: opts.message, force: opts.force, log: (l) => console.log(l) });
+    const written = runAccept({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, cases: opts.cases, message: opts.message, force: opts.force, log: (l) => console.log(l) });
     console.log(`${written.length} baseline${written.length === 1 ? '' : 's'} written`);
+    // Nothing accepted (unstable or unchecked cases) must not look like success in a script; 3 is "blocked".
+    if (written.length === 0) process.exit(3);
   });
 
 program
@@ -86,14 +89,14 @@ program
   .requiredOption('--workflow <id>', 'workflow id (as pulled)')
   .requiredOption('--new <file>', 'new workflow JSON')
   .option('--old <choice>', 'recorded | published | <file>', 'recorded')
-  .option('--cases <ids>', 'comma-separated execution ids to replay')
+  .option('--cases <ids>', 'comma-separated execution ids to replay', idList)
   .option('--stabilize', 'run both versions twice and mask volatile fields; required before accept')
-  .option('--format <list>', 'comma-separated: terminal, json, junit, md (files land in the run directory)', 'terminal')
+  .option('--format <list>', 'comma-separated: terminal, json, junit, md (files land in the run directory)', formatList, ['terminal'])
   .option('--keep', 'keep the sandbox for inspection', false)
-  .action(async (opts: { workflow: string; new: string; old: string; cases?: string; stabilize?: boolean; format: string; keep: boolean }) => {
+  .action(async (opts: { workflow: string; new: string; old: string; cases?: string[]; stabilize?: boolean; format: Array<'terminal' | 'json' | 'junit' | 'md'>; keep: boolean }) => {
     const { runRun } = await import('./commands/run.ts');
-    const formats = opts.format.split(',').map((f) => f.trim()) as Array<'terminal' | 'json' | 'junit' | 'md'>;
-    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases?.split(','), stabilize: opts.stabilize, formats, keep: opts.keep, log: (l) => console.log(l) });
+    const formats = opts.format;
+    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, formats, keep: opts.keep, log: (l) => console.log(l) });
     console.log('\n' + result.plan);
     console.log(`\nreport: ${result.reportPath}`);
     process.exit(result.exitCode);
@@ -106,14 +109,14 @@ program
   .requiredOption('--engine-old <tag>', 'current image tag, e.g. 2.40.5')
   .requiredOption('--engine-new <tag>', 'candidate image tag, e.g. 3.0.0')
   .option('--old <choice>', 'recorded | published | <file>', 'recorded')
-  .option('--cases <ids>', 'comma-separated execution ids to replay')
+  .option('--cases <ids>', 'comma-separated execution ids to replay', idList)
   .option('--stabilize', 'run both sides twice and mask volatile fields')
-  .option('--format <list>', 'comma-separated: terminal, json, junit, md', 'terminal')
+  .option('--format <list>', 'comma-separated: terminal, json, junit, md', formatList, ['terminal'])
   .option('--keep', 'keep the sandboxes for inspection', false)
-  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string; stabilize?: boolean; format: string; keep: boolean }) => {
+  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string[]; stabilize?: boolean; format: Array<'terminal' | 'json' | 'junit' | 'md'>; keep: boolean }) => {
     const { runRun } = await import('./commands/run.ts');
-    const formats = opts.format.split(',').map((f) => f.trim()) as Array<'terminal' | 'json' | 'junit' | 'md'>;
-    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases?.split(','), stabilize: opts.stabilize, formats, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log: (l) => console.log(l) });
+    const formats = opts.format;
+    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, formats, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log: (l) => console.log(l) });
     console.log('\n' + result.plan);
     console.log(`\nreport: ${result.reportPath}`);
     process.exit(result.exitCode);
@@ -129,7 +132,7 @@ program
   .action(async (opts: { workflow: string; out?: string; keepFields?: string; report?: string | boolean }) => {
     const { runRedact, runRedactReport } = await import('./commands/redact.ts');
     if (opts.report !== undefined) runRedactReport({ cwd: process.cwd(), workflowId: opts.workflow, run: typeof opts.report === 'string' ? opts.report : undefined, log: (l) => console.log(l) });
-    else runRedact({ cwd: process.cwd(), workflowId: opts.workflow, outDir: opts.out, keepFields: opts.keepFields?.split(','), log: (l) => console.log(l) });
+    else runRedact({ cwd: process.cwd(), workflowId: opts.workflow, outDir: opts.out, keepFields: opts.keepFields ? idList(opts.keepFields) : undefined, log: (l) => console.log(l) });
   });
 
 program
@@ -154,7 +157,7 @@ program
     process.exit(report.ok ? 0 : 4);
   });
 
-const spike = program.command('spike').description('Feasibility spike experiments (development only).');
+const spike = program.command('spike', { hidden: true }).description('Feasibility spike experiments (development only).');
 spike
   .command('day3')
   .description('Trigger substitution, replay variants, credential stubs, Code node, Respond to Webhook.')

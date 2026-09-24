@@ -18,8 +18,7 @@
       },
       "required": [
         "url"
-      ],
-      "additionalProperties": false
+      ]
     },
     "engine": {
       "type": "object",
@@ -47,11 +46,8 @@
         }
       },
       "required": [
-        "image",
-        "tag",
-        "timezone"
-      ],
-      "additionalProperties": false
+        "tag"
+      ]
     },
     "proxy": {
       "type": "object",
@@ -63,11 +59,7 @@
         "digest": {
           "type": "string"
         }
-      },
-      "required": [
-        "image"
-      ],
-      "additionalProperties": false
+      }
     },
     "normalize": {
       "type": "object",
@@ -85,11 +77,7 @@
             "type": "string"
           }
         }
-      },
-      "required": [
-        "ignore"
-      ],
-      "additionalProperties": false
+      }
     },
     "run": {
       "type": "object",
@@ -111,12 +99,7 @@
             "execute"
           ]
         }
-      },
-      "required": [
-        "timeoutSeconds",
-        "stabilize"
-      ],
-      "additionalProperties": false
+      }
     }
   },
   "required": [
@@ -126,6 +109,5 @@
     "proxy",
     "normalize",
     "run"
-  ],
-  "additionalProperties": false
+  ]
 }

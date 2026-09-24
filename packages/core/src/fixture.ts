@@ -47,7 +47,7 @@ interface RawRunDataEntry {
   executionTime?: number;
   executionStatus?: string;
   data?: { main?: Array<RecordedItem[] | null> };
-  source?: Array<{ previousNode?: string } | null>;
+  source?: Array<{ previousNode?: string; previousNodeOutput?: number; previousNodeRun?: number } | null>;
   error?: unknown;
 }
 
@@ -120,11 +120,30 @@ export function fixtureFromExecution(execution: RawExecution, workflow: N8nWorkf
   return fixture;
 }
 
+/** Items that entered this run: the output and run of the previous node named in `source`, like capture.inputCounts. */
 function inputCountOf(runData: Record<string, RawRunDataEntry[]>, _entries: RawRunDataEntry[], _index: number, entry: RawRunDataEntry): number | undefined {
-  const previous = entry.source?.[0]?.previousNode;
-  if (!previous) return undefined;
-  const prevRuns = runData[previous];
+  const src = entry.source?.[0];
+  if (!src?.previousNode) return undefined;
+  const prevRuns = runData[src.previousNode];
   if (!prevRuns || prevRuns.length === 0) return undefined;
-  const last = prevRuns[prevRuns.length - 1];
-  return last?.data?.main?.[0]?.length;
+  const prevRun = prevRuns[src.previousNodeRun ?? prevRuns.length - 1] ?? prevRuns[prevRuns.length - 1];
+  return prevRun?.data?.main?.[src.previousNodeOutput ?? 0]?.length ?? 0;
+}
+
+/**
+ * Plan 6.3 point 4: a read node is replayed with its recorded output even when the new version feeds it a different
+ * number of items (a filter moved in front of it, a loop that runs more often). The output is then stale, so the case
+ * gets a `replay-input-mismatch` warning with both counts.
+ */
+export function replayInputWarnings(fixture: Fixture, replayedNodes: string[], newInputCounts: Record<string, number>): string[] {
+  const warnings: string[] = [];
+  for (const node of replayedNodes) {
+    const runs = fixture.nodes[node]?.runs ?? [];
+    if (runs.length === 0 || runs.some((r) => r.inputCount === undefined)) continue;
+    const recorded = runs.reduce((sum, r) => sum + (r.inputCount ?? 0), 0);
+    const now = newInputCounts[node];
+    if (now === undefined || now === recorded) continue;
+    warnings.push(`replay-input-mismatch: "${node}" was recorded with ${recorded} input item${recorded === 1 ? '' : 's'} but got ${now} in this version; its recorded output was replayed unchanged`);
+  }
+  return warnings;
 }

@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  aiReplayWarnings, attributeRecord, attributeToNode, classify, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
+  aiReplayWarnings, replayInputWarnings, attributeRecord, attributeToNode, classify, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
   type CaptureRecord, type CaseDiff, type Fixture, type N8nWorkflow, type NormalizedCall, type PlanFormat, type PlanReport, type RunTimings,
 } from '@flowretest/core';
 import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules } from '@flowretest/services';
@@ -56,6 +56,8 @@ interface Prepared {
   skipped?: string;
   /** The workflow could not be prepared for this case (e.g. the recorded trigger was renamed); the case is ERROR. */
   failed?: string;
+  /** Read nodes replayed from the recording, for the replay-input-mismatch check. */
+  replayed?: string[];
 }
 
 function loadFixtures(dir: string, only?: string[]): Fixture[] {
@@ -259,7 +261,7 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
           replayedNodes += r.replaced.filter((x) => x.kind === 'read').length;
         }
         for (const w of r.warnings) options.log(`  case ${caseId} [${side}]: ${w}`);
-        prepared.push({ caseId, side, id: r.id, writeNodes });
+        prepared.push({ caseId, side, id: r.id, writeNodes, replayed: r.replaced.filter((x) => x.kind === 'read').map((x) => x.node) });
       }
     }
     const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -325,8 +327,8 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
         oldNodesRun: Object.keys(oldRun.runData),
         newNodesRun: Object.keys(newRun.runData),
       });
-      const ai = aiReplayWarnings(oldSide.workflow, newWorkflow);
-      if (ai.length) d.warnings = ai;
+      const warnings = [...aiReplayWarnings(oldSide.workflow, newWorkflow), ...replayInputWarnings(fixture, newP.replayed ?? [], inputCounts(newRun.runData))];
+      if (warnings.length) d.warnings = warnings;
       diffs.push(d);
       writeNodesCaptured += newP.writeNodes.filter((n) => newCalls.some((c) => c.node === n && !c.blocked)).length;
     }

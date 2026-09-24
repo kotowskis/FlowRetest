@@ -2,8 +2,11 @@ import type { CaseDiff, PlanEntry } from './diff.ts';
 import type { PlanReport } from './render.ts';
 import { exitCodeFor, overallStatus, renderPlan } from './render.ts';
 
-function xmlEscape(text: string): string {
-  return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+/** Characters XML 1.0 does not allow at all (control characters, lone surrogates, U+FFFE/FFFF); one would make strict JUnit parsers reject the whole file. */
+const XML_INVALID = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
+
+export function xmlEscape(text: string): string {
+  return text.replace(XML_INVALID, '\uFFFD').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 function entrySummary(e: PlanEntry): string {
