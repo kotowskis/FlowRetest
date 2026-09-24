@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { notFound } from 'next/navigation';
 import { getWorkflow } from '@/lib/data.ts';
 import type { RunSummary } from '@/lib/ingest.ts';
-import { Empty, PageHeader, Section, StatusBadge, Time } from '@/components/ui.tsx';
+import { AcceptanceList, Empty, PageHeader, Section, StatusBadge, Time } from '@/components/ui.tsx';
 
 export const metadata: Metadata = { title: 'Workflow runs' };
 
@@ -14,7 +14,7 @@ function changes(summary: RunSummary): string {
 
 export default async function WorkflowPage({ params }: { params: Promise<{ workspaceId: string; workflowId: string }> }) {
   const { workspaceId, workflowId } = await params;
-  const { workflow, workspace, org, runs } = await getWorkflow(workflowId);
+  const { workflow, workspace, org, runs, acceptances } = await getWorkflow(workflowId);
   if (workspace.id !== workspaceId) notFound();
   return (
     <>
@@ -62,6 +62,9 @@ export default async function WorkflowPage({ params }: { params: Promise<{ works
             </table>
           </div>
         )}
+      </Section>
+      <Section title="Acceptances" description="Who made which change the new baseline, and whether a runner has written it.">
+        <AcceptanceList rows={acceptances} showRun />
       </Section>
     </>
   );

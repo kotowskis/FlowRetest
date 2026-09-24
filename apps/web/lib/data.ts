@@ -11,6 +11,7 @@ export type Invitation = Tables<'invitations'>;
 export type Workspace = Tables<'workspaces'>;
 export type Workflow = Tables<'workflows'>;
 export type Run = Tables<'runs'>;
+export type Acceptance = Tables<'acceptances'>;
 export type TokenRow = Pick<Tables<'workspace_tokens'>, 'id' | 'name' | 'token_prefix' | 'created_at' | 'last_used_at' | 'revoked_at'>;
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -65,7 +66,7 @@ export async function getOrganization(orgId: string) {
 }
 
 export async function getWorkspace(workspaceId: string) {
-  const { db } = await session();
+  const { db, user } = await session();
   assertId(workspaceId);
   const workspace = orFail(await db.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(), 'workspace');
   const [org, tokens, workflows] = await Promise.all([
@@ -73,7 +74,9 @@ export async function getWorkspace(workspaceId: string) {
     db.from('workspace_tokens').select('id, name, token_prefix, created_at, last_used_at, revoked_at').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
     db.from('workflows').select('*').eq('workspace_id', workspaceId).order('last_run_at', { ascending: false, nullsFirst: false }),
   ]);
-  return { workspace, org: orFail(org, 'organization'), tokens: orFail(tokens, 'tokens') as TokenRow[], workflows: orFail(workflows, 'workflows') };
+  const subscription = await db.from('notification_subscriptions').select('statuses').eq('workspace_id', workspaceId).eq('user_id', user.id).maybeSingle();
+  if (subscription.error) throw new Error(`subscription: ${subscription.error.message}`);
+  return { workspace, org: orFail(org, 'organization'), tokens: orFail(tokens, 'tokens') as TokenRow[], workflows: orFail(workflows, 'workflows'), statuses: subscription.data?.statuses ?? [] };
 }
 
 /** Run list columns: everything but the report itself, which can be megabytes. */
@@ -84,26 +87,28 @@ export async function getWorkflow(workflowId: string, limit = 100) {
   const { db } = await session();
   assertId(workflowId);
   const workflow = orFail(await db.from('workflows').select('*').eq('id', workflowId).maybeSingle(), 'workflow');
-  const [workspace, runs] = await Promise.all([
+  const [workspace, runs, acceptances] = await Promise.all([
     db.from('workspaces').select('*').eq('id', workflow.workspace_id).single(),
     db.from('runs').select(RUN_COLUMNS).eq('workflow_id', workflowId).order('created_at', { ascending: false }).limit(limit),
+    db.from('acceptances').select('*').eq('workflow_id', workflowId).order('created_at', { ascending: false }).limit(limit),
   ]);
   const ws = orFail(workspace, 'workspace');
   const org = orFail(await db.from('organizations').select('*').eq('id', ws.organization_id).single(), 'organization');
-  return { workflow, workspace: ws, org, runs: orFail(runs, 'runs') as RunListItem[] };
+  return { workflow, workspace: ws, org, runs: orFail(runs, 'runs') as RunListItem[], acceptances: orFail(acceptances, 'acceptances') };
 }
 
 export async function getRun(runId: string) {
   const { db } = await session();
   assertId(runId);
   const run = orFail(await db.from('runs').select('*').eq('id', runId).maybeSingle(), 'run');
-  const [workflow, workspace, neighbours] = await Promise.all([
+  const [workflow, workspace, neighbours, acceptances] = await Promise.all([
     db.from('workflows').select('*').eq('id', run.workflow_id).single(),
     db.from('workspaces').select('*').eq('id', run.workspace_id).single(),
     // The run before this one, for the "previous run" link in the header.
     db.from('runs').select('id, status, created_at').eq('workflow_id', run.workflow_id).lt('created_at', run.created_at).order('created_at', { ascending: false }).limit(1),
+    db.from('acceptances').select('*').eq('run_id', run.id).order('created_at', { ascending: false }),
   ]);
   const ws = orFail(workspace, 'workspace');
   const org = orFail(await db.from('organizations').select('*').eq('id', ws.organization_id).single(), 'organization');
-  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0] };
+  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances') };
 }

@@ -32,7 +32,9 @@ export function runRedactReport(options: { cwd: string; workflowId: string; run?
   const redacted = redactPlanReport(plan);
   const runPath = join(workflowDir(options.cwd, options.workflowId), 'runs', run);
   const path = join(runPath, 'report.redacted.json');
-  writeFileSync(path, JSON.stringify({ schemaVersion: 1, generatedAt: report.generatedAt, redacted: true, run, ...redacted }, null, 2));
+  // Stability decides whether the hosted layer offers a case for acceptance, as `accept` does without --force.
+  const stability = Object.fromEntries(Object.entries(report.calls).flatMap(([caseId, c]) => (c.stable === undefined ? [] : [[caseId, c.stable]])));
+  writeFileSync(path, JSON.stringify({ schemaVersion: 1, generatedAt: report.generatedAt, redacted: true, run, stability, ...redacted }, null, 2));
   // The Markdown plan of the redacted report is what the GitHub Action posts on a pull request by default.
   writeFileSync(join(runPath, 'plan.redacted.md'), renderFormat(redacted, 'md') + '\n');
   options.log(`redacted report for run ${run}: ${path} and plan.redacted.md (values replaced by type, length and hash; paths, counts and flags kept)`);

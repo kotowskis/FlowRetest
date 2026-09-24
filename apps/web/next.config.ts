@@ -27,6 +27,10 @@ const securityHeaders = [
 
 const nextConfig: NextConfig = {
   poweredByHeader: false,
+  // The app runs on 127.0.0.1 (APP_URL, Supabase redirect URLs). Next dev serves HMR only to localhost unless the
+  // origin is listed; without HMR the page never hydrated, forms went out as native POSTs, and the HMR client's
+  // periodic full reloads sent them again (seven tokens from one Enter).
+  allowedDevOrigins: ['127.0.0.1'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

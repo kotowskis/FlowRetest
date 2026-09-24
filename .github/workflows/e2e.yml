@@ -12,6 +12,8 @@ on:
 jobs:
   catalog:
     runs-on: ubuntu-latest
+    # A healthy run takes 7 to 9 minutes; a hung docker call must fail the job instead of holding it for hours.
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -23,7 +25,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      - run: npm run build
+      # Only the CLI and what it bundles; the hosted layer (apps/web) is built in ci.yml.
+      - run: npx turbo build --filter=flowretest
       - run: docker build -t flowretest-proxy:dev packages/proxy
       - run: docker pull n8nio/n8n:${{ matrix.engine }}
       - run: node packages/cli/dist/bin.js doctor --engine ${{ matrix.engine }}

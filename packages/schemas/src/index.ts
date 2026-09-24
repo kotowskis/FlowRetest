@@ -189,6 +189,8 @@ export const RedactedReportSchema = z.object({
   upgrade: z.object({ engineOld: z.string(), engineNew: z.string() }).optional(),
   /** Run directory name on the runner's machine, to find the full local report from the hosted one. */
   run: z.string().optional(),
+  /** Per case: true when `run --stabilize` found the new version identical across two runs. Absent: not checked. */
+  stability: z.record(z.string(), z.boolean()).optional(),
 });
 export type RedactedReport = z.infer<typeof RedactedReportSchema>;
 

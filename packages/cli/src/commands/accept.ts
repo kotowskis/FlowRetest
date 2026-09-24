@@ -11,6 +11,8 @@ export interface AcceptOptions {
   message?: string;
   /** Accept even when the run did not prove the new version stable across two runs. */
   force?: boolean;
+  /** Who accepted; default the OS user. `sync` passes the email of the person who accepted in the hosted layer. */
+  acceptedBy?: string;
   log: (line: string) => void;
 }
 
@@ -41,7 +43,7 @@ export function runAccept(options: AcceptOptions): string[] {
     }
     const baseline = toBaseline(c.caseId, calls.new, {
       acceptedAt: new Date().toISOString(),
-      acceptedBy: process.env.USERNAME ?? process.env.USER,
+      acceptedBy: options.acceptedBy ?? process.env.USERNAME ?? process.env.USER,
       message: options.message,
       engineDigest: report.engine.digest,
       runnerVersion: CLI_VERSION,

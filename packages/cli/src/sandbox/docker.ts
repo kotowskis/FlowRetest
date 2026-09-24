@@ -36,6 +36,10 @@ export function docker(args: string[], options: DockerRunOptions = {}): Promise<
       ? setTimeout(() => {
           timedOut = true;
           child.kill();
+          // A docker client that ignores SIGTERM would keep the promise, and the whole run, waiting forever.
+          setTimeout(() => {
+            if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+          }, 10_000).unref();
         }, options.timeoutMs)
       : undefined;
     child.stdout.setEncoding('utf8').on('data', (chunk: string) => (stdout += chunk));

@@ -8,6 +8,8 @@ import { generateToken } from '@/lib/tokens.ts';
 
 export interface FormState {
   error?: string;
+  /** A short confirmation shown next to the form. */
+  ok?: string;
   /** A new workspace token, shown once. */
   token?: string;
   done?: number;
@@ -98,5 +100,33 @@ export async function revokeToken(form: FormData): Promise<void> {
   const input = z.object({ workspaceId: Id, tokenId: Id }).parse(Object.fromEntries(form));
   const { db } = await session();
   await db.from('workspace_tokens').update({ revoked_at: new Date().toISOString() }).eq('id', input.tokenId).is('revoked_at', null);
+  revalidatePath(`/w/${input.workspaceId}`);
+}
+
+const CaseId = z.string().min(1).max(200);
+
+/** Records an acceptance; the runner that has the accepted run writes the baselines at its next `pull` or `sync`. */
+export async function acceptRun(_prev: FormState, form: FormData): Promise<FormState> {
+  const input = z
+    .object({ runId: Id, cases: z.array(CaseId).min(1, 'Choose at least one case.').max(500), message: z.string().trim().max(2000, 'Keep the message under 2000 characters.') })
+    .safeParse({ runId: form.get('runId'), cases: form.getAll('case'), message: form.get('message') ?? '' });
+  if (!input.success) return { error: firstIssue(input.error) };
+  const { db } = await session();
+  const { error } = await db.rpc('accept_run', { p_run_id: input.data.runId, p_case_ids: input.data.cases, p_message: input.data.message });
+  // accept_run raises 22023 with a sentence meant for people (unstable case, wrong status).
+  if (error) return { error: error.code === '22023' ? `${error.message.charAt(0).toUpperCase()}${error.message.slice(1)}.` : 'Could not record the acceptance.' };
+  revalidatePath(`/runs/${input.data.runId}`);
+  return { done: Date.now(), ok: `Accepted ${input.data.cases.length} case${input.data.cases.length === 1 ? '' : 's'}.` };
+}
+
+const STATUSES = ['PASS', 'DIFF', 'ERROR', 'BLOCKED'] as const;
+
+/** The signed-in member's email notifications for one workspace; no status ticked means no emails. */
+export async function setSubscription(form: FormData): Promise<void> {
+  const input = z.object({ workspaceId: Id, statuses: z.array(z.enum(STATUSES)) }).parse({ workspaceId: form.get('workspaceId'), statuses: form.getAll('status') });
+  const { db, user } = await session();
+  // Delete and insert instead of upsert: members may update only `statuses`, and an upsert writes every column.
+  await db.from('notification_subscriptions').delete().eq('workspace_id', input.workspaceId).eq('user_id', user.id);
+  if (input.statuses.length > 0) await db.from('notification_subscriptions').insert({ workspace_id: input.workspaceId, user_id: user.id, statuses: input.statuses });
   revalidatePath(`/w/${input.workspaceId}`);
 }

@@ -165,3 +165,23 @@ Błędy znalezione w trakcie:
 - `run --upload` na Windows kończył się kodem 127 z asercją libuv (`process.exit` tuż po `fetch`); teraz kod planu przechodzi przez `process.exitCode`.
 
 Do decyzji założyciela: domena warstwy płatnej (od niej zależy domyślny `cloud.url`), projekt Supabase w chmurze i region (dane agencji z UE), dostawca maili do logowania na produkcji (lokalnie Mailpit).
+
+## Tydzień 10: akceptacje, synchronizacja baseline'u, powiadomienia (2026-09-24)
+
+Zakres z planu (sekcja 11, tydzień 10). Decyzje są w ADR 0008. Najważniejsza: aplikacja zapisuje decyzję o akceptacji, a baseline pisze runner z pełnego lokalnego raportu, bo baseline zawiera wartości klientów, a aplikacja ma tylko raport po redakcji.
+
+Zrobione:
+
+- migracja `20261130000000_acceptances_notifications.sql`: `acceptances`, `notification_subscriptions`, `notification_log`; funkcje `accept_run` (sprawdza status i stabilność przypadku w zapisanym raporcie), `pending_acceptances`, `mark_acceptance_applied`, `run_recipients`;
+- widok przebiegu: formularz akceptacji (tylko stabilne przypadki PASS i DIFF, komunikat), historia akceptacji przebiegu; widok workflow: historia akceptacji ze stanem zastosowania; workspace: subskrypcja maili o wybranych statusach;
+- `GET /api/acceptances?workflow=` i `POST /api/acceptances/<id>/applied` dla runnera, ta sama autoryzacja tokenem co upload;
+- maile po uploadzie przez `after` z `next/server`; transport ze środowiska (Resend, Mailpit albo log), dostawca produkcyjny nadal otwarty;
+- CLI: `flowretest sync`, `sync` na końcu `pull` (`--no-sync`), `accept` przyjmuje autora z aplikacji, raport po redakcji ma `stability`; wspólny klient `packages/cli/src/cloud.ts`.
+
+Sprawdzone na żywo: subskrypcja DIFF z UI, `run --stabilize --upload` przypadku katalogu 01 (kod 1), mail "[FlowRetest] DIFF: case01 (Customer A)" w Mailpicie, akceptacja w przeglądarce z komunikatem, `sync` zapisał baseline z adresem akceptującego i komunikatem, drugi `sync` nie znalazł nic do zrobienia, `diff --against baseline` dał PASS, historia w aplikacji pokazuje zapisany baseline. Testy: 7 jednostkowych i 10 integracyjnych w `apps/web`, 2 nowe w CLI.
+
+Błąd znaleziony w trakcie, który tłumaczy też "pięć tokenów" z tygodnia 9: Next 16 w trybie dev nie podaje HMR originowi `127.0.0.1`, jeśli nie ma go w `allowedDevOrigins`. Strona się nie hydratowała, formularze szły natywnym POST-em, a klient HMR co około minutę przeładowywał stronę i wysyłał formularz ponownie. Blokada przycisków do hydratacji z tygodnia 9 zatrzymała nowe duplikaty, ale nie przyczynę; teraz `next.config.ts` dopuszcza `127.0.0.1`.
+
+CI po tygodniu 9: job `web` padł na pierwszym przebiegu, bo skrypt typów bazy uruchamiał `supabase` z katalogu głównego repozytorium; po poprawce zielone wszystkie joby `ci`.
+
+E2E commita tygodnia 9 na 2.40.5 wisiało ponad 20 minut (zwykle 7 do 9) i zostało anulowane; przy sprzątaniu runner zabił wiszący proces `docker`. Ten sam kod w następnym commicie przeszedł e2e w 8 minut, więc to raczej zawieszenie po stronie runnera niż regresja. Logów nie ma, bo `node --test` wypisuje wynik pliku dopiero na końcu. Zabezpieczenia: klient `docker`, który po limicie czasu nie zakończy się po SIGTERM, dostaje po 10 s SIGKILL; job e2e ma `timeout-minutes: 30`; e2e i wydanie budują tylko CLI (`turbo build --filter=flowretest`), bo pełny build z `apps/web` wydłużał każdy job o 4,5 minuty.

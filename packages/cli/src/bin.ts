@@ -76,10 +76,22 @@ program
   .option('--since <date>', 'only executions started after this ISO date')
   .option('--max-size <size>', 'skip fixtures larger than this, e.g. 5mb or 5242880', byteSize, 5 * 1024 * 1024)
   .option('--include-errors', 'also pull failed executions', false)
-  .action(async (opts: { workflow: string; last: number; since?: string; maxSize: number; includeErrors: boolean }) => {
+  .option('--no-sync', 'do not write baselines for acceptances made in the hosted layer')
+  .action(async (opts: { workflow: string; last: number; since?: string; maxSize: number; includeErrors: boolean; sync: boolean }) => {
     const { runPull } = await import('./commands/pull.ts');
     const out = await runPull({ cwd: process.cwd(), workflowId: opts.workflow, last: opts.last, since: opts.since, maxSizeBytes: opts.maxSize, includeErrors: opts.includeErrors, log });
-    emit({ dir: out.dir, fixtures: out.fixtures, skipped: out.skipped });
+    let synced: unknown;
+    const { cloudConfigured } = await import('./cloud.ts');
+    if (opts.sync && cloudConfigured(process.cwd())) {
+      const { runSync } = await import('./commands/sync.ts');
+      // The fixtures are already saved; an unreachable hosted layer is a warning here, not a failed pull.
+      try {
+        synced = await runSync({ cwd: process.cwd(), workflowId: opts.workflow, log });
+      } catch (e) {
+        log(`sync with the hosted layer skipped: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    emit({ dir: out.dir, fixtures: out.fixtures, skipped: out.skipped, sync: synced });
   });
 
 program
@@ -184,6 +196,17 @@ program
   .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Formats; keep: boolean; upload: boolean; url?: string }) => {
     const { runRun } = await import('./commands/run.ts');
     await emitRun(await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats: opts.format, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log }), opts.upload ? { workflowId: opts.workflow, url: opts.url } : undefined);
+  });
+
+program
+  .command('sync')
+  .description('Write baselines for acceptances made in the hosted layer, from the full local report of the accepted run.')
+  .requiredOption('--workflow <id>', 'workflow id (as pulled)')
+  .option('--url <url>', 'hosted layer URL (default: FLOWRETEST_URL or cloud.url in config.yml)')
+  .action(async (opts: { workflow: string; url?: string }) => {
+    const { runSync } = await import('./commands/sync.ts');
+    const result = await runSync({ cwd: process.cwd(), workflowId: opts.workflow, url: opts.url, log });
+    emit(result);
   });
 
 program

@@ -24,7 +24,8 @@ jobs:
         run: node scripts/release-check.mjs version "$GITHUB_REF_NAME"
       - run: npm ci
       - run: npm run verify
-      - run: npm run build
+      # The npm package only; the hosted layer is not released from here.
+      - run: npx turbo build --filter=flowretest
       - name: Proxy image to GHCR and proxy.lock.json
         env:
           VERSION: ${{ steps.version.outputs.version }}

@@ -582,6 +582,15 @@
     },
     "run": {
       "type": "string"
+    },
+    "stability": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "boolean"
+      }
     }
   },
   "required": [

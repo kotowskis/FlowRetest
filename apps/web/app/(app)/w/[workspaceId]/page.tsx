@@ -3,14 +3,14 @@ import Link from 'next/link';
 import { getWorkspace } from '@/lib/data.ts';
 import { env } from '@/lib/env.ts';
 import { TokenForm } from '@/components/forms.tsx';
-import { Empty, PageHeader, Section, StatusBadge, Time, quietButtonClass } from '@/components/ui.tsx';
-import { createToken, revokeToken } from '../../actions.ts';
+import { Empty, PageHeader, Section, StatusBadge, Time, buttonClass, quietButtonClass } from '@/components/ui.tsx';
+import { createToken, revokeToken, setSubscription } from '../../actions.ts';
 
 export const metadata: Metadata = { title: 'Workspace' };
 
 export default async function WorkspacePage({ params }: { params: Promise<{ workspaceId: string }> }) {
   const { workspaceId } = await params;
-  const { workspace, org, tokens, workflows } = await getWorkspace(workspaceId);
+  const { workspace, org, tokens, workflows, statuses } = await getWorkspace(workspaceId);
   const subtitle = [workspace.instance_host, workspace.engine_tag && `n8n ${workspace.engine_tag}`].filter(Boolean).join(' · ');
   return (
     <>
@@ -50,6 +50,22 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
           </div>
         )}
       </Section>
+
+      <div id="notifications">
+        <Section title="Email notifications" description="Your own address only. Each email has the status, counts and a link to the plan; no values.">
+          <form action={setSubscription} className="flex flex-wrap items-center gap-4 text-sm">
+            <input type="hidden" name="workspaceId" value={workspace.id} />
+            <span className="text-muted">Email me about runs with status</span>
+            {(['DIFF', 'ERROR', 'BLOCKED', 'PASS'] as const).map((s) => (
+              <label key={s} className="flex items-center gap-1 font-mono text-xs">
+                <input type="checkbox" name="status" value={s} defaultChecked={statuses.includes(s)} />
+                {s}
+              </label>
+            ))}
+            <button className={buttonClass}>Save</button>
+          </form>
+        </Section>
+      </div>
 
       <Section title="Tokens" description="FLOWRETEST_TOKEN for this workspace. The CLI sends only the redacted report; fixtures and the full report stay on the machine that ran it.">
         <TokenForm action={createToken} workspaceId={workspace.id} appUrl={env.appUrl()} />

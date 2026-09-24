@@ -61,3 +61,54 @@ export function Empty({ children }: { children: React.ReactNode }) {
 export const inputClass = 'rounded-md border border-line px-3 py-2 text-sm';
 export const buttonClass = 'rounded-md bg-accent px-3 py-2 text-sm font-medium text-on-accent disabled:opacity-60';
 export const quietButtonClass = 'rounded-md border border-line px-2 py-1 text-xs text-muted hover:text-ink';
+
+export interface AcceptanceRow {
+  id: string;
+  created_at: string;
+  accepted_by_email: string;
+  case_ids: string[];
+  message: string | null;
+  applied_at: string | null;
+  applied_cases: string[] | null;
+  applied_note: string | null;
+  local_run: string | null;
+  run_id: string | null;
+}
+
+/** Acceptance history: who accepted which cases and why, and whether a runner has written the baselines yet. */
+export function AcceptanceList({ rows, showRun }: { rows: AcceptanceRow[]; showRun?: boolean }) {
+  if (rows.length === 0) return <Empty>No acceptances yet.</Empty>;
+  return (
+    <ul className="divide-y divide-line rounded-md border border-line bg-panel">
+      {rows.map((a) => {
+        const partial = a.applied_at && (a.applied_cases?.length ?? 0) < a.case_ids.length;
+        return (
+          <li key={a.id} className="space-y-1 px-4 py-3 text-sm">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <span>
+                <span className="font-medium">{a.accepted_by_email || 'unknown'}</span> accepted <span className="font-mono text-xs">case {a.case_ids.join(', ')}</span>
+                {showRun && a.run_id ? (
+                  <>
+                    {' '}from <Link href={`/runs/${a.run_id}`} className="hover:underline">this run</Link>
+                  </>
+                ) : null}
+              </span>
+              <span className="text-xs text-muted"><Time value={a.created_at} /></span>
+            </div>
+            {a.message ? <p className="text-muted">“{a.message}”</p> : null}
+            <p className={`text-xs ${a.applied_at ? (partial ? 'text-diff' : 'text-pass') : 'text-muted'}`}>
+              {a.applied_at ? (
+                <>
+                  baselines written for {a.applied_cases?.length ? `case ${a.applied_cases.join(', ')}` : 'no case'} on <Time value={a.applied_at} />
+                  {a.applied_note ? <span className="block whitespace-pre-line text-muted">{a.applied_note}</span> : null}
+                </>
+              ) : (
+                <>waiting for <code className="font-mono">flowretest pull</code> or <code className="font-mono">sync</code> on the machine with run {a.local_run ? <code className="font-mono">{a.local_run}</code> : '(unknown)'}</>
+              )}
+            </p>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}

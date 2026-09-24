@@ -3,15 +3,23 @@ import Link from 'next/link';
 import type { PlanReport } from '@flowretest/core';
 import { getRun } from '@/lib/data.ts';
 import { ReportView } from '@/components/report-view.tsx';
-import { PageHeader, StatusBadge, Time } from '@/components/ui.tsx';
+import { AcceptanceList, PageHeader, Section, StatusBadge, Time } from '@/components/ui.tsx';
+import { AcceptForm, type AcceptableCase } from '@/components/acceptance.tsx';
+import { acceptRun } from '../../actions.ts';
 
 export const metadata: Metadata = { title: 'Run' };
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
-  const { run, workflow, workspace, org, previous } = await getRun(runId);
+  const { run, workflow, workspace, org, previous, acceptances } = await getRun(runId);
   // Stored as uploaded after RedactedReportSchema validation; it has every field the plan renderer reads.
-  const report = run.report as unknown as PlanReport;
+  const report = run.report as unknown as PlanReport & { stability?: Record<string, boolean> };
+  // The same rule as `flowretest accept` without --force; accept_run checks it again on the server.
+  const cases: AcceptableCase[] = report.cases.map((c) => ({
+    caseId: c.caseId,
+    status: c.status,
+    blocked: c.status !== 'PASS' && c.status !== 'DIFF' ? 'only PASS and DIFF cases' : report.stability?.[c.caseId] === true ? undefined : report.stability?.[c.caseId] === false ? 'differs between two runs; mask the changing fields first' : 'not checked for stability: run with --stabilize and upload again',
+  }));
   return (
     <>
       <PageHeader
@@ -49,6 +57,16 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
         <dd><Time value={run.created_at} /></dd>
       </dl>
       <ReportView report={report} />
+      <div className="mt-10">
+        <Section title="Accept" description="Makes the new version's calls of these cases the baseline that later runs are compared with.">
+          <AcceptForm action={acceptRun} runId={run.id} cases={cases} localRun={run.local_run} />
+        </Section>
+        {acceptances.length > 0 ? (
+          <Section title="Acceptances of this run">
+            <AcceptanceList rows={acceptances} />
+          </Section>
+        ) : null}
+      </div>
       <p className="mt-10 text-xs text-muted">
         Values appear as shapes: type, length and a hash that is equal only for equal values inside this report. The full report stays on the machine that ran it
         {run.local_run ? <> (<code className="font-mono">.flowretest/{workflow.n8n_workflow_id}/runs/{run.local_run}/report.json</code>)</> : null}.
