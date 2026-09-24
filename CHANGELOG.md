@@ -10,6 +10,18 @@ All notable changes to this project are documented here. The format follows Keep
 - A case skipped for an unsupported node on its path makes the run BLOCKED (exit code 3) instead of PASS.
 - The npm package is publishable: the workspace packages are bundled into `dist/bin.js` with esbuild, `private` is gone, `bin` is `dist/bin.js`, `proxy.lock.json` ships with the package, `engines` is `>=22.12` (commander 15).
 - `doctor` defaults to the proxy image from `proxy.lock.json` instead of `flowretest-proxy:dev`.
+- The diff compares the concrete URL path (`@path`): a call to another record id is a change. Generated segments (uuids, timestamps) are still placeholders.
+- Bodies over the proxy's storage limit are compared by size and hash instead of passing as equal; a body in an encoding the proxy cannot decode keeps its raw bytes.
+- A changed media type (`@contentType`), repeated query or form keys (`?tag[1]`) and integers beyond 2^53 are no longer invisible.
+- Placeholders no longer swallow real values: a bare date stays a value, and a 10 or 13 digit number is `<epoch>` only under a time-like key or near the request time (Telegram `chat_id` and numeric CRM ids are compared).
+- Volatile fields found by `--stabilize` are scoped to one call key (`<key> :: <path>`), cover query parameters and the path, and handle keys containing dots. Baselines are re-hashed on load.
+- HTTP Request v1 and v2 keep the verb in `requestMethod`; a POST there is a write, not a replayed read.
+- A left-out resource or operation of an app node means the n8n default of that node version (Postgres and MySQL insert, Google Sheets read, Airtable get, HubSpot v1 deal) instead of the first table entry. Role tables cover the operations of n8n 2.40.5 (Slack `user.info`, `lookupByEmail`, Notion v3 markdown and data sources, HubSpot forms, Airtable v1).
+- Vector store nodes in insert or update mode are unsupported (case skipped) instead of silently replayed.
+- `diff --against baseline` reports a case without a baseline as ERROR.
+- `{{seq}}` in proxy rules counts calls per endpoint (method, host, path) and per version instead of one counter shared by both versions, so the n-th call to an endpoint gets the same id in the old and the new version; one response renders one value.
+- The `X-FlowRetest-Node` header percent-encodes the node name; names with Polish letters no longer fail the request. A line break in a node name can no longer inject code into the replay node.
+- Schemas: `pathValue`, multi-value query parameters and `multipart[].contentType` in reports and baselines.
 - `release.yml` refuses a tag that differs from the package versions, picks the npm dist-tag from the version (a prerelease never goes to `latest`), writes the proxy digest into `proxy.lock.json` before publishing and stops when the package is private or the digest is missing.
 
 ## [0.3.0-next.1] - 2026-09-24

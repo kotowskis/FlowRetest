@@ -4,6 +4,7 @@
  * file; the proxy only evaluates it, so everything derived from a recording
  * (for example a sheet header row) is precomputed by the CLI.
  */
+import { createHash } from 'node:crypto';
 
 export interface RuleMatch {
   /** Exact host (case-insensitive) or a regular expression source when it starts with `^`. */
@@ -43,6 +44,10 @@ export interface RequestSummary {
   host: string;
   path: string;
   bodyJson?: unknown;
+  /** Raw body text, when the rules need more than the parsed JSON. */
+  bodyText?: string;
+  /** Replayed version (old, new, old2, ...); `{{seq}}` numbers repeat per version. */
+  scope?: string;
 }
 
 export interface RenderedResponse {
@@ -56,15 +61,27 @@ export type RuleDecision =
   | { kind: 'close'; rule: Rule }
   | { kind: 'none' };
 
+/** Path segments generated during a run (timestamps, uuids, epoch numbers) stay out of the `{{seq}}` fingerprint. */
+const GENERATED = /\d{4}-\d{2}-\d{2}T[\d:.]+(?:Z|[+-]\d{2}:?\d{2})?|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|\b(?:1[4-9]|2[01])\d{8}(?:\d{3})?\b/gi;
+
 /** Mutable per-run state: sequence counters and consumed `times`. */
 export class RuleState {
   readonly seq = new Map<string, number>();
   readonly used = new Map<string, number>();
 
-  nextSeq(ruleId: string): number {
-    const next = (this.seq.get(ruleId) ?? 0) + 1;
-    this.seq.set(ruleId, next);
-    return next;
+  /**
+   * Number for `{{seq}}`, derived from the endpoint (method, host, path) and counted per version: the n-th call to an
+   * endpoint gets the same number in the old and the new version. Calls to other endpoints do not shift it, and the
+   * body does not take part, so a changed body shows up on its own call and not again on every later call that
+   * echoes the id (HubSpot's profile GET after createOrUpdate).
+   */
+  nextSeq(ruleId: string, req?: RequestSummary): number {
+    const fingerprint = req ? `${req.method.toUpperCase()} ${req.host.toLowerCase()} ${req.path.replace(GENERATED, '')}` : '';
+    const base = (createHash('sha256').update(`${ruleId}\n${fingerprint}`).digest().readUInt32BE(0) % 900_000) + 100_000;
+    const key = `${req?.scope ?? ''}|${base}`;
+    const n = (this.seq.get(key) ?? 0) + 1;
+    this.seq.set(key, n);
+    return base * 1000 + n;
   }
 
   consume(rule: Rule): void {
@@ -114,12 +131,15 @@ interface RenderContext {
   req: RequestSummary;
   uuid: () => string;
   now: () => string;
+  /** One `{{seq}}` value per response, so `records[0].id` and `id` agree. */
+  seq?: number;
 }
 
 function renderTemplate(fn: string, arg: string | undefined, ctx: RenderContext): unknown {
   switch (fn) {
     case 'seq':
-      return String(ctx.state.nextSeq(ctx.ruleId));
+      ctx.seq ??= ctx.state.nextSeq(ctx.ruleId, ctx.req);
+      return String(ctx.seq);
     case 'uuid':
       return ctx.uuid();
     case 'now':

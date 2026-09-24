@@ -7,7 +7,8 @@ export interface CaptureRecord {
   host: string;
   port: number;
   path: string;
-  query: Record<string, string>;
+  /** A parameter sent more than once keeps every value, in order. */
+  query: Record<string, string | string[]>;
   contentType?: string;
   headers: Record<string, string>;
   body?: string;
@@ -78,13 +79,23 @@ export interface Attribution {
  */
 /** Prefers the node named in the X-FlowRetest-Node header; the run index still comes from timing. */
 export function attributeRecord(record: { ts: number; headers: Record<string, string> }, windows: NodeRunWindow[], toleranceMs = 25): Attribution {
-  const tagged = record.headers['x-flowretest-node'];
+  const tagged = decodeNodeTag(record.headers['x-flowretest-node']);
   const byTime = attributeToNode(record.ts, windows, toleranceMs);
   if (!tagged) return byTime;
   if (byTime.node === tagged) return byTime;
   const runsOfNode = windows.filter((w) => w.node === tagged);
   const containing = runsOfNode.find((w) => record.ts >= w.start - toleranceMs && record.ts <= w.end + toleranceMs);
   return { node: tagged, runIndex: containing ? containing.runIndex : runsOfNode.length === 1 ? (runsOfNode[0] as NodeRunWindow).runIndex : -1 };
+}
+
+/** The rewriter percent-encodes node names in the tag header (HTTP header values must be Latin-1). */
+export function decodeNodeTag(value: string | undefined): string | undefined {
+  if (!value) return undefined;
+  try {
+    return decodeURIComponent(value);
+  } catch {
+    return value;
+  }
 }
 
 export function attributeToNode(ts: number, windows: NodeRunWindow[], toleranceMs = 25): Attribution {

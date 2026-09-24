@@ -32,7 +32,9 @@ test('proxy answers from rules, closes blocked requests and writes capture lines
       body: JSON.stringify({ name: 'order-1' }),
     });
     assert.equal(res.status, 200);
-    assert.deepEqual(await res.json(), { id: 'frt-1', echo: 'order-1' });
+    const answer = (await res.json()) as { id: string; echo: string };
+    assert.match(answer.id, /^frt-[0-9]{9}$/);
+    assert.equal(answer.echo, 'order-1');
 
     await assert.rejects(fetch(`http://127.0.0.1:${server.port}/api/orders/1`), /fetch failed/);
 

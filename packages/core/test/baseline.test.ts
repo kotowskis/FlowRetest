@@ -14,7 +14,7 @@ test('volatile paths are detected between two runs and masked away', () => {
   const a = [call('old', { email: 'a', nonce: 'x1', meta: { trace: 't1' } })];
   const b = [call('old2', { email: 'a', nonce: 'x2', meta: { trace: 't2' } })];
   const paths = detectVolatile(a, b);
-  assert.deepEqual(paths, ['meta.trace', 'nonce']);
+  assert.deepEqual(paths, ['Push|POST|h|/p :: meta.trace', 'Push|POST|h|/p :: nonce']);
   assert.ok(!runsIdentical(a, b));
   assert.ok(runsIdentical(maskVolatile(a, paths), maskVolatile(b, paths)));
   assert.equal((maskVolatile(a, paths)[0]?.body as { nonce: string }).nonce, '<volatile>');

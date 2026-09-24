@@ -22,7 +22,10 @@ export function runDiff(options: DiffOptions): { plan: string; exitCode: number;
     cases = report.cases.map((c) => {
       const baseline = loadBaseline(options.cwd, options.workflowId, c.caseId);
       const calls = report.calls[c.caseId];
-      if (!baseline || !calls) return { ...c, status: c.status === 'SKIPPED' ? 'SKIPPED' : c.status, error: baseline ? c.error : `no baseline for case ${c.caseId}; run \`flowretest accept\`` };
+      if (c.status === 'SKIPPED') return c;
+      // Without a baseline (or without the calls of the run) the case was not compared at all, so it cannot keep the status it had against the old version.
+      if (!baseline) return { ...c, status: 'ERROR' as const, error: `no baseline for case ${c.caseId}; run \`flowretest accept\` first` };
+      if (!calls) return { ...c, status: 'ERROR' as const, error: `the run has no recorded calls for case ${c.caseId}; run it again` };
       const volatile = [...new Set([...baseline.volatilePaths, ...calls.volatile])];
       return diffCase(c.caseId, maskVolatile(fromBaseline(baseline), volatile), maskVolatile(calls.new, volatile), { newError: c.error });
     });

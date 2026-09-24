@@ -28,7 +28,8 @@ function record(over: Partial<CaptureRecord>): CaptureRecord {
 test('placeholders cover timestamps, uuids, epochs and tokens', () => {
   assert.equal(placeholderFor('2026-09-24T10:00:00.000Z'), '<ts>');
   assert.equal(placeholderFor('12345678-1234-4123-8123-123456789abc'), '<uuid>');
-  assert.equal(placeholderFor('1790240536418'), '<epoch>');
+  assert.equal(placeholderFor('1790240536418', { key: 'created_at' }), '<epoch>');
+  assert.equal(placeholderFor('1790240536', { now: 1790240600000 }), '<epoch>');
   assert.equal(placeholderFor('Bearer abc.def'), '<token>');
   assert.equal(placeholderFor('C-1'), undefined);
 });

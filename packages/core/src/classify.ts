@@ -75,8 +75,20 @@ export function aiSubNodes(workflow: N8nWorkflow): Set<string> {
   return subs;
 }
 
+/**
+ * A vector store root in insert or update mode (or a legacy `...Insert` node) writes to the store; replaying it from
+ * the recording would hide the write. Load mode reads and stays an AI root. The mode defaults to `retrieve`.
+ */
+export function isVectorStoreWrite(node: N8nNode): boolean {
+  const name = node.type.startsWith(LANGCHAIN_PREFIX) ? node.type.slice(LANGCHAIN_PREFIX.length) : '';
+  if (!/vectorStore/i.test(name)) return false;
+  if (/Insert$/.test(name)) return true;
+  const mode = node.parameters.mode;
+  return mode === 'insert' || mode === 'update' || (typeof mode === 'string' && mode.startsWith('='));
+}
+
 export function isAiRoot(node: N8nNode, subNodes: Set<string>): boolean {
-  return node.type.startsWith(LANGCHAIN_PREFIX) && !subNodes.has(node.name) && !isTriggerType(node.type);
+  return node.type.startsWith(LANGCHAIN_PREFIX) && !subNodes.has(node.name) && !isTriggerType(node.type) && !isVectorStoreWrite(node);
 }
 
 function stable(value: unknown): string {
@@ -119,6 +131,7 @@ function classifyOne(node: N8nNode, options: ClassifyOptions, subNodes: Set<stri
   if (node.name === options.triggerNode) return { role: 'trigger' };
   if (isTriggerType(node.type)) return { role: 'trigger', note: 'trigger that did not start the recording, removed' };
   if (subNodes.has(node.name)) return { role: 'logic', note: 'AI sub-node, removed together with its replayed root' };
+  if (isVectorStoreWrite(node)) return { role: 'unsupported', note: 'vector store insert or update writes through the vendor SDK and cannot be replayed or captured; case skipped' };
   if (isAiRoot(node, subNodes)) return { role: 'read', note: 'AI node replayed from the recording; a changed prompt or model is not evaluated' };
   const fromService = options.serviceRole?.(node);
   if (fromService) return fromService;
@@ -126,7 +139,8 @@ function classifyOne(node: N8nNode, options: ClassifyOptions, subNodes: Set<stri
   if (node.type === 'n8n-nodes-base.httpRequest') {
     const options = (node.parameters.options ?? {}) as Record<string, unknown>;
     if (typeof options.proxy === 'string' && options.proxy.trim() !== '') return { role: 'unsupported', note: 'HTTP Request with its own Proxy option would bypass the sandbox' };
-    const method = node.parameters.method;
+    // v1 and v2 keep the verb in requestMethod; both default to GET and are left out of the JSON when GET.
+    const method = node.parameters.method ?? node.parameters.requestMethod;
     if (method === undefined) return { role: 'read' };
     if (typeof method === 'string' && method.startsWith('=')) return { role: 'write', note: 'method is an expression, treated as a write, review' };
     if (typeof method === 'string' && READ_METHODS.has(method.toUpperCase())) return { role: 'read' };

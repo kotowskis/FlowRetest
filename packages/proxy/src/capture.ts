@@ -9,7 +9,8 @@ export interface CaptureRecord {
   host: string;
   port: number;
   path: string;
-  query: Record<string, string>;
+  /** A parameter sent more than once keeps every value, in order. */
+  query: Record<string, string | string[]>;
   contentType?: string;
   headers: Record<string, string>;
   body?: string;

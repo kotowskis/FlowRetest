@@ -148,13 +148,26 @@
                     "path": {
                       "type": "string"
                     },
+                    "pathValue": {
+                      "type": "string"
+                    },
                     "query": {
                       "type": "object",
                       "propertyNames": {
                         "type": "string"
                       },
                       "additionalProperties": {
-                        "type": "string"
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        ]
                       }
                     },
                     "contentType": {
@@ -173,6 +186,9 @@
                             "type": "string"
                           },
                           "filename": {
+                            "type": "string"
+                          },
+                          "contentType": {
                             "type": "string"
                           },
                           "size": {
@@ -262,13 +278,26 @@
                     "path": {
                       "type": "string"
                     },
+                    "pathValue": {
+                      "type": "string"
+                    },
                     "query": {
                       "type": "object",
                       "propertyNames": {
                         "type": "string"
                       },
                       "additionalProperties": {
-                        "type": "string"
+                        "anyOf": [
+                          {
+                            "type": "string"
+                          },
+                          {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        ]
                       }
                     },
                     "contentType": {
@@ -287,6 +316,9 @@
                             "type": "string"
                           },
                           "filename": {
+                            "type": "string"
+                          },
+                          "contentType": {
                             "type": "string"
                           },
                           "size": {
@@ -477,13 +509,26 @@
                 "path": {
                   "type": "string"
                 },
+                "pathValue": {
+                  "type": "string"
+                },
                 "query": {
                   "type": "object",
                   "propertyNames": {
                     "type": "string"
                   },
                   "additionalProperties": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
                   }
                 },
                 "contentType": {
@@ -502,6 +547,9 @@
                         "type": "string"
                       },
                       "filename": {
+                        "type": "string"
+                      },
+                      "contentType": {
                         "type": "string"
                       },
                       "size": {
@@ -594,13 +642,26 @@
                 "path": {
                   "type": "string"
                 },
+                "pathValue": {
+                  "type": "string"
+                },
                 "query": {
                   "type": "object",
                   "propertyNames": {
                     "type": "string"
                   },
                   "additionalProperties": {
-                    "type": "string"
+                    "anyOf": [
+                      {
+                        "type": "string"
+                      },
+                      {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    ]
                   }
                 },
                 "contentType": {
@@ -619,6 +680,9 @@
                         "type": "string"
                       },
                       "filename": {
+                        "type": "string"
+                      },
+                      "contentType": {
                         "type": "string"
                       },
                       "size": {

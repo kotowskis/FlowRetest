@@ -77,6 +77,23 @@ class FileCache<T> {
   }
 }
 
+/** Keeps every value of a repeated key (`?tag=a&tag=b`), in order. */
+export function multiValues(params: URLSearchParams): Record<string, string | string[]> {
+  const out: Record<string, string | string[]> = {};
+  for (const key of new Set(params.keys())) {
+    const all = params.getAll(key);
+    out[key] = all.length === 1 ? (all[0] as string) : all;
+  }
+  return out;
+}
+
+/** JSON.parse that keeps integers beyond 2^53 as their exact digits (64-bit ids would otherwise collapse). */
+export function parseJsonExact(text: string): unknown {
+  return JSON.parse(text, (_key, value, context?: { source?: string }) =>
+    typeof value === 'number' && Number.isInteger(value) && !Number.isSafeInteger(value) && context?.source ? context.source : value,
+  );
+}
+
 function pickHeaders(headers: Record<string, string | string[] | undefined>): Record<string, string> {
   const out: Record<string, string> = {};
   for (const name of HEADER_ALLOWLIST) {
@@ -109,8 +126,9 @@ export async function startProxy(config: ProxyConfig = DEFAULT_CONFIG): Promise<
 
   await server.forAnyRequest().thenCallback(async (req: CompletedRequest) => {
     const url = new URL(req.url);
-    const raw = await req.body.getDecodedBuffer().catch(() => Buffer.alloc(0));
-    const buffer = raw ?? Buffer.alloc(0);
+    // An encoding the proxy cannot decode keeps the raw bytes, so the body is still sized and hashed.
+    const decoded = await req.body.getDecodedBuffer().catch(() => undefined);
+    const buffer = decoded ?? req.body.buffer ?? Buffer.alloc(0);
     const contentType = req.headers['content-type'];
     const ctx = context.get();
     let bodyJson: unknown;
@@ -123,16 +141,16 @@ export async function startProxy(config: ProxyConfig = DEFAULT_CONFIG): Promise<
       bodyText = buffer.toString('utf8');
       if (contentType?.includes('json')) {
         try {
-          bodyJson = JSON.parse(bodyText);
+          bodyJson = parseJsonExact(bodyText);
         } catch {
           bodyJson = undefined;
         }
       } else if (contentType?.includes('application/x-www-form-urlencoded')) {
-        bodyJson = Object.fromEntries(new URLSearchParams(bodyText));
+        bodyJson = multiValues(new URLSearchParams(bodyText));
       }
     }
 
-    const decision = decide(rules.get(), { method: req.method, host: url.hostname, path: url.pathname, bodyJson }, state);
+    const decision = decide(rules.get(), { method: req.method, host: url.hostname, path: url.pathname, bodyJson, bodyText, scope: ctx.version }, state);
     const record: CaptureRecord = {
       ts: Date.now(),
       version: ctx.version,
@@ -141,7 +159,7 @@ export async function startProxy(config: ProxyConfig = DEFAULT_CONFIG): Promise<
       host: url.hostname,
       port: Number(url.port || (url.protocol === 'https:' ? 443 : 80)),
       path: url.pathname,
-      query: Object.fromEntries(url.searchParams),
+      query: multiValues(url.searchParams),
       contentType,
       headers: pickHeaders(req.headers),
       body: bodyText,

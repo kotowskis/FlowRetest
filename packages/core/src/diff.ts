@@ -1,4 +1,4 @@
-import { flatten, type NormalizedCall } from './normalize.ts';
+import { flatten, mediaTypeOf, type NormalizedCall } from './normalize.ts';
 import type { CallOp, CaseStatus } from './types.ts';
 
 export interface FieldDiff {
@@ -47,10 +47,20 @@ export interface DiffOptions {
 const EMPTY_VALUES = new Set(['', 'undefined', 'null', 'NaN', '[object Object]']);
 const ID_FIELD = /(^|[._\-\]])(id|_id|Id|ID|email|Email|uuid|key)$/;
 
-/** Body fields plus query parameters (as `?name`), so a dropped or changed parameter shows up as a field diff. */
+/**
+ * Body fields plus the concrete path (`@path`), the media type (`@contentType`) and query parameters (`?name`,
+ * `?name[1]` for repeated ones), so a call to another record, in another format or with a changed parameter
+ * shows up as a field diff.
+ */
 export function flattenCall(call: NormalizedCall): Map<string, unknown> {
   const out = flatten(call.body);
-  for (const [k, v] of Object.entries(call.query)) out.set(`?${k}`, v);
+  out.set('@path', call.pathValue ?? call.path);
+  const media = mediaTypeOf(call.contentType);
+  if (media) out.set('@contentType', media);
+  for (const [k, v] of Object.entries(call.query)) {
+    if (Array.isArray(v)) v.forEach((item, i) => out.set(`?${k}[${i}]`, item));
+    else out.set(`?${k}`, v);
+  }
   return out;
 }
 

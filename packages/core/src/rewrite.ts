@@ -26,7 +26,8 @@ function tagHttpRequest(node: N8nNode): boolean {
   const headerParameters = (params.headerParameters as { parameters?: Array<{ name: string; value: string }> } | undefined) ?? { parameters: [] };
   const list = Array.isArray(headerParameters.parameters) ? headerParameters.parameters.filter((h) => h && (h.name !== '' || h.value !== '')) : [];
   if (list.some((h) => h.name === NODE_TAG_HEADER)) return true;
-  list.push({ name: NODE_TAG_HEADER, value: node.name });
+  // Header values must be Latin-1 ("Wyślij do CRM" throws ERR_INVALID_CHAR) and a leading `=` would be an expression.
+  list.push({ name: NODE_TAG_HEADER, value: encodeURIComponent(node.name) });
   params.sendHeaders = true;
   params.specifyHeaders = 'keypair';
   params.headerParameters = { parameters: list };
@@ -81,7 +82,8 @@ function normalisePaired(item: RecordedItem): RecordedItem {
 function buildCodeReplay(name: string, position: [number, number], runs: RecordedItem[][], withPairing: boolean): N8nNode {
   const data = runs.map((items) => items.map(normalisePaired));
   const jsCode = [
-    `// FlowRetest replay of "${name}" (${runs.length} recorded run${runs.length === 1 ? '' : 's'})`,
+    // A line break in the node name would end the comment and turn the rest of the name into code.
+    `// FlowRetest replay of ${JSON.stringify(name.replace(/[\r\n\u2028\u2029]/g, ' '))} (${runs.length} recorded run${runs.length === 1 ? '' : 's'})`,
     `const RUNS = ${JSON.stringify(data)};`,
     'const run = RUNS[Math.min($runIndex, RUNS.length - 1)];',
     'const inputCount = $input.all().length;',

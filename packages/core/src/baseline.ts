@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { diffCase } from './diff.ts';
-import { flatten, hashBody, type NormalizedCall } from './normalize.ts';
+import { callHash, flatten, splitFlatPath, type NormalizedCall, type QueryValues } from './normalize.ts';
 
 /** Accepted register of one case: what `flowretest accept` writes to baseline/<case>.json. */
 export interface Baseline {
@@ -34,20 +34,28 @@ export function toBaseline(caseId: string, calls: NormalizedCall[], meta: { acce
   };
 }
 
-/** Turns baseline calls back into comparable calls for diffCase. */
+/** Turns baseline calls back into comparable calls for diffCase; the hash is recomputed so older baselines still pair exactly. */
 export function fromBaseline(baseline: Baseline): NormalizedCall[] {
-  return baseline.calls.map((c, i) => ({ ...c, ts: i, version: 'baseline', caseId: baseline.caseId }));
+  return baseline.calls.map((c, i) => {
+    const call = { ...c, ts: i, version: 'baseline', caseId: baseline.caseId };
+    return { ...call, bodyHash: callHash(call) };
+  });
 }
+
+/** Separates the call key from the field path in a volatile entry. */
+export const VOLATILE_SEPARATOR = ' :: ';
 
 /**
  * Fields that differ between two runs of the same version on the same fixtures
- * are volatile (random ids, nonces, clocks the placeholders missed). Returned as
- * body paths in flatten() notation, ready for `normalize.ignore`.
+ * are volatile (random ids, nonces, clocks the placeholders missed). Each entry is
+ * scoped to one call key (`<key> :: <field path>`), so a random `id` in a log call
+ * never masks `id` in an upsert. Field paths use flattenCall() notation: body
+ * fields, `@path`, `@contentType`, `?param`.
  */
 export function detectVolatile(runA: NormalizedCall[], runB: NormalizedCall[]): string[] {
   const d = diffCase('stabilize', runA, runB);
   const paths = new Set<string>();
-  for (const e of d.entries) if (e.op === '~') for (const f of e.fieldDiffs) paths.add(f.path);
+  for (const e of d.entries) if (e.op === '~' && e.old) for (const f of e.fieldDiffs) paths.add(`${e.old.key}${VOLATILE_SEPARATOR}${f.path}`);
   return [...paths].sort();
 }
 
@@ -66,18 +74,37 @@ function setPath(value: unknown, path: string[], replacement: unknown): unknown 
   return value;
 }
 
-/** flatten() paths use `a.b[2].c`; split into segments. */
-function splitPath(path: string): string[] {
-  return path.replace(/\[(\d+)\]/g, '.$1').split('.').filter((s) => s !== '');
+function maskQuery(query: QueryValues, fieldPath: string): QueryValues {
+  const m = /^\?(.+?)(?:\[(\d+)\])?$/.exec(fieldPath);
+  if (!m) return query;
+  const name = m[1] as string;
+  const current = query[name];
+  if (current === undefined) return query;
+  if (m[2] !== undefined && Array.isArray(current)) return { ...query, [name]: current.map((v, i) => (i === Number(m[2]) ? '<volatile>' : v)) };
+  return { ...query, [name]: '<volatile>' };
 }
 
-/** Masks volatile paths in call bodies and recomputes the hash so exact pairing works again. */
+function maskField(call: NormalizedCall, fieldPath: string): NormalizedCall {
+  if (fieldPath === '@path') return { ...call, pathValue: '<volatile>' };
+  if (fieldPath === '@contentType') return { ...call, contentType: '<volatile>' };
+  if (fieldPath.startsWith('?')) return { ...call, query: maskQuery(call.query, fieldPath) };
+  return { ...call, body: setPath(call.body, splitFlatPath(fieldPath), '<volatile>') };
+}
+
+/**
+ * Masks volatile fields and recomputes the hash so exact pairing works again. Entries
+ * without a key (baselines written before 0.3.0) apply to the body of every call.
+ */
 export function maskVolatile(calls: NormalizedCall[], paths: string[]): NormalizedCall[] {
   if (paths.length === 0) return calls;
+  const scoped = paths.map((p) => {
+    const at = p.lastIndexOf(VOLATILE_SEPARATOR);
+    return at === -1 ? { key: undefined, field: p } : { key: p.slice(0, at), field: p.slice(at + VOLATILE_SEPARATOR.length) };
+  });
   return calls.map((call) => {
-    let body = call.body;
-    for (const p of paths) body = setPath(body, splitPath(p), '<volatile>');
-    return { ...call, body, bodyHash: hashBody({ body, query: call.query }) };
+    let masked = call;
+    for (const { key, field } of scoped) if (key === undefined || key === call.key) masked = maskField(masked, field);
+    return masked === call ? call : { ...masked, bodyHash: callHash(masked) };
   });
 }
 

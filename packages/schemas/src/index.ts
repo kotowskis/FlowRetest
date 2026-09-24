@@ -70,6 +70,9 @@ export const RuleSchema = z.object({
 export const RulesFileSchema = z.object({ schemaVersion: z.literal(1), rules: z.array(RuleSchema) });
 export type RulesFile = z.infer<typeof RulesFileSchema>;
 
+/** Query parameters; a key sent more than once keeps every value, in order. */
+const QueryValuesSchema = z.record(z.string(), z.union([z.string(), z.array(z.string())]));
+
 export const CaptureRecordSchema = z.object({
   ts: z.number(),
   version: z.string(),
@@ -78,7 +81,7 @@ export const CaptureRecordSchema = z.object({
   host: z.string(),
   port: z.number(),
   path: z.string(),
-  query: z.record(z.string(), z.string()),
+  query: QueryValuesSchema,
   contentType: z.string().optional(),
   headers: z.record(z.string(), z.string()),
   body: z.string().optional(),
@@ -101,11 +104,12 @@ export const NormalizedCallSchema = z.object({
   host: z.string(),
   pathTemplate: z.string(),
   path: z.string(),
-  query: z.record(z.string(), z.string()),
+  pathValue: z.string().optional(),
+  query: QueryValuesSchema,
   contentType: z.string().optional(),
   body: z.unknown(),
   bodyHash: z.string(),
-  multipart: z.array(z.object({ name: z.string(), filename: z.string().optional(), size: z.number(), sha256: z.string() })).optional(),
+  multipart: z.array(z.object({ name: z.string(), filename: z.string().optional(), contentType: z.string().optional(), size: z.number(), sha256: z.string() })).optional(),
   rule: z.object({ id: z.string(), kind: z.string() }),
   blocked: z.boolean(),
   key: z.string(),

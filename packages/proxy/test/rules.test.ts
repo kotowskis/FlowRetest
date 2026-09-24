@@ -26,9 +26,12 @@ test('first matching rule wins and templates render', () => {
   assert.equal(decision.rule.id, 'hubspot.contacts.create');
   assert.equal(decision.response.status, 201);
   assert.equal(decision.response.headers['content-type'], 'application/json');
-  assert.deepEqual(JSON.parse(decision.response.body), { id: '1', properties: { email: 'a@b.pl' } });
+  const first = JSON.parse(decision.response.body);
+  assert.match(first.id, /^[0-9]{9}$/);
+  assert.deepEqual(first.properties, { email: 'a@b.pl' });
+  // the same request again in the same version gets the next number
   const second = decide([hubspot, sink, block], req, state);
-  if (second.kind === 'respond') assert.equal(JSON.parse(second.response.body).id, '2');
+  if (second.kind === 'respond') assert.equal(Number(JSON.parse(second.response.body).id), Number(first.id) + 1);
 });
 
 test('unknown host: writes hit the generic sink, reads are closed', () => {
@@ -55,13 +58,37 @@ test('times consumes a rule and falls through afterwards', () => {
 test('uuid and now come from injected functions', () => {
   const rule: Rule = { id: 'x', match: {}, respond: { json: { id: '{{uuid}}', at: '{{now}}', nested: ['{{seq}}'] } } };
   const out = renderResponse(rule, { method: 'GET', host: 'h', path: '/' }, new RuleState(), { uuid: () => 'u', now: () => 't' });
-  assert.deepEqual(JSON.parse(out.body), { id: 'u', at: 't', nested: ['1'] });
+  const body = JSON.parse(out.body);
+  assert.deepEqual({ ...body, nested: [] }, { id: 'u', at: 't', nested: [] });
+  assert.match(body.nested[0], /^[0-9]{9}$/);
 });
 
 test('inline templates interpolate inside strings', () => {
   const rule: Rule = { id: 'x', match: {}, respond: { json: { id: 'frt-{{seq}}', label: 'at {{now}} for {{echo body.name}}' } } };
   const out = renderResponse(rule, { method: 'GET', host: 'h', path: '/', bodyJson: { name: 'n1' } }, new RuleState(), { now: () => 't' });
-  assert.deepEqual(JSON.parse(out.body), { id: 'frt-1', label: 'at t for n1' });
+  const body = JSON.parse(out.body);
+  assert.match(body.id, /^frt-[0-9]{9}$/);
+  assert.equal(body.label, 'at t for n1');
+});
+
+test('seq is the n-th call to an endpoint per version: a changed body or a call elsewhere does not shift it', () => {
+  const state = new RuleState();
+  const idOf = (scope: string, path: string, email: string) => {
+    const d = decide([hubspot, sink, block], { method: 'POST', host: 'api.hubapi.com', path, bodyJson: { properties: { email } }, scope }, state);
+    return d.kind === 'respond' ? (JSON.parse(d.response.body).id as string) : '';
+  };
+  const oldFirst = idOf('old', '/crm/v3/objects/contacts', 'a@b.pl');
+  const oldSecond = idOf('old', '/crm/v3/objects/contacts', 'c@d.pl');
+  idOf('new', '/crm/v3/objects/deals', 'x'); // an extra call to another endpoint in the new version
+  assert.equal(idOf('new', '/crm/v3/objects/contacts', 'a@b.pl, now changed'), oldFirst);
+  assert.equal(idOf('new', '/crm/v3/objects/contacts', 'c@d.pl'), oldSecond);
+  assert.notEqual(oldFirst, oldSecond);
+});
+
+test('one response renders one seq value', () => {
+  const rule: Rule = { id: 'airtable', match: {}, respond: { json: { records: [{ id: 'recFRT{{seq}}' }], id: 'recFRT{{seq}}' } } };
+  const body = JSON.parse(renderResponse(rule, { method: 'POST', host: 'api.airtable.com', path: '/v0/app/tbl' }, new RuleState()).body);
+  assert.equal(body.records[0].id, body.id);
 });
 
 test('parseRulesFile rejects wrong shapes', () => {
