@@ -1,0 +1,728 @@
+{
+  "plan": "FlowRetest 0.0.0-spike · \"catalog\" · n8nio/n8n:v3-nightly\nCases: 6 · old: catalog old · new: catalog new\n\nPlan: 8 calls (old version: 12). 3 changed, 0 added, 4 removed, 0 blocked.\n\n~ [01-empty-id-after-field-rename] Push               POST erp.example.com/api/orders\n      customer_id: \"C-1\" -> null\n      ! empty value in an id field\n~ [01-empty-id-after-field-rename] Push               POST erp.example.com/api/orders\n      customer_id: \"C-2\" -> null\n      ! empty value in an id field\n~ [02-loop-sends-first-item-n-times] Push               POST erp.example.com/api/orders\n      customer_id: \"C-2\" -> \"C-1\"\n      email: \"c@d.pl\" -> \"a@b.pl\"\n      ! identical bodies sent more than once\n- [03-merge-by-position-truncates] Push               POST erp.example.com/api/orders\n      (no longer sent)\n      ! operation count changed\n- [04-execute-once-toggled] Push               POST erp.example.com/api/orders\n      (no longer sent)\n      ! operation count changed\n      ! calls per input item changed\n- [05-code-filter-drops-everything] Push               POST erp.example.com/api/orders\n      (no longer sent)\n      ! node did not run in the new version\n- [05-code-filter-drops-everything] Push               POST erp.example.com/api/orders\n      (no longer sent)\n      ! node did not run in the new version\n= 5 unchanged calls\n\nCoverage: 5 of 6 write nodes captured (83%) · nodes replayed from recordings: 1 · 0 requests left the sandbox\nResult: DIFF (exit code 1)",
+  "cases": [
+    {
+      "caseId": "01-empty-id-after-field-rename",
+      "status": "DIFF",
+      "entries": [
+        {
+          "op": "~",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "01-empty-id-after-field-rename",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790246985791,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "new": {
+            "version": "new",
+            "caseId": "01-empty-id-after-field-rename",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790246997615,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": null,
+              "email": "a@b.pl"
+            },
+            "bodyHash": "df09fc4ea937c6c8",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [
+            {
+              "path": "customer_id",
+              "old": "C-1",
+              "new": null
+            }
+          ],
+          "flags": [
+            "empty-value"
+          ]
+        },
+        {
+          "op": "~",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "01-empty-id-after-field-rename",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790246985820,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-2",
+              "email": "c@d.pl"
+            },
+            "bodyHash": "c3083464316d9d75",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "new": {
+            "version": "new",
+            "caseId": "01-empty-id-after-field-rename",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790246997625,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": null,
+              "email": "c@d.pl"
+            },
+            "bodyHash": "d4bc365fafcda9cd",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [
+            {
+              "path": "customer_id",
+              "old": "C-2",
+              "new": null
+            }
+          ],
+          "flags": [
+            "empty-value"
+          ]
+        }
+      ],
+      "summary": {
+        "oldCalls": 2,
+        "newCalls": 2,
+        "unchanged": 0,
+        "changed": 2,
+        "added": 0,
+        "removed": 0,
+        "blocked": 0
+      }
+    },
+    {
+      "caseId": "02-loop-sends-first-item-n-times",
+      "status": "DIFF",
+      "entries": [
+        {
+          "op": "~",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "02-loop-sends-first-item-n-times",
+            "node": "Push",
+            "runIndex": 1,
+            "ts": 1790247009254,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-2",
+              "email": "c@d.pl"
+            },
+            "bodyHash": "c3083464316d9d75",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "new": {
+            "version": "new",
+            "caseId": "02-loop-sends-first-item-n-times",
+            "node": "Push",
+            "runIndex": 1,
+            "ts": 1790247024455,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [
+            {
+              "path": "customer_id",
+              "old": "C-2",
+              "new": "C-1"
+            },
+            {
+              "path": "email",
+              "old": "c@d.pl",
+              "new": "a@b.pl"
+            }
+          ],
+          "flags": [
+            "duplicate-bodies"
+          ]
+        },
+        {
+          "op": "=",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "02-loop-sends-first-item-n-times",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247009207,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "new": {
+            "version": "new",
+            "caseId": "02-loop-sends-first-item-n-times",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247024383,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": [
+            "duplicate-bodies"
+          ]
+        }
+      ],
+      "summary": {
+        "oldCalls": 2,
+        "newCalls": 2,
+        "unchanged": 1,
+        "changed": 1,
+        "added": 0,
+        "removed": 0,
+        "blocked": 0
+      }
+    },
+    {
+      "caseId": "03-merge-by-position-truncates",
+      "status": "DIFF",
+      "entries": [
+        {
+          "op": "-",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "03-merge-by-position-truncates",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247033982,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-2",
+              "email": "c@d.pl"
+            },
+            "bodyHash": "c3083464316d9d75",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": [
+            "count-changed"
+          ]
+        },
+        {
+          "op": "=",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "03-merge-by-position-truncates",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247033974,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "new": {
+            "version": "new",
+            "caseId": "03-merge-by-position-truncates",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247042936,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": []
+        }
+      ],
+      "summary": {
+        "oldCalls": 2,
+        "newCalls": 1,
+        "unchanged": 1,
+        "changed": 0,
+        "added": 0,
+        "removed": 1,
+        "blocked": 0
+      }
+    },
+    {
+      "caseId": "04-execute-once-toggled",
+      "status": "DIFF",
+      "entries": [
+        {
+          "op": "-",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "04-execute-once-toggled",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247052256,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-2",
+              "email": "c@d.pl"
+            },
+            "bodyHash": "c3083464316d9d75",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": [
+            "count-changed",
+            "count-per-item-changed"
+          ]
+        },
+        {
+          "op": "=",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "04-execute-once-toggled",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247052241,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "new": {
+            "version": "new",
+            "caseId": "04-execute-once-toggled",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247062339,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": []
+        }
+      ],
+      "summary": {
+        "oldCalls": 2,
+        "newCalls": 1,
+        "unchanged": 1,
+        "changed": 0,
+        "added": 0,
+        "removed": 1,
+        "blocked": 0
+      }
+    },
+    {
+      "caseId": "05-code-filter-drops-everything",
+      "status": "DIFF",
+      "entries": [
+        {
+          "op": "-",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "05-code-filter-drops-everything",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247071759,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-1",
+              "email": "a@b.pl"
+            },
+            "bodyHash": "44d34c6ba79fcd6d",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": [
+            "node-not-executed"
+          ]
+        },
+        {
+          "op": "-",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "05-code-filter-drops-everything",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247071767,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "customer_id": "C-2",
+              "email": "c@d.pl"
+            },
+            "bodyHash": "c3083464316d9d75",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": [
+            "node-not-executed"
+          ]
+        }
+      ],
+      "summary": {
+        "oldCalls": 2,
+        "newCalls": 0,
+        "unchanged": 0,
+        "changed": 0,
+        "added": 0,
+        "removed": 2,
+        "blocked": 0
+      }
+    },
+    {
+      "caseId": "06-random-nonce-unchanged",
+      "status": "PASS",
+      "entries": [
+        {
+          "op": "=",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "06-random-nonce-unchanged",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247091547,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "email": "a@b.pl",
+              "nonce": "<volatile>"
+            },
+            "bodyHash": "79a4eded5ad76502",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "new": {
+            "version": "new",
+            "caseId": "06-random-nonce-unchanged",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247102620,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "email": "a@b.pl",
+              "nonce": "<volatile>"
+            },
+            "bodyHash": "79a4eded5ad76502",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": []
+        },
+        {
+          "op": "=",
+          "node": "Push",
+          "method": "POST",
+          "host": "erp.example.com",
+          "pathTemplate": "/api/orders",
+          "old": {
+            "version": "old",
+            "caseId": "06-random-nonce-unchanged",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247091553,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "email": "c@d.pl",
+              "nonce": "<volatile>"
+            },
+            "bodyHash": "89cd65bcaeede82e",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "new": {
+            "version": "new",
+            "caseId": "06-random-nonce-unchanged",
+            "node": "Push",
+            "runIndex": 0,
+            "ts": 1790247102626,
+            "method": "POST",
+            "host": "erp.example.com",
+            "pathTemplate": "/api/orders",
+            "path": "/api/orders",
+            "query": {},
+            "contentType": "application/json",
+            "body": {
+              "email": "c@d.pl",
+              "nonce": "<volatile>"
+            },
+            "bodyHash": "89cd65bcaeede82e",
+            "rule": {
+              "id": "generic-sink",
+              "kind": "generic-sink"
+            },
+            "blocked": false,
+            "key": "Push|POST|erp.example.com|/api/orders"
+          },
+          "fieldDiffs": [],
+          "flags": []
+        }
+      ],
+      "summary": {
+        "oldCalls": 2,
+        "newCalls": 2,
+        "unchanged": 2,
+        "changed": 0,
+        "added": 0,
+        "removed": 0,
+        "blocked": 0
+      }
+    }
+  ],
+  "notes": [
+    "01-empty-id-after-field-rename: accept wrote 2 calls; new version against its own baseline: PASS; old version against that baseline: DIFF",
+    "06-random-nonce-unchanged: without stabilisation DIFF; volatile paths [\"nonce\"]",
+    "06-random-nonce-unchanged: old runs identical after masking: true"
+  ]
+}

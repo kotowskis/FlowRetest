@@ -1,0 +1,48 @@
+{
+  "name": "flowretest",
+  "version": "0.1.0-next.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "type-check": "tsc -p tsconfig.json --noEmit",
+    "test": "node --test \"test/**/*.test.ts\"",
+    "e2e": "node --test \"e2e/**/*.test.ts\""
+  },
+  "dependencies": {
+    "@flowretest/core": "*",
+    "@flowretest/schemas": "*",
+    "@flowretest/services": "*",
+    "commander": "^15.0.0",
+    "yaml": "^2.9.1"
+  },
+  "bin": {
+    "flowretest": "./dist/bin.js"
+  },
+  "description": "Replay real n8n executions against a changed workflow in a sealed sandbox and diff the calls it would send.",
+  "license": "MIT",
+  "engines": {
+    "node": ">=22.5"
+  },
+  "keywords": [
+    "n8n",
+    "testing",
+    "regression",
+    "workflow",
+    "sandbox"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/skynappse/flowretest"
+  }
+}

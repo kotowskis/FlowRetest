@@ -1,0 +1,254 @@
+[
+  {
+    "scenario": "trigger-webhook",
+    "variant": "code",
+    "expect": "2 POST with email from $(Webhook).item and cid from $json",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl",
+        "cid": "C-1"
+      },
+      {
+        "email": "c@d.pl",
+        "cid": "C-2"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 8422
+  },
+  {
+    "scenario": "trigger-webhook",
+    "variant": "set",
+    "expect": "2 POST with email from $(Webhook).item and cid from $json",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl",
+        "cid": "C-1"
+      },
+      {
+        "email": "c@d.pl",
+        "cid": "C-2"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 6830
+  },
+  {
+    "scenario": "trigger-hubspot",
+    "variant": "code",
+    "expect": "2 POST with email from $(HubSpot Trigger).item",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl",
+        "cid": "1"
+      },
+      {
+        "email": "c@d.pl",
+        "cid": "2"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 8742
+  },
+  {
+    "scenario": "trigger-hubspot",
+    "variant": "set",
+    "expect": "2 POST with email from $(HubSpot Trigger).item",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl",
+        "cid": "1"
+      },
+      {
+        "email": "c@d.pl",
+        "cid": "2"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 7860
+  },
+  {
+    "scenario": "trigger-schedule",
+    "variant": "code",
+    "expect": "1 POST with ts from $(Schedule Trigger).item",
+    "status": "success",
+    "posts": 1,
+    "bodies": [
+      {
+        "ts": "2026-09-21T08:00:00.000Z"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 8937
+  },
+  {
+    "scenario": "trigger-schedule",
+    "variant": "set",
+    "expect": "1 POST with ts from $(Schedule Trigger).item",
+    "status": "success",
+    "posts": 1,
+    "bodies": [
+      {
+        "ts": "2026-09-21T08:00:00.000Z"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 7053
+  },
+  {
+    "scenario": "read-replay-pairing",
+    "variant": "code",
+    "expect": "2 POST, cid C-1 with a@b.pl and C-2 with c@d.pl (pairing through the replayed read node)",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl",
+        "cid": "C-1"
+      },
+      {
+        "email": "c@d.pl",
+        "cid": "C-2"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 8422
+  },
+  {
+    "scenario": "read-replay-pairing",
+    "variant": "set",
+    "expect": "2 POST, cid C-1 with a@b.pl and C-2 with c@d.pl (pairing through the replayed read node)",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl",
+        "cid": "C-1"
+      },
+      {
+        "email": "a@b.pl",
+        "cid": "C-2"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 6867
+  },
+  {
+    "scenario": "code-node",
+    "variant": "code",
+    "expect": "2 POST with n 0 and 1 (Code node ran in the task runner)",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl",
+        "customer_id": "C-1",
+        "n": 0
+      },
+      {
+        "email": "c@d.pl",
+        "customer_id": "C-2",
+        "n": 1
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 8785
+  },
+  {
+    "scenario": "code-node",
+    "variant": "set",
+    "expect": "2 POST with n 0 and 1 (Code node ran in the task runner)",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl",
+        "customer_id": "C-1",
+        "n": 0
+      },
+      {
+        "email": "c@d.pl",
+        "customer_id": "C-2",
+        "n": 1
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 8085
+  },
+  {
+    "scenario": "respond-to-webhook",
+    "variant": "code",
+    "expect": "2 POST after a Respond to Webhook replaced by No Operation",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl"
+      },
+      {
+        "email": "c@d.pl"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 8385
+  },
+  {
+    "scenario": "respond-to-webhook",
+    "variant": "set",
+    "expect": "2 POST after a Respond to Webhook replaced by No Operation",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "email": "a@b.pl"
+      },
+      {
+        "email": "c@d.pl"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 6085
+  },
+  {
+    "scenario": "multirun-read-in-loop",
+    "variant": "code",
+    "expect": "2 POST with cid C-1 then C-2 (read node replayed per $runIndex inside Loop Over Items)",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "cid": "C-1"
+      },
+      {
+        "cid": "C-2"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 8571
+  },
+  {
+    "scenario": "multirun-read-in-loop",
+    "variant": "set",
+    "expect": "2 POST with cid C-1 then C-2 (read node replayed per $runIndex inside Loop Over Items)",
+    "status": "success",
+    "posts": 2,
+    "bodies": [
+      {
+        "cid": "C-1"
+      },
+      {
+        "cid": "C-2"
+      }
+    ],
+    "blocked": 0,
+    "durationMs": 7019
+  }
+]

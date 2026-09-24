@@ -1,0 +1,39 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: read
+  packages: write
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          registry-url: https://registry.npmjs.org
+      - run: npm ci
+      - run: npm run verify
+      - run: npm run build
+      - name: Proxy image to GHCR
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
+          docker build -t "ghcr.io/${{ github.repository_owner }}/flowretest-proxy:${VERSION}" packages/proxy
+          docker push "ghcr.io/${{ github.repository_owner }}/flowretest-proxy:${VERSION}"
+          docker image inspect --format '{{index .RepoDigests 0}}' "ghcr.io/${{ github.repository_owner }}/flowretest-proxy:${VERSION}" > proxy-digest.txt
+          cat proxy-digest.txt
+      - name: Publish CLI to npm
+        run: |
+          TAG="latest"
+          case "${GITHUB_REF_NAME}" in *-next*|*-rc*|*-beta*) TAG="next";; esac
+          npm publish -w packages/cli --provenance --access public --tag "$TAG"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

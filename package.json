@@ -1,0 +1,23 @@
+{
+  "name": "flowretest-monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "turbo build",
+    "test": "turbo test",
+    "type-check": "turbo type-check",
+    "check:deps": "node scripts/check-no-n8n-deps.mjs",
+    "verify": "npm run check:deps && npm run type-check && npm run test"
+  },
+  "packageManager": "npm@11.9.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "devDependencies": {
+    "@types/node": "^24",
+    "turbo": "^2",
+    "typescript": "^5.9"
+  }
+}

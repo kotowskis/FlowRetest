@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.turbo/
+coverage/
+*.log
+.flowretest/secrets.env
+.flowretest/*/fixtures/
+.flowretest/*/runs/

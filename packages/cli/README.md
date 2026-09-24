@@ -1,0 +1,65 @@
+# flowretest
+
+Replay real n8n executions against a changed workflow in a sealed sandbox and see every API call it would send, compared with today's version. Zero real writes.
+
+n8n shows you that a workflow ran green. FlowRetest shows you what it sent: the empty `customer_id`, the record posted twice, the order that silently stopped being sent. It runs your own n8n image inside an internal Docker network with every outbound HTTP call intercepted, so nothing leaves the sandbox.
+
+## Requirements
+
+- Docker (Desktop or Engine) on the machine that runs the tests
+- Node 22.5 or newer
+- An n8n instance on 2.20 or newer, with a public API key that can read workflows and executions
+- Successful executions saved on that instance (the default)
+
+## Quickstart
+
+```bash
+npx flowretest init --url https://n8n.example.com --api-key <key> --engine 2.40.5
+npx flowretest pull --workflow <workflowId> --last 10
+npx flowretest scan --workflow <workflowId> --new draft.json
+npx flowretest run  --workflow <workflowId> --new draft.json --stabilize
+npx flowretest accept --workflow <workflowId> --message "intended: new ERP field"
+```
+
+`init` writes `.flowretest/config.yml` and keeps the API key in `.flowretest/secrets.env` (ignored by git). `pull` stores the published workflow and one fixture per recorded execution. `run` executes the recorded version and your draft in the sandbox and prints the plan:
+
+```
+Plan: 3 calls (old version: 3). 3 changed, 0 added, 0 removed, 0 blocked.
+
+~ [7] Push to ERP   POST erp.example.com/api/orders
+      customer_id: "C-1" -> null
+      ! empty value in an id field
+
+Coverage: 3 of 3 write nodes captured (100%) · nodes replayed from recordings: 3 · 0 requests left the sandbox
+Result: DIFF (exit code 1)
+```
+
+Exit codes: 0 PASS, 1 DIFF, 2 ERROR (the new version failed), 3 BLOCKED or unsupported node on the path, 4 environment problem.
+
+## How it works
+
+- Read nodes (GET requests, lookups) are replayed from the recorded execution, so the run does not depend on live services.
+- Write nodes (POST, PUT, app nodes such as HubSpot, Slack, Google Sheets, Airtable, Notion) run for real against a proxy that answers with plausible responses and records what was sent.
+- Nodes that talk to databases, mail or files never reach the network; the case is reported as BLOCKED, never as PASS.
+- `--stabilize` runs the old version twice and masks fields that differ between the runs (random ids, nonces).
+
+The runner contains no n8n code. It pulls the official `n8nio/n8n` image of your version, imports the rewritten workflow with `n8n import:workflow`, runs it with the n8n CLI and reads the result. Your instance is only read through the public API.
+
+## What it does not do
+
+It does not judge new prompts or models (AI nodes are replayed from recordings), does not prove that the real service still behaves the same, and does not replace production monitoring.
+
+## Commands
+
+| Command | What it does |
+|---|---|
+| `init` | write config and API key, check Docker |
+| `pull` | fetch the workflow and recent executions as fixtures |
+| `scan` | support table, static findings, structural diff |
+| `run` | replay old and new in the sandbox, print the plan |
+| `diff` | re-render a saved run, optionally against baselines |
+| `accept` | store the new version's calls as the baseline |
+| `doctor` | check Docker, images and the sandbox seal |
+| `sandbox prune` | remove leftover sandbox containers |
+
+Licence: MIT.

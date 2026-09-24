@@ -1,0 +1,32 @@
+name: e2e
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  schedule:
+    # Mondays 06:00 UTC: catch n8n minor releases on the next channel before customers do.
+    - cron: '0 6 * * 1'
+  workflow_dispatch:
+
+jobs:
+  catalog:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        engine: ['2.40.5', 'next', 'v3-nightly']
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - run: docker build -t flowretest-proxy:dev packages/proxy
+      - run: docker pull n8nio/n8n:${{ matrix.engine }}
+      - run: node packages/cli/dist/bin.js doctor --engine ${{ matrix.engine }}
+      - run: npm run e2e -w packages/cli
+        env:
+          FLOWRETEST_ENGINE: ${{ matrix.engine }}

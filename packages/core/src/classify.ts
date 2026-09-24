@@ -1,0 +1,107 @@
+import type { N8nNode, N8nWorkflow } from './n8n.ts';
+import { reachableNodes } from './n8n.ts';
+import type { NodeRole } from './types.ts';
+
+export interface Classification {
+  triggerNode: string;
+  roles: Record<string, NodeRole>;
+  /** Names of nodes marked `unsupported` that lie on a path from the trigger. */
+  unsupportedOnPath: string[];
+  reachable: Set<string>;
+  /** Free-text reasons per node, e.g. why it is unsupported or needs review. */
+  notes: Record<string, string>;
+}
+
+export interface ClassifyOptions {
+  /** Node that started the recorded execution; any other trigger is dropped. */
+  triggerNode: string;
+  /** Roles from service tables (HubSpot, Slack, ...) consulted before the built-in rules. */
+  serviceRole?: (node: N8nNode) => { role: NodeRole; note?: string } | undefined;
+}
+
+const TRIGGER_TYPES = new Set([
+  'n8n-nodes-base.webhook',
+  'n8n-nodes-base.manualTrigger',
+  'n8n-nodes-base.scheduleTrigger',
+  'n8n-nodes-base.cron',
+  'n8n-nodes-base.interval',
+  'n8n-nodes-base.formTrigger',
+  'n8n-nodes-base.executeWorkflowTrigger',
+  '@n8n/n8n-nodes-langchain.chatTrigger',
+  'n8n-nodes-base.errorTrigger',
+]);
+
+/** Nodes executed for real: pure data transformations from n8n-nodes-base without network access. */
+const LOGIC_TYPES = new Set([
+  'n8n-nodes-base.set',
+  'n8n-nodes-base.if',
+  'n8n-nodes-base.switch',
+  'n8n-nodes-base.filter',
+  'n8n-nodes-base.merge',
+  'n8n-nodes-base.splitOut',
+  'n8n-nodes-base.aggregate',
+  'n8n-nodes-base.splitInBatches',
+  'n8n-nodes-base.limit',
+  'n8n-nodes-base.removeDuplicates',
+  'n8n-nodes-base.sort',
+  'n8n-nodes-base.noOp',
+  'n8n-nodes-base.renameKeys',
+  'n8n-nodes-base.dateTime',
+  'n8n-nodes-base.crypto',
+  'n8n-nodes-base.compareDatasets',
+  'n8n-nodes-base.summarize',
+  'n8n-nodes-base.itemLists',
+  'n8n-nodes-base.markdown',
+  'n8n-nodes-base.html',
+  'n8n-nodes-base.xml',
+  'n8n-nodes-base.editImage',
+  'n8n-nodes-base.stopAndError',
+]);
+
+const READ_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+
+export function isTriggerType(type: string): boolean {
+  return TRIGGER_TYPES.has(type) || /trigger$/i.test(type);
+}
+
+function classifyOne(node: N8nNode, options: ClassifyOptions): { role: NodeRole; note?: string } {
+  if (node.name === options.triggerNode) return { role: 'trigger' };
+  if (isTriggerType(node.type)) return { role: 'trigger', note: 'trigger that did not start the recording, removed' };
+  const fromService = options.serviceRole?.(node);
+  if (fromService) return fromService;
+  if (node.type === 'n8n-nodes-base.respondToWebhook') return { role: 'replace', note: 'replaced by No Operation, no outbound call' };
+  if (node.type === 'n8n-nodes-base.httpRequest') {
+    const options = (node.parameters.options ?? {}) as Record<string, unknown>;
+    if (typeof options.proxy === 'string' && options.proxy.trim() !== '') return { role: 'unsupported', note: 'HTTP Request with its own Proxy option would bypass the sandbox' };
+    const method = node.parameters.method;
+    if (method === undefined) return { role: 'read' };
+    if (typeof method === 'string' && method.startsWith('=')) return { role: 'write', note: 'method is an expression, treated as a write, review' };
+    if (typeof method === 'string' && READ_METHODS.has(method.toUpperCase())) return { role: 'read' };
+    return { role: 'write' };
+  }
+  if (node.type === 'n8n-nodes-base.code') {
+    const language = node.parameters.language ?? 'javaScript';
+    if (language !== 'javaScript') return { role: 'unsupported', note: `Code node language ${String(language)} needs the Python runner` };
+    return { role: 'logic' };
+  }
+  if (LOGIC_TYPES.has(node.type)) return { role: 'logic' };
+  return { role: 'unsupported', note: `no role table for ${node.type}` };
+}
+
+export function classify(workflow: N8nWorkflow, options: ClassifyOptions): Classification {
+  const roles: Record<string, NodeRole> = {};
+  const notes: Record<string, string> = {};
+  for (const node of workflow.nodes) {
+    if (node.disabled) {
+      roles[node.name] = 'logic';
+      notes[node.name] = 'disabled, passes data through';
+      continue;
+    }
+    const { role, note } = classifyOne(node, options);
+    roles[node.name] = role;
+    if (note) notes[node.name] = note;
+  }
+  const reachable = reachableNodes(workflow, options.triggerNode);
+  const unsupportedOnPath = workflow.nodes.filter((n) => roles[n.name] === 'unsupported' && reachable.has(n.name)).map((n) => n.name);
+  return { triggerNode: options.triggerNode, roles, unsupportedOnPath, reachable, notes };
+}

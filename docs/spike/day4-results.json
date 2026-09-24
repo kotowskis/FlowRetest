@@ -1,0 +1,227 @@
+{
+  "results": [
+    {
+      "scenario": "slack-token",
+      "status": "success",
+      "calls": [
+        {
+          "method": "POST",
+          "host": "slack.com",
+          "path": "/api/chat.postMessage",
+          "rule": "slack.chat.postMessage",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "slack.com",
+          "path": "/api/chat.postMessage",
+          "rule": "slack.chat.postMessage",
+          "status": 200
+        }
+      ],
+      "writes": 2,
+      "durationMs": 8094
+    },
+    {
+      "scenario": "slack-oauth",
+      "status": "success",
+      "calls": [
+        {
+          "method": "POST",
+          "host": "slack.com",
+          "path": "/api/chat.postMessage",
+          "rule": "slack.chat.postMessage",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "slack.com",
+          "path": "/api/chat.postMessage",
+          "rule": "slack.chat.postMessage",
+          "status": 200
+        }
+      ],
+      "writes": 2,
+      "durationMs": 8162
+    },
+    {
+      "scenario": "hubspot-token",
+      "status": "success",
+      "calls": [
+        {
+          "method": "POST",
+          "host": "api.hubapi.com",
+          "path": "/contacts/v1/contact/createOrUpdate/email/a@b.pl",
+          "rule": "hubspot.contact.createOrUpdate",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "host": "api.hubapi.com",
+          "path": "/contacts/v1/contact/vid/1/profile",
+          "rule": "hubspot.contact.profile",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "api.hubapi.com",
+          "path": "/contacts/v1/contact/createOrUpdate/email/c@d.pl",
+          "rule": "hubspot.contact.createOrUpdate",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "host": "api.hubapi.com",
+          "path": "/contacts/v1/contact/vid/2/profile",
+          "rule": "hubspot.contact.profile",
+          "status": 200
+        }
+      ],
+      "writes": 2,
+      "durationMs": 7748
+    },
+    {
+      "scenario": "hubspot-oauth",
+      "status": "success",
+      "calls": [
+        {
+          "method": "POST",
+          "host": "api.hubapi.com",
+          "path": "/contacts/v1/contact/createOrUpdate/email/a@b.pl",
+          "rule": "hubspot.contact.createOrUpdate",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "host": "api.hubapi.com",
+          "path": "/contacts/v1/contact/vid/3/profile",
+          "rule": "hubspot.contact.profile",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "api.hubapi.com",
+          "path": "/contacts/v1/contact/createOrUpdate/email/c@d.pl",
+          "rule": "hubspot.contact.createOrUpdate",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "host": "api.hubapi.com",
+          "path": "/contacts/v1/contact/vid/4/profile",
+          "rule": "hubspot.contact.profile",
+          "status": 200
+        }
+      ],
+      "writes": 2,
+      "durationMs": 8556
+    },
+    {
+      "scenario": "sheets-oauth",
+      "status": "success",
+      "calls": [
+        {
+          "method": "GET",
+          "host": "sheets.googleapis.com",
+          "path": "/v4/spreadsheets/1frtMockSpreadsheetId",
+          "rule": "sheets.spreadsheet.get",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "host": "sheets.googleapis.com",
+          "path": "/v4/spreadsheets/1frtMockSpreadsheetId/values/'Sheet1'",
+          "rule": "sheets.values.get",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "sheets.googleapis.com",
+          "path": "/v4/spreadsheets/1frtMockSpreadsheetId:batchUpdate",
+          "rule": "sheets.values.batchUpdate",
+          "status": 200
+        },
+        {
+          "method": "PUT",
+          "host": "sheets.googleapis.com",
+          "path": "/v4/spreadsheets/1frtMockSpreadsheetId/values/Sheet1!2:3",
+          "rule": "sheets.values.update",
+          "status": 200
+        }
+      ],
+      "writes": 2,
+      "durationMs": 8144
+    },
+    {
+      "scenario": "sheets-service-account",
+      "status": "success",
+      "calls": [
+        {
+          "method": "POST",
+          "host": "oauth2.googleapis.com",
+          "path": "/token",
+          "rule": "token",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "host": "sheets.googleapis.com",
+          "path": "/v4/spreadsheets/1frtMockSpreadsheetId",
+          "rule": "sheets.spreadsheet.get",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "oauth2.googleapis.com",
+          "path": "/token",
+          "rule": "token",
+          "status": 200
+        },
+        {
+          "method": "GET",
+          "host": "sheets.googleapis.com",
+          "path": "/v4/spreadsheets/1frtMockSpreadsheetId/values/'Sheet1'",
+          "rule": "sheets.values.get",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "oauth2.googleapis.com",
+          "path": "/token",
+          "rule": "token",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "sheets.googleapis.com",
+          "path": "/v4/spreadsheets/1frtMockSpreadsheetId:batchUpdate",
+          "rule": "sheets.values.batchUpdate",
+          "status": 200
+        },
+        {
+          "method": "POST",
+          "host": "oauth2.googleapis.com",
+          "path": "/token",
+          "rule": "token",
+          "status": 200
+        },
+        {
+          "method": "PUT",
+          "host": "sheets.googleapis.com",
+          "path": "/v4/spreadsheets/1frtMockSpreadsheetId/values/Sheet1!2:3",
+          "rule": "sheets.values.update",
+          "status": 200
+        }
+      ],
+      "writes": 2,
+      "durationMs": 8784
+    }
+  ],
+  "batch": {
+    "durationMs": 8816,
+    "perCaseMs": 1469,
+    "sequentialMs": 49488,
+    "outputHasRunData": true,
+    "note": "exit 0, output 2636 bytes, keys totalWorkflows,slackMessage,summary,coveredNodes,executions; snapshots: 6 (3C96REDCHKf4jeTg-snapshot.json: top keys data,mode,startedAt,stoppedAt,storedAt,status,finished; nodes frt:start,Webhook,Flatten,Slack; startTime 1790240536418, executionTime 2, startedAt 2026-09-24T09:02:16.406Z, stoppedAt 2026-09-24T09:02:18.143Z)"
+  }
+}

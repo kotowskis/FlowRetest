@@ -1,0 +1,148 @@
+[
+  {
+    "scenario": "airtable-record-create",
+    "expect": "captured",
+    "verdict": "ok",
+    "status": "success",
+    "calls": [
+      {
+        "method": "POST",
+        "host": "api.airtable.com",
+        "path": "/v0/appFRTMOCK/tblFRTMOCK",
+        "rule": "airtable.records.write",
+        "status": 200
+      }
+    ],
+    "durationMs": 16045
+  },
+  {
+    "scenario": "notion-page-create",
+    "expect": "captured",
+    "verdict": "ok",
+    "status": "success",
+    "calls": [
+      {
+        "method": "GET",
+        "host": "api.notion.com",
+        "path": "/v1/data_sources/12345678-1234-4123-8123-123456789abc",
+        "rule": "notion.data_source.get",
+        "status": 200
+      },
+      {
+        "method": "POST",
+        "host": "api.notion.com",
+        "path": "/v1/pages",
+        "rule": "notion.pages.create",
+        "status": 200
+      }
+    ],
+    "durationMs": 13733
+  },
+  {
+    "scenario": "openai-llm-chain",
+    "expect": "captured",
+    "verdict": "ok",
+    "status": "success",
+    "calls": [
+      {
+        "method": "POST",
+        "host": "api.openai.com",
+        "path": "/v1/chat/completions",
+        "rule": "openai.chat.completions",
+        "status": 200
+      }
+    ],
+    "durationMs": 15163
+  },
+  {
+    "scenario": "gemini-llm-chain",
+    "expect": "loud-failure",
+    "verdict": "ok",
+    "status": "exit 1",
+    "error": "Error executing workflow. See log messages for details. | \nExecution error: | NodeOperationError: [GoogleGenerativeAI Error]: Error fetching from https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent: fetch failed\n    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/@n8n+n8n-nodes-langchain@file++++home+runner+_work+n8n+n8n+packages+@n8n+nodes-langchain/node_modules/@n8n/n8n-nodes-langchain/nodes/chains/ChainLLM/ChainLlm.node.ts:124:13\n    at Array.forEach (<anonymous>)\n    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/@n8n+n8n-nodes-langchain@file++++home+runner+_work+n8n+n8n+packages+@n8n+nodes-langchain/node_modules/@n8n/n8n-nodes-langchain/nodes/chains/ChainLLM/ChainLlm.node.ts:97:18)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at WorkflowExecute.executeNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file++++home+runner+_work+n8n+n8n+packages+core/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1129:8)\n    at WorkflowExecute.runNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file++++home+runner+_work+n8n+n8n+packages+core/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1431:11)\n    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file++++home+runner+_work+n8n+n8n+packages+core/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2333:27\n    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file++++home+runner+_work+n8n+n8n+packages+core/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2814:11",
+    "calls": [],
+    "durationMs": 16141
+  },
+  {
+    "scenario": "postgres-insert",
+    "expect": "loud-failure",
+    "verdict": "ok",
+    "status": "exit 1",
+    "error": "\nExecution error: | getaddrinfo EAI_AGAIN db.frt.invalid | Error: getaddrinfo EAI_AGAIN db.frt.invalid\n    at GetAddrInfoReqWrap.onlookup [as oncomplete] (node:dns:110:26)",
+    "calls": [],
+    "durationMs": 21104
+  },
+  {
+    "scenario": "code-fetch",
+    "expect": "loud-failure",
+    "verdict": "ok",
+    "status": "exit 1",
+    "error": "Error executing workflow. See log messages for details. | \nExecution error: | WrappedExecutionError: fetch is not defined [line 1]\n    at throwExecutionError (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file++++home+runner+_work+n8n+n8n+packages+nodes-base/node_modules/n8n-nodes-base/nodes/Code/throw-execution-error.ts:11:9)\n    at JsTaskRunnerSandbox.runCodeAllItems (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file++++home+runner+_work+n8n+n8n+packages+nodes-base/node_modules/n8n-nodes-base/nodes/Code/JsTaskRunnerSandbox.ts:46:23)\n    at processTicksAndRejections (node:internal/process/task_queues:104:5)\n    at ExecuteContext.execute (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-nodes-base@file++++home+runner+_work+n8n+n8n+packages+nodes-base/node_modules/n8n-nodes-base/nodes/Code/Code.node.ts:219:8)\n    at WorkflowExecute.executeNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file++++home+runner+_work+n8n+n8n+packages+core/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1129:8)\n    at WorkflowExecute.runNode (/usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file++++home+runner+_work+n8n+n8n+packages+core/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:1431:11)\n    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file++++home+runner+_work+n8n+n8n+packages+core/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2333:27\n    at /usr/local/lib/node_modules/n8n/node_modules/.pnpm/n8n-core@file++++home+runner+_work+n8n+n8n+packages+core/node_modules/n8n-core/src/execution-engine/workflow-execute.ts:2814:11",
+    "calls": [],
+    "durationMs": 16330
+  },
+  {
+    "scenario": "code-helpers-httpRequest",
+    "expect": "captured",
+    "verdict": "ok",
+    "status": "success",
+    "calls": [
+      {
+        "method": "POST",
+        "host": "erp.example.com",
+        "path": "/api/orders",
+        "rule": "generic-sink",
+        "status": 200
+      }
+    ],
+    "durationMs": 15583
+  },
+  {
+    "scenario": "http-multipart-text",
+    "expect": "captured",
+    "verdict": "ok",
+    "status": "success",
+    "calls": [
+      {
+        "method": "POST",
+        "host": "erp.example.com",
+        "path": "/api/upload",
+        "rule": "generic-sink",
+        "status": 200,
+        "multipart": [
+          {
+            "name": "note",
+            "size": 6,
+            "sha256": "439f7f11855c9458ef3fae1b5177109fbefbca8e542e9a0bf0ca71e4b5804ee4"
+          }
+        ]
+      }
+    ],
+    "durationMs": 15095
+  },
+  {
+    "scenario": "http-multipart-binary",
+    "expect": "captured",
+    "verdict": "ok",
+    "status": "success",
+    "calls": [
+      {
+        "method": "POST",
+        "host": "erp.example.com",
+        "path": "/api/upload",
+        "rule": "generic-sink",
+        "status": 200,
+        "multipart": [
+          {
+            "name": "file",
+            "filename": "file.json",
+            "contentType": "application/json",
+            "size": 40,
+            "sha256": "449ff7f3ef3c434244ad04606a85f4af30daeb3376366e4ba98a221cab21b6c0"
+          }
+        ]
+      }
+    ],
+    "durationMs": 23536
+  }
+]
