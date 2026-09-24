@@ -22,11 +22,17 @@ Plan implementacji z 2026-09-23 opisuje narzędzia i flagi. Część z nich zmie
 | komendy spike'u poza produktem | `spike day3..day7` w CLI, ukryte w `--help` | `spike day7 --only` to szybka ścieżka do prób pojedynczych przypadków |
 | reguły skanera S001 do S012 według planu | S000 do S013 z inną numeracją (S010 zmiana nazwy, S012 parametry, S013 `localhost`) | numeracja powstała w kolejności wdrażania; lista jest w `docs/dziennik.md`, tydzień 3 |
 
-## Nie zrobione, nadal w planie
+## Uzupełnione po audycie
 
-Flagi globalne (`--json`, `--verbose`, `--no-color`, `--cwd`), `diff --format`, `sandbox export --compose`, sekcja "Engine differences" w `upgrade-check`, pole raportu `static`, eslint, c8 z progiem 80% i `npm audit` w CI, ręczne oczekiwania YAML z ADR 0005.
+Wszystkie elementy planu, których brakowało po tygodniu 8, są w kodzie: `--stub` i `stubs.yml`, sprawdzanie szczelności przed każdym przebiegiem (pole `sandbox`), flagi globalne, `diff --format`, `sandbox export --compose`, sekcja "Engine differences", pole `static`, eslint, próg pokrycia 80% w `core`, `npm audit` w CI i ręczne oczekiwania (`expectations.yml`). Różnice wobec planu przy tej okazji:
 
-Zrobione po audycie: `--stub` i `stubs.yml` (stub na poziomie węzła, także dla węzłów spoza HTTP; plan dopuszczał też regułę proxy `user-stub`, która dziś nie jest potrzebna) oraz sprawdzanie szczelności w każdym przebiegu z polem `sandbox` w raporcie.
+| Plan | Stan | Powód |
+|---|---|---|
+| stub jako reguła proxy `user-stub` z dopasowaniem host, metoda, ścieżka | stub na poziomie węzła w rewriterze | działa też dla węzłów spoza HTTP (Postgres, SMTP), dla odczytów bez nagrania i dla nagrań ponad 1 MB; reguła proxy nie była dotąd potrzebna |
+| c8 z progiem 80% | wbudowany pomiar Node (`--experimental-test-coverage --test-coverage-lines=80 --test-coverage-functions=80`) w `npm test` pakietu `core` | ten sam próg bez dodatkowej zależności; `core` ma 97% linii |
+| eslint z konfiguracją z Pstriq | `eslint.config.mjs`: `@eslint/js` i `typescript-eslint` (recommended, bez reguł z typami) plus `no-restricted-imports` dla modułów IO w `core` i `services` | konfiguracja Pstriq nie jest w tym repozytorium; reguły z typami dublowałyby `tsc` |
+| `sandbox export --compose` bez szczegółów | compose z proxy, n8n jako `n8n start` na wolumenie sandboxa i kontenerem socat wystawiającym edytor na 127.0.0.1:5678 | n8n zostaje w sieci wewnętrznej, więc otwarcie edytora nie rozszczelnia sandboxa |
+| `--verbose` bez definicji | każde wywołanie `docker` z czasem i pełne stosy błędów na stderr | na stderr, żeby nie mieszać się z `--json` na stdout |
 
 ## Skutki
 

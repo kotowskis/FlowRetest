@@ -13,7 +13,7 @@ const block: Rule = { id: 'block', match: {}, respond: { close: true } };
 test('host match is case-insensitive and exact unless it is a regex', () => {
   assert.ok(ruleMatches(hubspot, { method: 'post', host: 'API.HUBAPI.COM', path: '/crm/v3/objects/contacts' }));
   assert.ok(!ruleMatches(hubspot, { method: 'POST', host: 'api.hubapi.com.evil', path: '/crm/v3/objects/contacts' }));
-  const regex: Rule = { id: 'r', match: { host: '^.*\.googleapis\.com$' }, respond: {} };
+  const regex: Rule = { id: 'r', match: { host: '^.*\\.googleapis\\.com$' }, respond: {} };
   assert.ok(ruleMatches(regex, { method: 'GET', host: 'sheets.googleapis.com', path: '/' }));
 });
 

@@ -46,6 +46,8 @@ export function docker(args: string[], options: DockerRunOptions = {}): Promise<
     });
     child.on('close', (code) => {
       if (timer) clearTimeout(timer);
+      // --verbose: every docker command on stderr, so it never mixes with a --json result on stdout.
+      if (process.env.FLOWRETEST_VERBOSE === '1') console.error(`docker ${args.join(' ')} -> ${timedOut ? 'timeout' : code} (${Date.now() - started} ms)`);
       const result: DockerResult = {
         code: timedOut ? 124 : (code ?? 1),
         stdout,

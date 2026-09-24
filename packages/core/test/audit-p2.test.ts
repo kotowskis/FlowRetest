@@ -83,6 +83,7 @@ test('S013 catches expression URLs and every loopback form; S008 catches $env ou
 
 test('JUnit escaping drops characters XML 1.0 does not allow', () => {
   const out = xmlEscape('bad \u001b[31m esc & <tag> "q" \ud800 end');
+  // eslint-disable-next-line no-control-regex -- the test looks for control characters
   assert.ok(!/[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(out));
   assert.ok(!/[\ud800-\udfff]/.test(out));
   assert.match(out, /&amp; &lt;tag&gt; &quot;q&quot;/);

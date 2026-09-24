@@ -18,3 +18,5 @@ export * from './baseline.ts';
 export * from './scan.ts';
 export * from './render-formats.ts';
 export * from './redact.ts';
+export * from './engine.ts';
+export * from './expect.ts';

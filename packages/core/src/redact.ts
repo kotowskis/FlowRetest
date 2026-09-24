@@ -74,6 +74,8 @@ export function redactPlanReport(report: PlanReport, options: Partial<ShapeOptio
       ...c,
       // Warnings are written by the runner from node names only; errors come from n8n and may quote customer data.
       error: c.error === undefined ? undefined : scrubText(c.error, shape),
+      engineDifferences: c.engineDifferences?.map((d) => scrubText(d, shape)),
+      expectationFailures: c.expectationFailures?.map((f) => scrubText(f, shape)),
       entries: c.entries.map((e) => ({
         ...e,
         old: e.old ? shapeCall(e.old, shape) : undefined,

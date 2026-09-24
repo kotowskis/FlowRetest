@@ -16,7 +16,7 @@ export interface RedactOptions {
 export function runRedactReport(options: { cwd: string; workflowId: string; run?: string; log: (line: string) => void }): string {
   loadConfig(options.cwd);
   const { run, report } = loadReport(options.cwd, options.workflowId, options.run);
-  const plan: PlanReport = { runner: report.runner, workflowName: report.workflowName ?? report.workflowId, workflowId: report.workflowId, engine: report.engine, oldLabel: report.old, newLabel: report.new, cases: report.cases, coverage: report.coverage, sealed: report.sandbox?.sealed === true };
+  const plan: PlanReport = { runner: report.runner, workflowName: report.workflowName ?? report.workflowId, workflowId: report.workflowId, engine: report.engine, oldLabel: report.old, newLabel: report.new, cases: report.cases, coverage: report.coverage, sealed: report.sandbox?.sealed === true, static: report.static };
   const redacted = redactPlanReport(plan);
   const runPath = join(workflowDir(options.cwd, options.workflowId), 'runs', run);
   const path = join(runPath, 'report.redacted.json');

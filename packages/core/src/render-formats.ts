@@ -1,8 +1,9 @@
 import type { CaseDiff, PlanEntry } from './diff.ts';
 import type { PlanReport } from './render.ts';
-import { exitCodeFor, overallStatus, renderPlan } from './render.ts';
+import { engineSection, exitCodeFor, overallStatus, renderPlan, staticSummary } from './render.ts';
 
 /** Characters XML 1.0 does not allow at all (control characters, lone surrogates, U+FFFE/FFFF); one would make strict JUnit parsers reject the whole file. */
+// eslint-disable-next-line no-control-regex -- matching control characters is the point
 const XML_INVALID = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]|[\uD800-\uDBFF](?![\uDC00-\uDFFF])|(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/g;
 
 export function xmlEscape(text: string): string {
@@ -24,8 +25,9 @@ export function renderJUnit(report: PlanReport): string {
   lines.push(`  <testsuite name="${xmlEscape(report.workflowName)}" tests="${cases.length}" failures="${failures}" skipped="${skipped}">`);
   for (const c of cases) {
     const name = xmlEscape(`case ${c.caseId}`);
-    const detail = c.entries.filter((e) => e.op !== '=').map(entrySummary).join('\n');
-    if (c.status === 'PASS') lines.push(`    <testcase classname="flowretest" name="${name}"/>`);
+    const detail = [...(c.expectationFailures ?? []).map((f) => `expectation: ${f}`), ...c.entries.filter((e) => e.op !== '=').map(entrySummary)].join('\n');
+    const engineOut = c.engineDifferences?.length ? `<system-out>${xmlEscape(c.engineDifferences.join('\n'))}</system-out>` : '';
+    if (c.status === 'PASS') lines.push(engineOut ? `    <testcase classname="flowretest" name="${name}">${engineOut}</testcase>` : `    <testcase classname="flowretest" name="${name}"/>`);
     else if (c.status === 'DIFF') lines.push(`    <testcase classname="flowretest" name="${name}"><failure message="${xmlEscape(`${c.summary.changed} changed, ${c.summary.added} added, ${c.summary.removed} removed`)}">${xmlEscape(detail)}</failure></testcase>`);
     else if (c.status === 'ERROR') lines.push(`    <testcase classname="flowretest" name="${name}"><failure message="${xmlEscape(c.error ?? 'execution failed')}">${xmlEscape(detail)}</failure></testcase>`);
     else lines.push(`    <testcase classname="flowretest" name="${name}"><skipped message="${xmlEscape(c.status === 'BLOCKED' ? `${c.summary.blocked} blocked call(s)` : (c.error ?? 'skipped'))}"/></testcase>`);
@@ -44,12 +46,13 @@ function caseSection(c: CaseDiff): string[] {
   const lines: string[] = [];
   const visible = c.entries.filter((e) => e.op !== '=');
   const title = `case ${c.caseId}: ${statusEmojiFree(c.status)} (${c.summary.changed} changed, ${c.summary.added} added, ${c.summary.removed} removed, ${c.summary.blocked} blocked)`;
-  if (visible.length === 0 && !c.error && !(c.warnings ?? []).length) {
+  if (visible.length === 0 && !c.error && !(c.warnings ?? []).length && !(c.expectationFailures ?? []).length) {
     lines.push(`- ${title}`);
     return lines;
   }
   lines.push('<details>', `<summary>${title}</summary>`, '');
   if (c.error) lines.push(`Execution: ${c.error}`, '');
+  for (const f of c.expectationFailures ?? []) lines.push(`Expectation failed: ${f}`, '');
   for (const w of c.warnings ?? []) lines.push(`Warning: ${w}`, '');
   lines.push('```');
   for (const e of visible) {
@@ -72,12 +75,16 @@ export function renderMarkdown(report: PlanReport): string {
   const head: string[] = [];
   head.push(`## FlowRetest: ${status} for "${report.workflowName}"`, '');
   head.push(`Plan: ${total.newCalls} calls (old version: ${total.oldCalls}). ${total.changed} changed, ${total.added} added, ${total.removed} removed, ${total.blocked} blocked.`, '');
+  const engine = engineSection(report);
+  if (engine.length) head.push(`### ${engine[0]?.replace(/:$/, '')}`, '', ...engine.slice(1).map((l) => `- ${l.trim()}`), '');
   head.push('| Case | Status | Changed | Added | Removed | Blocked |', '|---|---|---|---|---|---|');
   for (const c of report.cases) head.push(`| ${c.caseId} | ${c.status} | ${c.summary.changed} | ${c.summary.added} | ${c.summary.removed} | ${c.summary.blocked} |`);
   head.push('');
   const cov = report.coverage;
   const pct = cov.writeNodesTotal === 0 ? 100 : Math.round((cov.writeNodesCaptured / cov.writeNodesTotal) * 100);
   const foot = [`Coverage: ${cov.writeNodesCaptured} of ${cov.writeNodesTotal} write nodes captured (${pct}%), ${cov.replayedNodes} nodes replayed from recordings${cov.unsupported.length ? `, unsupported: ${cov.unsupported.join(', ')}` : ''}${cov.stubbed?.length ? `, stubbed: ${cov.stubbed.join(', ')}` : ''}. ${report.sealed ? 'Sandbox sealed (checked before the run), 0 requests left it.' : 'Sandbox seal not verified.'}`, `Engine ${report.engine.image}${report.engine.digest ? ` (${report.engine.digest.slice(0, 26)}…)` : ''}, old: ${report.oldLabel}, new: ${report.newLabel}, exit code ${exitCodeFor(status)}.`, ''];
+  const statics = staticSummary(report);
+  if (statics) foot.unshift(`${statics}.`);
   const sections = report.cases.flatMap(caseSection);
   let body = [...head, ...sections, ...foot].join('\n');
   if (body.length > MARKDOWN_LIMIT) {

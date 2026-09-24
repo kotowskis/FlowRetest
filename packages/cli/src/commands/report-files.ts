@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import type { Baseline, CaseDiff, NormalizedCall } from '@flowretest/core';
+import type { Baseline, CaseDiff, NormalizedCall, ScanFinding } from '@flowretest/core';
 import { workflowDir } from '../config.ts';
 
 /** report.json written by `run`; the plan can be re-rendered from it without a sandbox. */
@@ -16,8 +16,11 @@ export interface RunReport {
   status: string;
   cases: CaseDiff[];
   mode?: 'change' | 'upgrade';
+  engines?: { old: string; new: string; digestOld?: string; digestNew?: string };
   calls: Record<string, { old: NormalizedCall[]; new: NormalizedCall[]; volatile: string[]; stable?: boolean }>;
   coverage: { writeNodesTotal: number; writeNodesCaptured: number; replayedNodes: number; unsupported: string[]; stubbed?: string[] };
+  /** Scanner findings for the new version and the structural diff (plan 5.4). */
+  static?: { trigger: string; findings: ScanFinding[]; diff: ScanFinding[] };
   /** Seal checks done before the run; absent in reports written before 0.3.0. */
   sandbox?: { sealed: boolean; checks: Array<{ network: string; name: string; ok: boolean; detail: string }> };
 }

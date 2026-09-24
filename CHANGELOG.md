@@ -7,6 +7,13 @@ All notable changes to this project are documented here. The format follows Keep
 ### Added
 
 - Stubs: `run --stub "<node>=<file>"` (repeatable) and `.flowretest/<workflow>/stubs.yml` answer a node with the items in a JSON or YAML file instead of running or replaying it: a database write, a read the recording never took, a recording over 1 MB. The case runs instead of being skipped, gets a `stub:` warning, and `coverage.stubbed` lists the nodes. `upgrade-check` takes `--stub` too; `scan` and the skip message point at it.
+- `expectations.yml` (ADR 0005): hand-written checks on the new version's calls (call counts per node, `notEmpty`, `absent`, `present`, `equals`, `matches`, `oneOf` on field paths with `[*]`). A failed check makes the case DIFF and shows as an `x` line; `diff --against baseline` checks them again.
+- `upgrade-check`: the plan, Markdown and JUnit open with "Engine differences": nodes that ran on one engine only, run and item counts, output keys and new errors per node, next to the call diff.
+- `report.json` has `static`: the scanner findings for the new version and the structural diff; the plan shows one line with their counts.
+- `diff --format terminal,json,junit,md` re-renders a saved run into files (`junit.baseline.xml`, `plan.baseline.md` against baselines).
+- `sandbox export --compose <dir>`: a docker-compose file for a sandbox kept with `--keep`, with the n8n editor on 127.0.0.1:5678 through a socat container while n8n stays on the internal network.
+- Global options `--json` (result on stdout, progress on stderr), `--verbose`, `--no-color` and `--cwd`; the terminal plan is coloured by line (picocolors).
+- CI: eslint (`npm run lint`, part of `verify`; `core` and `services` may not import IO modules), an 80% line and function coverage threshold for `core`, `npm audit --audit-level=high`.
 - Every `run` checks the seal of its sandbox before executing anything (internal network, proxy on that network only, no direct connection out) and stops with exit code 4 if a check fails. The checks are in `report.json` under `sandbox`; the plan footer says "sandbox sealed (checked before the run)" only when they passed.
 
 ### Fixed

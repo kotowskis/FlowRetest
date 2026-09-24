@@ -9,7 +9,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  aiReplayWarnings, attributeRecord, attributeToNode, classify, detectVolatile, diffCase, fromBaseline, inputCounts, maskVolatile, normalizeCall, renderPlan, rewriteWorkflow, runWindows, runsIdentical, toBaseline,
+  aiReplayWarnings, attributeRecord, classify, detectVolatile, diffCase, fromBaseline, inputCounts, maskVolatile, normalizeCall, renderPlan, rewriteWorkflow, runWindows, runsIdentical, toBaseline,
   type CaptureRecord, type CaseDiff, type NormalizedCall, type RunTimings,
 } from '@flowretest/core';
 import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules } from '@flowretest/services';

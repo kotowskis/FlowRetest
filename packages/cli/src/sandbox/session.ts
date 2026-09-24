@@ -4,6 +4,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { docker, dockerOk, type DockerResult } from './docker.ts';
 import { buildN8nEnv, toEnvFile, type N8nEnvOptions } from './env.ts';
+import { MANIFEST_FILE, type SandboxManifest } from './compose.ts';
 
 export interface SandboxOptions {
   /** Directory on the host that holds rules, capture, certs and work files of this run. */
@@ -109,6 +110,9 @@ export class SandboxSession {
     await dockerOk(['network', 'create', '--internal', this.network], { timeoutMs: 30_000 });
     await dockerOk(['volume', 'create', this.volume], { timeoutMs: 30_000 });
     this.started = true;
+    const user = hostUserArgs()[1];
+    const manifest: SandboxManifest = { schemaVersion: 1, id: this.id, network: this.network, volume: this.volume, proxyName: this.proxyName, n8nImage: this.options.n8nImage, proxyImage: this.options.proxyImage, dirs: this.dirs, envFile: this.envFile, caDir: this.caDir, ...(user ? { user } : {}), createdAt: new Date().toISOString() };
+    writeFileSync(join(this.options.runDir, MANIFEST_FILE), JSON.stringify(manifest, null, 2));
     this.log(`sandbox ${this.id}: network and volume created`);
 
     await dockerOk(
@@ -286,7 +290,7 @@ export class SandboxSession {
   async stop(): Promise<void> {
     if (!this.started) return;
     if (this.options.keep) {
-      this.log(`sandbox ${this.id} kept: docker rm -f ${this.proxyName}; docker volume rm ${this.volume}; docker network rm ${this.network}`);
+      this.log(`sandbox ${this.id} kept in ${this.options.runDir}: open it in the n8n editor with \`flowretest sandbox export --compose ${this.options.runDir}\`; remove it with \`flowretest sandbox prune --force\``);
       return;
     }
     await docker(['rm', '-f', this.proxyName], { timeoutMs: 30_000 });

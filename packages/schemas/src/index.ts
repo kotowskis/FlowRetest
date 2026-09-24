@@ -134,7 +134,11 @@ export const CaseDiffSchema = z.object({
   summary: z.object({ oldCalls: z.number(), newCalls: z.number(), unchanged: z.number(), changed: z.number(), added: z.number(), removed: z.number(), blocked: z.number() }),
   error: z.string().optional(),
   warnings: z.array(z.string()).optional(),
+  engineDifferences: z.array(z.string()).optional(),
+  expectationFailures: z.array(z.string()).optional(),
 });
+
+export const ScanFindingSchema = z.object({ rule: z.string(), severity: z.enum(['info', 'warn', 'error']), node: z.string().optional(), message: z.string() });
 
 export const RunReportSchema = z.object({
   schemaVersion: z.literal(1),
@@ -151,6 +155,13 @@ export const RunReportSchema = z.object({
   cases: z.array(CaseDiffSchema),
   calls: z.record(z.string(), z.object({ old: z.array(NormalizedCallSchema), new: z.array(NormalizedCallSchema), volatile: z.array(z.string()), stable: z.boolean().optional() })),
   coverage: z.object({ writeNodesTotal: z.number(), writeNodesCaptured: z.number(), replayedNodes: z.number(), unsupported: z.array(z.string()), stubbed: z.array(z.string()).optional() }),
+  static: z
+    .object({
+      trigger: z.string(),
+      findings: z.array(ScanFindingSchema),
+      diff: z.array(ScanFindingSchema),
+    })
+    .optional(),
   sandbox: z.object({ sealed: z.boolean(), checks: z.array(z.object({ network: z.string(), name: z.string(), ok: z.boolean(), detail: z.string() })) }).optional(),
 });
 export type RunReport = z.infer<typeof RunReportSchema>;
@@ -180,6 +191,31 @@ export const StubsFileSchema = z.object({
 });
 export type StubsFile = z.infer<typeof StubsFileSchema>;
 
+const FieldCheckSchema = z.union([
+  z.enum(['notEmpty', 'absent', 'present']),
+  z.object({ notEmpty: z.literal(true) }).strict(),
+  z.object({ absent: z.literal(true) }).strict(),
+  z.object({ present: z.literal(true) }).strict(),
+  z.object({ equals: z.union([z.string(), z.number(), z.boolean(), z.null()]) }).strict(),
+  z.object({ matches: z.string() }).strict(),
+  z.object({ oneOf: z.array(z.union([z.string(), z.number(), z.boolean(), z.null()])) }).strict(),
+]);
+
+/** .flowretest/<workflow>/expectations.yml: hand-written checks on the new version's calls (ADR 0005). */
+export const ExpectationsFileSchema = z.object({
+  schemaVersion: z.literal(1),
+  expect: z.array(
+    z
+      .object({
+        node: z.string().min(1),
+        cases: z.array(z.string()).optional(),
+        calls: z.union([z.number().int().min(0), z.object({ min: z.number().int().min(0).optional(), max: z.number().int().min(0).optional() }).strict()]).optional(),
+        fields: z.record(z.string(), FieldCheckSchema).optional(),
+      })
+      .strict(),
+  ),
+});
+
 export const ALL_SCHEMAS = {
   config: ConfigSchema,
   fixture: FixtureSchema,
@@ -188,6 +224,7 @@ export const ALL_SCHEMAS = {
   report: RunReportSchema,
   baseline: BaselineSchema,
   stubs: StubsFileSchema,
+  expectations: ExpectationsFileSchema,
 } as const;
 
 /** Validates and returns a typed value or throws a readable error listing the first issues. */
@@ -201,5 +238,5 @@ export function parseOrThrow<T>(schema: z.ZodType<T>, value: unknown, what: stri
 /** JSON Schema (draft 2020-12) for one of the formats, for docs and editors. */
 export function jsonSchemaOf(name: keyof typeof ALL_SCHEMAS): Record<string, unknown> {
   // config.yml is written by people: fields with a default are optional there, so it is exported as an input schema.
-  return z.toJSONSchema(ALL_SCHEMAS[name], { target: 'draft-2020-12', unrepresentable: 'any', io: name === 'config' || name === 'stubs' ? 'input' : 'output' }) as Record<string, unknown>;
+  return z.toJSONSchema(ALL_SCHEMAS[name], { target: 'draft-2020-12', unrepresentable: 'any', io: name === 'config' || name === 'stubs' || name === 'expectations' ? 'input' : 'output' }) as Record<string, unknown>;
 }

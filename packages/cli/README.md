@@ -30,7 +30,7 @@ Plan: 3 calls (old version: 3). 3 changed, 0 added, 0 removed, 0 blocked.
       customer_id: "C-1" -> null
       ! empty value in an id field
 
-Coverage: 3 of 3 write nodes captured (100%) · nodes replayed from recordings: 3 · 0 requests left the sandbox
+Coverage: 3 of 3 write nodes captured (100%) · nodes replayed from recordings: 3 · sandbox sealed (checked before the run), 0 requests left it
 Result: DIFF (exit code 1)
 ```
 
@@ -89,12 +89,35 @@ It does not judge new prompts or models (AI nodes are replayed from recordings),
 | `pull` | fetch the workflow and recent executions as fixtures |
 | `scan` | support table, static findings, structural diff |
 | `run` | replay old and new in the sandbox, print the plan |
-| `diff` | re-render a saved run, optionally against baselines |
+| `diff` | re-render a saved run, optionally against baselines; `--format junit,md` writes the files again |
 | `accept` | store the new version's calls as the baseline (needs a `--stabilize` run, or `--force`) |
-| `upgrade-check` | replay the same workflow on two n8n images and report engine differences |
+| `upgrade-check` | replay the same workflow on two n8n images; the plan opens with "Engine differences" (nodes that ran on one engine only, item counts, output keys, new errors) |
 | `redact` | redacted fixture copies for bug reports and shared catalogues |
 | `doctor` | check Docker, images and the sandbox seal |
 | `sandbox prune` | remove leftover sandbox containers |
+| `sandbox export --compose <dir>` | turn a sandbox kept with `run --keep` into a docker-compose file that opens its workflows and executions in the n8n editor on 127.0.0.1:5678, still without a route out |
+
+Global options, before or after the command: `--json` (the result as JSON on stdout, progress on stderr; for `run` the report itself), `--verbose` (every docker command and full error stacks on stderr), `--no-color` (also `NO_COLOR=1`), `--cwd <dir>` (the project directory holding `.flowretest/`).
+
+### Expectations
+
+The plan compares the new version with the old one, so a bug present in both versions does not show. For that, `.flowretest/<workflowId>/expectations.yml` holds checks on the new version's calls. A failed check makes the case DIFF and shows as an `x` line in the plan; `diff --against baseline` checks them again.
+
+```yaml
+schemaVersion: 1
+expect:
+  - node: Push to ERP
+    calls: 2                       # or { min: 1, max: 3 }, per case
+    fields:                        # every call of the node; paths as in the plan
+      customer_id: notEmpty
+      email: { matches: '^[^@]+@' }
+      status: { oneOf: [new, open] }
+      'lines[*].sku': notEmpty
+      debug: absent
+  - node: Slack
+    cases: ['1234']                # only these executions
+    calls: 0
+```
 
 ## CI
 

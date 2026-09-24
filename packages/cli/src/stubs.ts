@@ -1,7 +1,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, isAbsolute, join, resolve } from 'node:path';
 import { parse } from 'yaml';
-import { parseOrThrow, StubsFileSchema } from '@flowretest/schemas';
+import { ExpectationsFileSchema, parseOrThrow, StubsFileSchema } from '@flowretest/schemas';
+import type { Expectation, ExpectationsFile } from '@flowretest/core';
 import { workflowDir } from './config.ts';
 
 export const STUBS_FILE = 'stubs.yml';
@@ -67,4 +68,13 @@ export function loadStubs(cwd: string, workflowId: string, flags: string[] = [])
     out[node] = { items: readStubFile(isAbsolute(file) ? file : resolve(cwd, file)), source: `--stub ${file}` };
   }
   return out;
+}
+
+export const EXPECTATIONS_FILE = 'expectations.yml';
+
+/** Hand-written expectations from `.flowretest/<workflow>/expectations.yml`; none when the file is absent. */
+export function loadExpectations(cwd: string, workflowId: string): Expectation[] {
+  const path = join(workflowDir(cwd, workflowId), EXPECTATIONS_FILE);
+  if (!existsSync(path)) return [];
+  return (parseOrThrow(ExpectationsFileSchema, parse(readFileSync(path, 'utf8')), path) as ExpectationsFile).expect;
 }

@@ -15,7 +15,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "type-check": "tsc -p tsconfig.json --noEmit",
-    "test": "node --test \"test/**/*.test.ts\""
+    "test": "node --test --experimental-test-coverage --test-coverage-include=\"src/**\" --test-coverage-lines=80 --test-coverage-functions=80 \"test/**/*.test.ts\""
   },
   "dependencies": {},
   "license": "MIT"

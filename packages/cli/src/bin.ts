@@ -1,11 +1,17 @@
 #!/usr/bin/env node
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { Command, CommanderError, Option } from 'commander';
+import pc from 'picocolors';
 import { CLI_VERSION } from './index.ts';
 import { runDoctor } from './commands/doctor.ts';
 import { pruneSandboxes } from './sandbox/session.ts';
 import { defaultProxyImage } from './config.ts';
 import { describeError, exitCodeForError } from './errors.ts';
 import { byteSize, collect, formatList, idList, positiveInt } from './args.ts';
+import { colorPlan } from './color.ts';
+
+type Formats = Array<'terminal' | 'json' | 'junit' | 'md'>;
 
 const program = new Command();
 // Commander exits with 1 on usage errors, and 1 means DIFF; errors are mapped to exit codes at the end of this file.
@@ -13,7 +19,39 @@ program.exitOverride();
 program
   .name('flowretest')
   .description('Replay real n8n executions against a changed workflow in a sealed sandbox and diff the calls it would send.')
-  .version(CLI_VERSION);
+  .version(CLI_VERSION)
+  .option('--json', 'machine-readable result on stdout; progress goes to stderr')
+  .option('--verbose', 'print every docker command with its duration, and full error stacks')
+  .option('--no-color', 'plain text output (also NO_COLOR=1)')
+  .option('--cwd <dir>', 'project directory holding .flowretest/ (default: the current directory)')
+  .hook('preAction', () => {
+    const g = globals();
+    if (g.cwd) process.chdir(resolve(g.cwd));
+    if (g.verbose) {
+      process.env.FLOWRETEST_VERBOSE = '1';
+      process.env.FLOWRETEST_DEBUG = '1';
+    }
+  });
+
+function globals(): { json?: boolean; verbose?: boolean; color: boolean; cwd?: string } {
+  return program.opts() as { json?: boolean; verbose?: boolean; color: boolean; cwd?: string };
+}
+
+/** Progress lines: stdout normally, stderr with --json so stdout carries only the result. */
+function log(line: string): void {
+  if (globals().json) console.error(line);
+  else console.log(line);
+}
+
+/** The result of a command: JSON on stdout with --json, the human text otherwise. */
+function emit(json: unknown, text?: string): void {
+  if (globals().json) console.log(JSON.stringify(json, null, 2));
+  else if (text !== undefined) console.log(text);
+}
+
+function plan(text: string): string {
+  return colorPlan(text, globals().color !== false && pc.isColorSupported);
+}
 
 program
   .command('init')
@@ -25,7 +63,8 @@ program
   .option('--force', 'replace an existing config.yml instead of updating instance, engine and proxy image in it', false)
   .action(async (opts: { url: string; apiKey?: string; engine?: string; timezone?: string; force: boolean }) => {
     const { runInit } = await import('./commands/init.ts');
-    await runInit({ cwd: process.cwd(), url: opts.url, apiKey: opts.apiKey, engine: opts.engine, timezone: opts.timezone, force: opts.force, log: (l) => console.log(l) });
+    await runInit({ cwd: process.cwd(), url: opts.url, apiKey: opts.apiKey, engine: opts.engine, timezone: opts.timezone, force: opts.force, log });
+    emit({ ok: true, config: resolve('.flowretest', 'config.yml') });
   });
 
 program
@@ -38,7 +77,8 @@ program
   .option('--include-errors', 'also pull failed executions', false)
   .action(async (opts: { workflow: string; last: number; since?: string; maxSize: number; includeErrors: boolean }) => {
     const { runPull } = await import('./commands/pull.ts');
-    await runPull({ cwd: process.cwd(), workflowId: opts.workflow, last: opts.last, since: opts.since, maxSizeBytes: opts.maxSize, includeErrors: opts.includeErrors, log: (l) => console.log(l) });
+    const out = await runPull({ cwd: process.cwd(), workflowId: opts.workflow, last: opts.last, since: opts.since, maxSizeBytes: opts.maxSize, includeErrors: opts.includeErrors, log });
+    emit({ dir: out.dir, fixtures: out.fixtures, skipped: out.skipped });
   });
 
 program
@@ -47,10 +87,9 @@ program
   .option('--workflow <id>', 'workflow id (as pulled) for the old version and the trigger')
   .option('--new <file>', 'new workflow JSON')
   .option('--old <file>', 'old workflow JSON (default: the published one after pull)')
-  .option('--json', 'machine-readable output', false)
-  .action(async (opts: { workflow?: string; new?: string; old?: string; json: boolean }) => {
+  .action(async (opts: { workflow?: string; new?: string; old?: string }) => {
     const { runScan } = await import('./commands/scan.ts');
-    const out = runScan({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, oldFile: opts.old, json: opts.json, log: (l) => console.log(l) });
+    const out = runScan({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, oldFile: opts.old, json: globals().json, log: globals().json ? (l) => console.log(l) : log });
     process.exit(out.exitCode);
   });
 
@@ -60,10 +99,11 @@ program
   .requiredOption('--workflow <id>', 'workflow id (as pulled)')
   .option('--run <stamp>', 'run directory name (default: latest)')
   .addOption(new Option('--against <what>', 'compare with the old version or with the accepted baselines').choices(['old', 'baseline']).default('old'))
-  .option('--json', 'machine-readable output', false)
-  .action(async (opts: { workflow: string; run?: string; against: string; json: boolean }) => {
+  .option('--format <list>', 'comma-separated: terminal, json (printed), junit, md (written into the run directory; *.baseline.* against baselines)', formatList, ['terminal'])
+  .action(async (opts: { workflow: string; run?: string; against: string; format: Formats }) => {
     const { runDiff } = await import('./commands/diff.ts');
-    const out = runDiff({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, against: opts.against as 'old' | 'baseline', json: opts.json, log: (l) => console.log(l) });
+    const json = globals().json || opts.format.includes('json');
+    const out = runDiff({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, against: opts.against as 'old' | 'baseline', json, formats: opts.format, log: (l) => (json ? console.log(l) : console.log(plan(l))) });
     process.exit(out.exitCode);
   });
 
@@ -77,11 +117,21 @@ program
   .option('--force', 'accept without a stability check', false)
   .action(async (opts: { workflow: string; run?: string; cases?: string[]; message?: string; force: boolean }) => {
     const { runAccept } = await import('./commands/accept.ts');
-    const written = runAccept({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, cases: opts.cases, message: opts.message, force: opts.force, log: (l) => console.log(l) });
-    console.log(`${written.length} baseline${written.length === 1 ? '' : 's'} written`);
+    const written = runAccept({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, cases: opts.cases, message: opts.message, force: opts.force, log });
+    emit({ written }, `${written.length} baseline${written.length === 1 ? '' : 's'} written`);
     // Nothing accepted (unstable or unchecked cases) must not look like success in a script; 3 is "blocked".
     if (written.length === 0) process.exit(3);
   });
+
+/** Output of run and upgrade-check: the report itself with --json, the coloured plan otherwise. */
+function emitRun(result: { plan: string; reportPath: string; exitCode: number }): never {
+  if (globals().json) console.log(readFileSync(result.reportPath, 'utf8'));
+  else {
+    console.log('\n' + plan(result.plan));
+    console.log(`\nreport: ${result.reportPath}`);
+  }
+  process.exit(result.exitCode);
+}
 
 program
   .command('run')
@@ -93,14 +143,10 @@ program
   .option('--stabilize', 'run both versions twice and mask volatile fields; required before accept')
   .option('--stub <node=file>', 'answer a node with the items in a JSON or YAML file instead of running or replaying it (repeatable; also .flowretest/<id>/stubs.yml)', collect, [])
   .option('--format <list>', 'comma-separated: terminal, json, junit, md (files land in the run directory)', formatList, ['terminal'])
-  .option('--keep', 'keep the sandbox for inspection', false)
-  .action(async (opts: { workflow: string; new: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Array<'terminal' | 'json' | 'junit' | 'md'>; keep: boolean }) => {
+  .option('--keep', 'keep the sandbox for inspection (see `sandbox export --compose`)', false)
+  .action(async (opts: { workflow: string; new: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Formats; keep: boolean }) => {
     const { runRun } = await import('./commands/run.ts');
-    const formats = opts.format;
-    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats, keep: opts.keep, log: (l) => console.log(l) });
-    console.log('\n' + result.plan);
-    console.log(`\nreport: ${result.reportPath}`);
-    process.exit(result.exitCode);
+    emitRun(await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats: opts.format, keep: opts.keep, log }));
   });
 
 program
@@ -115,13 +161,9 @@ program
   .option('--stub <node=file>', 'answer a node with the items in a JSON or YAML file (repeatable; also .flowretest/<id>/stubs.yml)', collect, [])
   .option('--format <list>', 'comma-separated: terminal, json, junit, md', formatList, ['terminal'])
   .option('--keep', 'keep the sandboxes for inspection', false)
-  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Array<'terminal' | 'json' | 'junit' | 'md'>; keep: boolean }) => {
+  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Formats; keep: boolean }) => {
     const { runRun } = await import('./commands/run.ts');
-    const formats = opts.format;
-    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log: (l) => console.log(l) });
-    console.log('\n' + result.plan);
-    console.log(`\nreport: ${result.reportPath}`);
-    process.exit(result.exitCode);
+    emitRun(await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats: opts.format, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log }));
   });
 
 program
@@ -133,8 +175,8 @@ program
   .option('--report [run]', 'redact a run report instead of the fixtures (default: latest run)')
   .action(async (opts: { workflow: string; out?: string; keepFields?: string; report?: string | boolean }) => {
     const { runRedact, runRedactReport } = await import('./commands/redact.ts');
-    if (opts.report !== undefined) runRedactReport({ cwd: process.cwd(), workflowId: opts.workflow, run: typeof opts.report === 'string' ? opts.report : undefined, log: (l) => console.log(l) });
-    else runRedact({ cwd: process.cwd(), workflowId: opts.workflow, outDir: opts.out, keepFields: opts.keepFields ? idList(opts.keepFields) : undefined, log: (l) => console.log(l) });
+    if (opts.report !== undefined) emit({ report: runRedactReport({ cwd: process.cwd(), workflowId: opts.workflow, run: typeof opts.report === 'string' ? opts.report : undefined, log }) });
+    else emit({ fixtures: runRedact({ cwd: process.cwd(), workflowId: opts.workflow, outDir: opts.out, keepFields: opts.keepFields ? idList(opts.keepFields) : undefined, log }) });
   });
 
 program
@@ -153,9 +195,9 @@ program
       timezone: opts.timezone,
       keep: opts.keep,
       skipSandbox: !opts.sandbox,
-      log: (line) => console.log(line),
+      log,
     });
-    console.log(report.ok ? '\nDoctor: all checks passed.' : '\nDoctor: some checks failed.');
+    emit(report, report.ok ? '\nDoctor: all checks passed.' : '\nDoctor: some checks failed.');
     process.exit(report.ok ? 0 : 4);
   });
 
@@ -171,9 +213,9 @@ spike
   .action(async (opts: { engine: string; proxyImage: string; variant: string; out?: string; keep: boolean }) => {
     const { runSpikeDay3 } = await import('./commands/spike-day3.ts');
     const variants = opts.variant === 'both' ? (['code', 'set'] as const) : ([opts.variant] as Array<'code' | 'set'>);
-    const results = await runSpikeDay3({ n8nImage: `n8nio/n8n:${opts.engine}`, proxyImage: opts.proxyImage, variants: [...variants], keep: opts.keep, outFile: opts.out, log: (line) => console.log(line) });
-    console.log('\nscenario | variant | status | posts | bodies');
-    for (const r of results) console.log(`${r.scenario} | ${r.variant} | ${r.status}${r.error ? ' (' + r.error + ')' : ''} | ${r.posts} | ${JSON.stringify(r.bodies)}`);
+    const results = await runSpikeDay3({ n8nImage: `n8nio/n8n:${opts.engine}`, proxyImage: opts.proxyImage, variants: [...variants], keep: opts.keep, outFile: opts.out, log });
+    log('\nscenario | variant | status | posts | bodies');
+    for (const r of results) log(`${r.scenario} | ${r.variant} | ${r.status}${r.error ? ' (' + r.error + ')' : ''} | ${r.posts} | ${JSON.stringify(r.bodies)}`);
   });
 
 spike
@@ -186,7 +228,7 @@ spike
   .option('--keep', 'keep the sandbox', false)
   .action(async (opts: { engine: string; proxyImage: string; explore: boolean; out?: string; keep: boolean }) => {
     const { runSpikeDay4 } = await import('./commands/spike-day4.ts');
-    await runSpikeDay4({ n8nImage: `n8nio/n8n:${opts.engine}`, proxyImage: opts.proxyImage, explore: opts.explore, keep: opts.keep, outFile: opts.out, log: (line) => console.log(line) });
+    await runSpikeDay4({ n8nImage: `n8nio/n8n:${opts.engine}`, proxyImage: opts.proxyImage, explore: opts.explore, keep: opts.keep, outFile: opts.out, log });
   });
 
 spike
@@ -198,9 +240,9 @@ spike
   .option('--keep', 'keep the sandbox', false)
   .action(async (opts: { engine: string; proxyImage: string; out?: string; keep: boolean }) => {
     const { runSpikeDay5 } = await import('./commands/spike-day5.ts');
-    const results = await runSpikeDay5({ n8nImage: `n8nio/n8n:${opts.engine}`, proxyImage: opts.proxyImage, keep: opts.keep, outFile: opts.out, log: (line) => console.log(line) });
+    const results = await runSpikeDay5({ n8nImage: `n8nio/n8n:${opts.engine}`, proxyImage: opts.proxyImage, keep: opts.keep, outFile: opts.out, log });
     const ok = results.filter((r) => r.verdict === 'ok').length;
-    console.log(`\nmatrix: ${ok}/${results.length} as expected`);
+    log(`\nmatrix: ${ok}/${results.length} as expected`);
   });
 
 spike
@@ -208,24 +250,34 @@ spike
   .description('Catalogue cases as old and new versions, first real plan (attribution, normalisation, diff).')
   .option('--engine <tag>', 'n8n image tag', '2.40.5')
   .option('--proxy-image <image>', 'proxy image', 'flowretest-proxy:dev')
-  .option('--only <ids>', 'comma-separated case id prefixes')
+  .option('--only <ids>', 'comma-separated case id prefixes', idList)
   .option('--out <file>', 'write results JSON here')
   .option('--keep', 'keep the sandbox', false)
-  .action(async (opts: { engine: string; proxyImage: string; only?: string; out?: string; keep: boolean }) => {
+  .action(async (opts: { engine: string; proxyImage: string; only?: string[]; out?: string; keep: boolean }) => {
     const { runSpikeDay7 } = await import('./commands/spike-day7.ts');
-    const { plan } = await runSpikeDay7({ n8nImage: `n8nio/n8n:${opts.engine}`, proxyImage: opts.proxyImage, only: opts.only?.split(','), keep: opts.keep, outFile: opts.out, log: (line) => console.log(line) });
-    console.log('\n' + plan);
+    const { plan: text } = await runSpikeDay7({ n8nImage: `n8nio/n8n:${opts.engine}`, proxyImage: opts.proxyImage, only: opts.only, keep: opts.keep, outFile: opts.out, log });
+    log('\n' + plan(text));
   });
 
-program
-  .command('sandbox')
-  .description('Sandbox housekeeping.')
+const sandbox = program.command('sandbox').description('Sandbox housekeeping and debugging.');
+sandbox
   .command('prune')
   .description('Remove leftover frt-* containers, volumes and networks (running sandboxes are kept unless --force).')
   .option('--force', 'also remove running sandboxes', false)
   .action(async (opts: { force: boolean }) => {
-    await pruneSandboxes((line) => console.log(line), opts.force);
-    console.log('prune done');
+    await pruneSandboxes(log, opts.force);
+    emit({ ok: true }, 'prune done');
+  });
+sandbox
+  .command('export')
+  .description('Write docker-compose.yml for a sandbox kept with `run --keep`, to open its workflows and executions in the n8n editor.')
+  .argument('<dir>', 'sandbox directory printed by `run --keep` (frt-...)')
+  .requiredOption('--compose', 'export as a docker-compose file (the only format)')
+  .option('--out <file>', 'where to write it (default: <dir>/docker-compose.yml)')
+  .action(async (dir: string, opts: { out?: string }) => {
+    const { exportCompose } = await import('./sandbox/compose.ts');
+    const file = exportCompose(dir, opts.out);
+    emit({ compose: file }, `wrote ${file}\nstart it with: docker compose -f "${file}" up, then open http://127.0.0.1:5678`);
   });
 
 try {

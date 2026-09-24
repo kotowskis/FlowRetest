@@ -3,13 +3,13 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  aiReplayWarnings, applyStubs, replayInputWarnings, attributeRecord, attributeToNode, classify, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
+  aiReplayWarnings, applyStubs, checkExpectations, engineDifferences, withExpectations, replayInputWarnings, attributeRecord, classify, scanDiff, scanWorkflow, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
   type CaptureRecord, type CaseDiff, type Fixture, type N8nWorkflow, type NormalizedCall, type PlanFormat, type PlanReport, type RunTimings,
 } from '@flowretest/core';
 import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules, sheetHeadersFromRecordings } from '@flowretest/services';
 import { loadConfig, workflowDir, type Config } from '../config.ts';
 import { SandboxSession, type SealReport } from '../sandbox/session.ts';
-import { loadStubs } from '../stubs.ts';
+import { loadExpectations, loadStubs } from '../stubs.ts';
 import { extractRun, logErrors } from '../sandbox/probe-workflow.ts';
 import { imageDigest } from '../sandbox/docker.ts';
 import { CLI_VERSION } from '../index.ts';
@@ -190,12 +190,18 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
   const dir = workflowDir(options.cwd, options.workflowId);
   const fixtures = loadFixtures(dir, options.cases);
   const stubs = loadStubs(options.cwd, options.workflowId, options.stubs);
+  const expectations = loadExpectations(options.cwd, options.workflowId);
+  if (expectations.length) options.log(`expectations: ${expectations.length} from expectations.yml`);
   const stubItemsByNode = Object.fromEntries(Object.entries(stubs).map(([node, s]) => [node, s.items]));
   for (const [node, s] of Object.entries(stubs)) options.log(`stub: "${node}" answered with ${s.items.length} item${s.items.length === 1 ? '' : 's'} from ${s.source}`);
   if (fixtures.length === 0) throw new Error('no fixtures selected');
   const oldSide = resolveOld(dir, fixtures, options.old, options.log);
   const upgrade = !options.newFile;
   const newWorkflow = options.newFile ? (JSON.parse(readFileSync(options.newFile, 'utf8')) as N8nWorkflow) : oldSide.workflow;
+  // The scanner's view of the new version, as `flowretest scan` would print it; stored as `static` in report.json.
+  const staticTrigger = (fixtures[0] as Fixture).trigger.node;
+  const staticResult = scanWorkflow(newWorkflow, applyStubs(classify(newWorkflow, { triggerNode: staticTrigger, serviceRole }), Object.keys(stubs)));
+  const staticScan = { trigger: staticTrigger, findings: staticResult.findings, diff: upgrade ? [] : scanDiff(oldSide.workflow, newWorkflow) };
   const engineOld = options.engineOld ?? config.engine.tag;
   const engineNew = options.engineNew ?? config.engine.tag;
   const imageOld = `${config.engine.image}:${engineOld}`;
@@ -354,7 +360,8 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
         ...[...new Set([...(oldP.stubbed ?? []), ...(newP.stubbed ?? [])])].map((n) => `stub: "${n}" answered from ${stubs[n]?.source ?? 'a stub'}; its real calls are not made and not in the plan`),
       ];
       if (warnings.length) d.warnings = warnings;
-      diffs.push(d);
+      if (upgrade) d.engineDifferences = engineDifferences(oldRun.runData, newRun.runData);
+      diffs.push(withExpectations(d, checkExpectations(expectations, caseId, newCalls)));
       writeNodesCaptured += newP.writeNodes.filter((n) => newCalls.some((c) => c.node === n && !c.blocked)).length;
     }
     if (diffs.some((d) => d.status === 'ERROR' && (!d.error || /exited with/.test(d.error)))) {
@@ -381,10 +388,12 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
     cases: diffs,
     coverage: { writeNodesTotal, writeNodesCaptured, replayedNodes, unsupported: [...unsupported].filter((n) => !stubbedNodes.has(n)), ...(stubbedNodes.size ? { stubbed: [...stubbedNodes] } : {}) },
     sealed: seals.length > 0 && seals.every((s) => s.sealed),
+    static: staticScan,
+    ...(upgrade ? { upgrade: { engineOld, engineNew } } : {}),
   };
   const status = overallStatus(diffs);
   const reportPath = join(runDir, 'report.json');
-  writeFileSync(reportPath, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), runner: CLI_VERSION, mode: upgrade ? 'upgrade' : 'change', workflowId: options.workflowId, workflowName: newWorkflow.name, engine: report.engine, engines: { old: imageOld, new: imageNew, digestOld, digestNew }, old: report.oldLabel, new: report.newLabel, status, cases: diffs, calls: callsByCase, coverage: report.coverage, sandbox: sandboxSection(seals) }, null, 2));
+  writeFileSync(reportPath, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), runner: CLI_VERSION, mode: upgrade ? 'upgrade' : 'change', workflowId: options.workflowId, workflowName: newWorkflow.name, engine: report.engine, engines: { old: imageOld, new: imageNew, digestOld, digestNew }, old: report.oldLabel, new: report.newLabel, status, cases: diffs, calls: callsByCase, coverage: report.coverage, sandbox: sandboxSection(seals), static: staticScan }, null, 2));
   const plan = renderFormat(report, 'terminal');
   writeFileSync(join(runDir, 'plan.txt'), plan + '\n');
   if (formats.includes('junit')) writeFileSync(join(runDir, 'junit.xml'), renderFormat(report, 'junit'));

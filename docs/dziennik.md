@@ -134,3 +134,11 @@ Dwa brakujące elementy planu z ADR 0006:
 - Stuby na poziomie węzła: `--stub "<węzeł>=<plik>"` i `.flowretest/<workflow>/stubs.yml`. Rewriter zastępuje węzeł węzłem Code z podanymi elementami, więc stub działa także dla węzłów spoza HTTP (Postgres, SMTP), dla odczytów bez nagrania i dla nagrań ponad 1 MB. Przypadek dostaje ostrzeżenie `stub:`, a `coverage.stubbed` wymienia takie węzły.
 
 E2E przez `run`: 15 z 15 przypadków z potwierdzoną szczelnością, a przypadek 14 ze stubem dla nowego zapisu `Audit` daje PASS zamiast SKIPPED. Sprawdzenie szczelności wydłuża każdy przebieg o kilka sekund (test `wget` czeka na odmowę); pełne e2e trwa lokalnie około 12 minut.
+
+## Reszta planu z ADR 0006 (2026-09-24)
+
+Uzupełnione: `expectations.yml` (ręczne kontrole wywołań nowej wersji, ADR 0005), sekcja "Engine differences" w `upgrade-check` (węzły tylko na jednym silniku, liczby uruchomień i elementów, klucze wyjścia, nowe błędy), pole `static` w raporcie z linią w planie, `diff --format`, `sandbox export --compose`, flagi globalne `--json`, `--verbose`, `--no-color`, `--cwd` z kolorami w terminalu, eslint w `verify` i CI, próg pokrycia 80% w `core` (wbudowany pomiar Node zamiast c8) oraz `npm audit --audit-level=high` w CI.
+
+Sprawdzone na żywo: `upgrade-check` przypadku 01 z 2.40.5 na `v3-nightly` z `--keep` dał PASS z sekcją "Engine differences" i sprawdzonymi oczekiwaniami; `sandbox export --compose` z zachowanego sandboxa przeszedł `docker compose config`, po `up` edytor odpowiedział na 127.0.0.1:5678 (`/healthz` 200), a n8n w tym zestawie nadal nie miał połączenia z internetem.
+
+eslint przy pierwszym uruchomieniu znalazł w teście proxy wyrażenie `'^.*\.googleapis\.com$'` w zwykłym stringu: backslashe znikały, więc kropka pasowała do dowolnego znaku. Poprawione.

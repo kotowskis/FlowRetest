@@ -28,6 +28,16 @@ export interface CaseDiff {
   error?: string;
   /** Case-level warnings, e.g. an AI node replayed although its prompt changed. */
   warnings?: string[];
+  /** upgrade-check only: what nodes did differently on the new engine (see engine.ts). */
+  engineDifferences?: string[];
+  /** Hand-written expectations (expectations.yml) the new version's calls broke; any failure makes the case DIFF. */
+  expectationFailures?: string[];
+}
+
+/** Attaches failed expectations to a case: a PASS becomes DIFF, worse statuses stay. */
+export function withExpectations(diff: CaseDiff, failures: string[]): CaseDiff {
+  if (failures.length === 0) return diff;
+  return { ...diff, expectationFailures: failures, status: diff.status === 'PASS' ? 'DIFF' : diff.status };
 }
 
 export interface DiffOptions {
