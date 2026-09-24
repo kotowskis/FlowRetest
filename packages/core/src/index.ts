@@ -16,3 +16,5 @@ export * from './diff.ts';
 export * from './render.ts';
 export * from './baseline.ts';
 export * from './scan.ts';
+export * from './render-formats.ts';
+export * from './redact.ts';

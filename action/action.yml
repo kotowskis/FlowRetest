@@ -1,0 +1,102 @@
+name: FlowRetest replay
+description: Replay recorded n8n executions against a changed workflow in a sealed sandbox and report what it would send.
+author: Skynappse
+
+inputs:
+  instance-url:
+    description: n8n instance URL (public API must be enabled)
+    required: true
+  api-key:
+    description: n8n public API key with workflow:read and execution:read
+    required: true
+  workflow-id:
+    description: Workflow id on the instance
+    required: true
+  new-file:
+    description: Path to the new workflow JSON in the repository
+    required: true
+  old:
+    description: recorded | published | path to the old workflow JSON (e.g. the file from the base branch)
+    default: recorded
+  engine:
+    description: n8n image tag the instance runs (e.g. 2.40.5)
+    required: true
+  last:
+    description: Number of recent successful executions to replay
+    default: '10'
+  stabilize:
+    description: Run the old version twice and mask volatile fields
+    default: 'true'
+  version:
+    description: flowretest version to run
+    default: next
+  comment:
+    description: Post the Markdown plan as a pull request comment (needs pull-requests write permission)
+    default: 'true'
+
+outputs:
+  status:
+    description: PASS, DIFF, ERROR or BLOCKED
+    value: ${{ steps.run.outputs.status }}
+  exit-code:
+    description: flowretest exit code
+    value: ${{ steps.run.outputs.exit-code }}
+
+runs:
+  using: composite
+  steps:
+    - name: Init
+      shell: bash
+      run: npx --yes flowretest@${{ inputs.version }} init --url "${{ inputs.instance-url }}" --engine "${{ inputs.engine }}"
+      env:
+        FLOWRETEST_API_KEY: ${{ inputs.api-key }}
+    - name: Pull fixtures
+      shell: bash
+      run: npx --yes flowretest@${{ inputs.version }} pull --workflow "${{ inputs.workflow-id }}" --last "${{ inputs.last }}"
+      env:
+        FLOWRETEST_API_KEY: ${{ inputs.api-key }}
+    - name: Replay
+      id: run
+      shell: bash
+      run: |
+        set +e
+        npx --yes flowretest@${{ inputs.version }} run --workflow "${{ inputs.workflow-id }}" --new "${{ inputs.new-file }}" --old "${{ inputs.old }}" ${{ inputs.stabilize == 'true' && '--stabilize' || '' }} --format terminal,junit,md
+        code=$?
+        set -e
+        run_dir=$(ls -d .flowretest/${{ inputs.workflow-id }}/runs/*/ | sort | tail -1)
+        echo "run-dir=$run_dir" >> "$GITHUB_OUTPUT"
+        echo "exit-code=$code" >> "$GITHUB_OUTPUT"
+        case $code in 0) s=PASS;; 1) s=DIFF;; 2) s=ERROR;; 3) s=BLOCKED;; *) s=FAILED;; esac
+        echo "status=$s" >> "$GITHUB_OUTPUT"
+        cp "$run_dir/junit.xml" flowretest-junit.xml 2>/dev/null || true
+        cp "$run_dir/plan.md" flowretest-plan.md 2>/dev/null || true
+        exit 0
+      env:
+        FLOWRETEST_API_KEY: ${{ inputs.api-key }}
+    - name: Upload report
+      uses: actions/upload-artifact@v4
+      with:
+        name: flowretest-report
+        path: |
+          flowretest-junit.xml
+          flowretest-plan.md
+          ${{ steps.run.outputs.run-dir }}report.json
+        if-no-files-found: ignore
+    - name: Comment on the pull request
+      if: ${{ inputs.comment == 'true' && github.event_name == 'pull_request' }}
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const fs = require('fs');
+          if (!fs.existsSync('flowretest-plan.md')) return;
+          const body = fs.readFileSync('flowretest-plan.md', 'utf8');
+          const marker = '<!-- flowretest:${{ inputs.workflow-id }} -->';
+          const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number, per_page: 100 });
+          const mine = comments.find((c) => c.body && c.body.includes(marker));
+          const payload = { ...context.repo, body: `${marker}\n${body}` };
+          if (mine) await github.rest.issues.updateComment({ ...payload, comment_id: mine.id });
+          else await github.rest.issues.createComment({ ...payload, issue_number: context.issue.number });
+    - name: Fail the job on ERROR or BLOCKED
+      shell: bash
+      run: |
+        case "${{ steps.run.outputs.status }}" in ERROR|BLOCKED|FAILED) echo "flowretest: ${{ steps.run.outputs.status }}"; exit 1;; esac

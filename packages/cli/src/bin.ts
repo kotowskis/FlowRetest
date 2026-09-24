@@ -68,9 +68,10 @@ program
   .option('--run <stamp>', 'run directory name (default: latest)')
   .option('--cases <ids>', 'comma-separated case ids to accept')
   .option('--message <text>', 'why this change is intended')
-  .action(async (opts: { workflow: string; run?: string; cases?: string; message?: string }) => {
+  .option('--force', 'accept without a stability check', false)
+  .action(async (opts: { workflow: string; run?: string; cases?: string; message?: string; force: boolean }) => {
     const { runAccept } = await import('./commands/accept.ts');
-    const written = runAccept({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, cases: opts.cases?.split(','), message: opts.message, log: (l) => console.log(l) });
+    const written = runAccept({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, cases: opts.cases?.split(','), message: opts.message, force: opts.force, log: (l) => console.log(l) });
     console.log(`${written.length} baseline${written.length === 1 ? '' : 's'} written`);
   });
 
@@ -81,14 +82,47 @@ program
   .requiredOption('--new <file>', 'new workflow JSON')
   .option('--old <choice>', 'recorded | published | <file>', 'recorded')
   .option('--cases <ids>', 'comma-separated execution ids to replay')
-  .option('--stabilize', 'run the old version twice and mask volatile fields')
+  .option('--stabilize', 'run both versions twice and mask volatile fields; required before accept')
+  .option('--format <list>', 'comma-separated: terminal, json, junit, md (files land in the run directory)', 'terminal')
   .option('--keep', 'keep the sandbox for inspection', false)
-  .action(async (opts: { workflow: string; new: string; old: string; cases?: string; stabilize?: boolean; keep: boolean }) => {
+  .action(async (opts: { workflow: string; new: string; old: string; cases?: string; stabilize?: boolean; format: string; keep: boolean }) => {
     const { runRun } = await import('./commands/run.ts');
-    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases?.split(','), stabilize: opts.stabilize, keep: opts.keep, log: (l) => console.log(l) });
+    const formats = opts.format.split(',').map((f) => f.trim()) as Array<'terminal' | 'json' | 'junit' | 'md'>;
+    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases?.split(','), stabilize: opts.stabilize, formats, keep: opts.keep, log: (l) => console.log(l) });
     console.log('\n' + result.plan);
     console.log(`\nreport: ${result.reportPath}`);
     process.exit(result.exitCode);
+  });
+
+program
+  .command('upgrade-check')
+  .description('Replay the same workflow on two n8n images and report engine differences.')
+  .requiredOption('--workflow <id>', 'workflow id (as pulled)')
+  .requiredOption('--engine-old <tag>', 'current image tag, e.g. 2.40.5')
+  .requiredOption('--engine-new <tag>', 'candidate image tag, e.g. 3.0.0')
+  .option('--old <choice>', 'recorded | published | <file>', 'recorded')
+  .option('--cases <ids>', 'comma-separated execution ids to replay')
+  .option('--stabilize', 'run both sides twice and mask volatile fields')
+  .option('--format <list>', 'comma-separated: terminal, json, junit, md', 'terminal')
+  .option('--keep', 'keep the sandboxes for inspection', false)
+  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string; stabilize?: boolean; format: string; keep: boolean }) => {
+    const { runRun } = await import('./commands/run.ts');
+    const formats = opts.format.split(',').map((f) => f.trim()) as Array<'terminal' | 'json' | 'junit' | 'md'>;
+    const result = await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases?.split(','), stabilize: opts.stabilize, formats, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log: (l) => console.log(l) });
+    console.log('\n' + result.plan);
+    console.log(`\nreport: ${result.reportPath}`);
+    process.exit(result.exitCode);
+  });
+
+program
+  .command('redact')
+  .description('Write redacted copies of the fixtures (names, emails, phones replaced; ids and dates kept).')
+  .requiredOption('--workflow <id>', 'workflow id (as pulled)')
+  .option('--out <dir>', 'output directory (default: .flowretest/<id>/fixtures-redacted)')
+  .option('--keep-fields <names>', 'comma-separated field names never redacted')
+  .action(async (opts: { workflow: string; out?: string; keepFields?: string }) => {
+    const { runRedact } = await import('./commands/redact.ts');
+    runRedact({ cwd: process.cwd(), workflowId: opts.workflow, outDir: opts.out, keepFields: opts.keepFields?.split(','), log: (l) => console.log(l) });
   });
 
 program

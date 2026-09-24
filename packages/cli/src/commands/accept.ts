@@ -9,6 +9,8 @@ export interface AcceptOptions {
   run?: string;
   cases?: string[];
   message?: string;
+  /** Accept even when the run did not prove the new version stable across two runs. */
+  force?: boolean;
   log: (line: string) => void;
 }
 
@@ -29,6 +31,14 @@ export function runAccept(options: AcceptOptions): string[] {
     }
     const calls = report.calls[c.caseId];
     if (!calls) continue;
+    if (calls.stable === undefined && !options.force) {
+      options.log(`case ${c.caseId}: run ${run} did not check stability (use \`run --stabilize\`), not accepted; pass --force to accept anyway`);
+      continue;
+    }
+    if (calls.stable === false && !options.force) {
+      options.log(`case ${c.caseId}: the new version differs between two runs even after masking volatile fields; not accepted (add the changing paths to normalize.ignore or pass --force)`);
+      continue;
+    }
     const baseline = toBaseline(c.caseId, calls.new, {
       acceptedAt: new Date().toISOString(),
       acceptedBy: process.env.USERNAME ?? process.env.USER,

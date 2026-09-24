@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+## [0.2.0-next.1] - 2026-09-24
+
+### Added
+
+- `run --stabilize` runs both versions twice; `accept` requires a stable new version (or `--force`).
+- `run --format terminal,json,junit,md` writes `junit.xml` and `plan.md` (pull request comment, 60 kB cap) next to `report.json`.
+- `upgrade-check --engine-old --engine-new`: the same workflow on two n8n images in two sandboxes.
+- `redact`: fixture copies with names, emails and phones replaced; identifiers, dates and numbers kept.
+- GitHub Action (`action/action.yml`): init, pull, run, report artifact, in-place pull request comment.
+
+### Fixed
+
+- Sandbox bind mounts moved to a short path in the OS temp directory; Docker Desktop on Windows fails with EIO on host paths of about 180 characters or more.
+
 ## [0.1.0-next.1] - 2026-09-24
 
 First internal preview after the ten-day feasibility spike (see `docs/spike/wyniki.md`).

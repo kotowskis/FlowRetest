@@ -58,8 +58,30 @@ It does not judge new prompts or models (AI nodes are replayed from recordings),
 | `scan` | support table, static findings, structural diff |
 | `run` | replay old and new in the sandbox, print the plan |
 | `diff` | re-render a saved run, optionally against baselines |
-| `accept` | store the new version's calls as the baseline |
+| `accept` | store the new version's calls as the baseline (needs a `--stabilize` run, or `--force`) |
+| `upgrade-check` | replay the same workflow on two n8n images and report engine differences |
+| `redact` | redacted fixture copies for bug reports and shared catalogues |
 | `doctor` | check Docker, images and the sandbox seal |
 | `sandbox prune` | remove leftover sandbox containers |
+
+## CI
+
+`run --format terminal,junit,md` writes `junit.xml` and `plan.md` into the run directory. The composite action in `action/` wraps init, pull and run, uploads the report and keeps one comment per workflow on the pull request up to date:
+
+```yaml
+- uses: skynappse/flowretest/action@main
+  with:
+    instance-url: ${{ secrets.N8N_URL }}
+    api-key: ${{ secrets.N8N_API_KEY }}
+    workflow-id: 0GV9oevzsHwzQssT
+    new-file: workflows/lead-intake.json
+    engine: 2.40.5
+```
+
+Before an n8n upgrade:
+
+```bash
+npx flowretest upgrade-check --workflow <workflowId> --engine-old 2.40.5 --engine-new 3.0.0
+```
 
 Licence: MIT.

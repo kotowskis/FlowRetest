@@ -26,3 +26,18 @@ Znane skróty wersji 0.1:
 - `init` wymaga `--engine`, bo anonimowy `GET /rest/settings` nie zwraca wersji;
 - brak redakcji fixture'ów (0.2) i renderera JUnit oraz Markdown (0.2);
 - workflow wołający własną instancję przez `localhost` kończy w sandboxie błędem połączenia; `scan` to ostrzega, `run` pokazuje ERROR.
+
+## Tydzień 4 (2026-09-24), CLI 0.2
+
+Zrobione:
+
+- `run --stabilize` wykonuje obie wersje dwa razy: pola zmienne z obu par, znacznik `stable` per przypadek w `report.json`; `accept` odmawia bez sprawdzonej stabilności albo przy niestabilnej nowej wersji, chyba że `--force`;
+- `run --format terminal,json,junit,md`: `junit.xml` (jeden testcase na przypadek, DIFF oraz ERROR jako failure, BLOCKED oraz SKIPPED jako skipped) i `plan.md` (tabela, sekcje zwijane per przypadek, limit 60 kB) w katalogu przebiegu;
+- `upgrade-check --engine-old --engine-new`: ta sama wersja workflow na dwóch obrazach w dwóch sandboxach; na instancji deweloperskiej 2.40.5 przeciw `v3-nightly` dało PASS w 53 s;
+- `redact --workflow`: kopie fixture'ów z podmienionymi e-mailami, nazwiskami oraz telefonami, z zachowanymi identyfikatorami, datami oraz liczbami; ta sama wartość dostaje tę samą zamianę, więc złączenia między węzłami działają;
+- GitHub Action (`action/action.yml`, composite): `init`, `pull`, `run` z formatami, artefakt z raportem, komentarz w PR aktualizowany w miejscu, porażka zadania przy ERROR i BLOCKED;
+- wersja `0.2.0-next.1`.
+
+Odkrycie warte zapamiętania: Docker Desktop na Windows zwraca `EIO` przy listowaniu katalogu z bind mountu, gdy ścieżka hosta ma około 180 znaków lub więcej (156 znaków działa, 182 nie), a Git Bash pokazuje w takich katalogach niepełne listy plików. Katalogi montowane do sandboxa (reguły, przechwycenia, certyfikaty, praca, wyjście) leżą teraz w katalogu tymczasowym systemu (`frt-<losowe>`), a w `.flowretest/<id>/runs/<czas>/` zostają tylko `report.json`, `plan.txt`, `junit.xml` oraz `plan.md`.
+
+Poza sesją: publikacja `0.2.0-next.1` (npm, GHCR), sesje z agencjami, pierwsze płatne wdrożenie, przypomnienie do license@n8n.io.

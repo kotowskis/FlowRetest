@@ -15,7 +15,8 @@ export interface RunReport {
   new: string;
   status: string;
   cases: CaseDiff[];
-  calls: Record<string, { old: NormalizedCall[]; new: NormalizedCall[]; volatile: string[] }>;
+  mode?: 'change' | 'upgrade';
+  calls: Record<string, { old: NormalizedCall[]; new: NormalizedCall[]; volatile: string[]; stable?: boolean }>;
   coverage: { writeNodesTotal: number; writeNodesCaptured: number; replayedNodes: number; unsupported: string[] };
 }
 
