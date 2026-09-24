@@ -17,6 +17,8 @@
     "type-check": "tsc -p tsconfig.json --noEmit",
     "test": "node --test \"test/**/*.test.ts\""
   },
-  "dependencies": {},
+  "dependencies": {
+    "zod": "^4.6.5"
+  },
   "license": "MIT"
 }

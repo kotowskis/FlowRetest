@@ -1,0 +1,153 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flowretest.dev/schemas/baseline.schema.json",
+  "title": "flowretest baseline",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "caseId": {
+      "type": "string"
+    },
+    "acceptedAt": {
+      "type": "string"
+    },
+    "acceptedBy": {
+      "type": "string"
+    },
+    "message": {
+      "type": "string"
+    },
+    "workflowVersionId": {
+      "type": "string"
+    },
+    "engineDigest": {
+      "type": "string"
+    },
+    "runnerVersion": {
+      "type": "string"
+    },
+    "volatilePaths": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "node": {
+            "type": "string"
+          },
+          "runIndex": {
+            "type": "number"
+          },
+          "method": {
+            "type": "string"
+          },
+          "host": {
+            "type": "string"
+          },
+          "pathTemplate": {
+            "type": "string"
+          },
+          "path": {
+            "type": "string"
+          },
+          "query": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "body": {},
+          "bodyHash": {
+            "type": "string"
+          },
+          "multipart": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string"
+                },
+                "filename": {
+                  "type": "string"
+                },
+                "size": {
+                  "type": "number"
+                },
+                "sha256": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "name",
+                "size",
+                "sha256"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "rule": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string"
+              },
+              "kind": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "id",
+              "kind"
+            ],
+            "additionalProperties": false
+          },
+          "blocked": {
+            "type": "boolean"
+          },
+          "key": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "node",
+          "runIndex",
+          "method",
+          "host",
+          "pathTemplate",
+          "path",
+          "query",
+          "body",
+          "bodyHash",
+          "rule",
+          "blocked",
+          "key"
+        ],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "caseId",
+    "acceptedAt",
+    "runnerVersion",
+    "volatilePaths",
+    "calls"
+  ],
+  "additionalProperties": false
+}

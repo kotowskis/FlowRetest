@@ -1,0 +1,131 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flowretest.dev/schemas/config.schema.json",
+  "title": "flowretest config",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "instance": {
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "format": "uri"
+        }
+      },
+      "required": [
+        "url"
+      ],
+      "additionalProperties": false
+    },
+    "engine": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "default": "n8nio/n8n",
+          "type": "string"
+        },
+        "tag": {
+          "type": "string",
+          "minLength": 1
+        },
+        "timezone": {
+          "default": "UTC",
+          "type": "string"
+        },
+        "env": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string"
+          },
+          "additionalProperties": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "image",
+        "tag",
+        "timezone"
+      ],
+      "additionalProperties": false
+    },
+    "proxy": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "default": "flowretest-proxy:dev",
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "additionalProperties": false
+    },
+    "normalize": {
+      "type": "object",
+      "properties": {
+        "ignore": {
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "idSegments": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "ignore"
+      ],
+      "additionalProperties": false
+    },
+    "run": {
+      "type": "object",
+      "properties": {
+        "timeoutSeconds": {
+          "default": 120,
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "stabilize": {
+          "default": false,
+          "type": "boolean"
+        },
+        "executor": {
+          "type": "string",
+          "enum": [
+            "batch",
+            "execute"
+          ]
+        }
+      },
+      "required": [
+        "timeoutSeconds",
+        "stabilize"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "instance",
+    "engine",
+    "proxy",
+    "normalize",
+    "run"
+  ],
+  "additionalProperties": false
+}

@@ -45,6 +45,14 @@ Exit codes: 0 PASS, 1 DIFF, 2 ERROR (the new version failed), 3 BLOCKED or unsup
 
 The runner contains no n8n code. It pulls the official `n8nio/n8n` image of your version, imports the rewritten workflow with `n8n import:workflow`, runs it with the n8n CLI and reads the result. Your instance is only read through the public API.
 
+## Privacy
+
+Nothing leaves your machine. The runner talks to two places: your n8n instance (read only, through the public API) and the image registries (to pull `n8nio/n8n` and the proxy image). There is no telemetry. Fixtures contain your customers' data and are excluded from git by `init`; `redact` writes copies safe to share, and `redact --report` turns a run report into shapes (type, length, hash) instead of values.
+
+## Licensing
+
+FlowRetest is MIT. It contains no n8n code: it pulls the official image you already run, imports the rewritten workflow with n8n's own CLI inside a container on your machine and reads the result. n8n's Sustainable Use License applies to that image and to your use of it, exactly as it does to your production instance.
+
 ## What it does not do
 
 It does not judge new prompts or models (AI nodes are replayed from recordings), does not prove that the real service still behaves the same, and does not replace production monitoring.

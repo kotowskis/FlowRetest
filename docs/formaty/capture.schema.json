@@ -1,0 +1,141 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flowretest.dev/schemas/capture.schema.json",
+  "title": "flowretest capture",
+  "type": "object",
+  "properties": {
+    "ts": {
+      "type": "number"
+    },
+    "version": {
+      "type": "string"
+    },
+    "case": {
+      "type": "string"
+    },
+    "method": {
+      "type": "string"
+    },
+    "host": {
+      "type": "string"
+    },
+    "port": {
+      "type": "number"
+    },
+    "path": {
+      "type": "string"
+    },
+    "query": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "contentType": {
+      "type": "string"
+    },
+    "headers": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "string"
+      }
+    },
+    "body": {
+      "type": "string"
+    },
+    "bodyJson": {},
+    "bodyBytes": {
+      "type": "number"
+    },
+    "bodySha256": {
+      "type": "string"
+    },
+    "multipart": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "filename": {
+            "type": "string"
+          },
+          "contentType": {
+            "type": "string"
+          },
+          "size": {
+            "type": "number"
+          },
+          "sha256": {
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "size",
+          "sha256"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "rule": {
+      "type": "object",
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "kind": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "id",
+        "kind"
+      ],
+      "additionalProperties": false
+    },
+    "response": {
+      "type": "object",
+      "properties": {
+        "status": {
+          "anyOf": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "string",
+              "const": "close"
+            }
+          ]
+        }
+      },
+      "required": [
+        "status"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "ts",
+    "version",
+    "case",
+    "method",
+    "host",
+    "port",
+    "path",
+    "query",
+    "headers",
+    "bodyBytes",
+    "bodySha256",
+    "rule",
+    "response"
+  ],
+  "additionalProperties": false
+}

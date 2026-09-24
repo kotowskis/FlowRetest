@@ -14,6 +14,8 @@ All notable changes to this project are documented here. The format follows Keep
 - Postgres and MySQL: `select` is replayed from the recording; writes are unsupported (the case is skipped with a clear note) instead of failing after a DNS timeout.
 - `redact --report [run]` writes `report.redacted.json` with values replaced by type, length and hash; paths, counts and flags stay.
 - Regression catalogue cases 13 to 15: replayed LLM chain with a changed prompt, Postgres select plus a new insert, HubSpot property empty after a field rename.
+- Zod schemas for every file format (`@flowretest/schemas`), JSON Schema export to `docs/formaty`, config validation on load.
+- README sections on privacy and licensing; integration notes for n8n-as-code and n8n-mcp.
 
 ### Fixed
 

@@ -1,0 +1,742 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flowretest.dev/schemas/report.schema.json",
+  "title": "flowretest report",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "generatedAt": {
+      "type": "string"
+    },
+    "runner": {
+      "type": "string"
+    },
+    "mode": {
+      "type": "string",
+      "enum": [
+        "change",
+        "upgrade"
+      ]
+    },
+    "workflowId": {
+      "type": "string"
+    },
+    "workflowName": {
+      "type": "string"
+    },
+    "engine": {
+      "type": "object",
+      "properties": {
+        "image": {
+          "type": "string"
+        },
+        "digest": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "image"
+      ],
+      "additionalProperties": false
+    },
+    "engines": {
+      "type": "object",
+      "properties": {
+        "old": {
+          "type": "string"
+        },
+        "new": {
+          "type": "string"
+        },
+        "digestOld": {
+          "type": "string"
+        },
+        "digestNew": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "old",
+        "new"
+      ],
+      "additionalProperties": false
+    },
+    "old": {
+      "type": "string"
+    },
+    "new": {
+      "type": "string"
+    },
+    "status": {
+      "type": "string"
+    },
+    "cases": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "caseId": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "DIFF",
+              "ERROR",
+              "BLOCKED",
+              "SKIPPED"
+            ]
+          },
+          "entries": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "op": {
+                  "type": "string",
+                  "enum": [
+                    "=",
+                    "~",
+                    "+",
+                    "-",
+                    "!"
+                  ]
+                },
+                "node": {
+                  "type": "string"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "host": {
+                  "type": "string"
+                },
+                "pathTemplate": {
+                  "type": "string"
+                },
+                "old": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "caseId": {
+                      "type": "string"
+                    },
+                    "node": {
+                      "type": "string"
+                    },
+                    "runIndex": {
+                      "type": "number"
+                    },
+                    "ts": {
+                      "type": "number"
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string"
+                    },
+                    "pathTemplate": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "query": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "contentType": {
+                      "type": "string"
+                    },
+                    "body": {},
+                    "bodyHash": {
+                      "type": "string"
+                    },
+                    "multipart": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "filename": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "number"
+                          },
+                          "sha256": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "size",
+                          "sha256"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "rule": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "blocked": {
+                      "type": "boolean"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "caseId",
+                    "node",
+                    "runIndex",
+                    "ts",
+                    "method",
+                    "host",
+                    "pathTemplate",
+                    "path",
+                    "query",
+                    "body",
+                    "bodyHash",
+                    "rule",
+                    "blocked",
+                    "key"
+                  ],
+                  "additionalProperties": false
+                },
+                "new": {
+                  "type": "object",
+                  "properties": {
+                    "version": {
+                      "type": "string"
+                    },
+                    "caseId": {
+                      "type": "string"
+                    },
+                    "node": {
+                      "type": "string"
+                    },
+                    "runIndex": {
+                      "type": "number"
+                    },
+                    "ts": {
+                      "type": "number"
+                    },
+                    "method": {
+                      "type": "string"
+                    },
+                    "host": {
+                      "type": "string"
+                    },
+                    "pathTemplate": {
+                      "type": "string"
+                    },
+                    "path": {
+                      "type": "string"
+                    },
+                    "query": {
+                      "type": "object",
+                      "propertyNames": {
+                        "type": "string"
+                      },
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "contentType": {
+                      "type": "string"
+                    },
+                    "body": {},
+                    "bodyHash": {
+                      "type": "string"
+                    },
+                    "multipart": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "name": {
+                            "type": "string"
+                          },
+                          "filename": {
+                            "type": "string"
+                          },
+                          "size": {
+                            "type": "number"
+                          },
+                          "sha256": {
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "size",
+                          "sha256"
+                        ],
+                        "additionalProperties": false
+                      }
+                    },
+                    "rule": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string"
+                        },
+                        "kind": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "id",
+                        "kind"
+                      ],
+                      "additionalProperties": false
+                    },
+                    "blocked": {
+                      "type": "boolean"
+                    },
+                    "key": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "version",
+                    "caseId",
+                    "node",
+                    "runIndex",
+                    "ts",
+                    "method",
+                    "host",
+                    "pathTemplate",
+                    "path",
+                    "query",
+                    "body",
+                    "bodyHash",
+                    "rule",
+                    "blocked",
+                    "key"
+                  ],
+                  "additionalProperties": false
+                },
+                "fieldDiffs": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "path": {
+                        "type": "string"
+                      },
+                      "old": {},
+                      "new": {}
+                    },
+                    "required": [
+                      "path"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "flags": {
+                  "type": "array",
+                  "items": {
+                    "type": "string"
+                  }
+                }
+              },
+              "required": [
+                "op",
+                "node",
+                "method",
+                "host",
+                "pathTemplate",
+                "fieldDiffs",
+                "flags"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "summary": {
+            "type": "object",
+            "properties": {
+              "oldCalls": {
+                "type": "number"
+              },
+              "newCalls": {
+                "type": "number"
+              },
+              "unchanged": {
+                "type": "number"
+              },
+              "changed": {
+                "type": "number"
+              },
+              "added": {
+                "type": "number"
+              },
+              "removed": {
+                "type": "number"
+              },
+              "blocked": {
+                "type": "number"
+              }
+            },
+            "required": [
+              "oldCalls",
+              "newCalls",
+              "unchanged",
+              "changed",
+              "added",
+              "removed",
+              "blocked"
+            ],
+            "additionalProperties": false
+          },
+          "error": {
+            "type": "string"
+          },
+          "warnings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "required": [
+          "caseId",
+          "status",
+          "entries",
+          "summary"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "calls": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "old": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string"
+                },
+                "caseId": {
+                  "type": "string"
+                },
+                "node": {
+                  "type": "string"
+                },
+                "runIndex": {
+                  "type": "number"
+                },
+                "ts": {
+                  "type": "number"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "host": {
+                  "type": "string"
+                },
+                "pathTemplate": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "query": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "contentType": {
+                  "type": "string"
+                },
+                "body": {},
+                "bodyHash": {
+                  "type": "string"
+                },
+                "multipart": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "filename": {
+                        "type": "string"
+                      },
+                      "size": {
+                        "type": "number"
+                      },
+                      "sha256": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "size",
+                      "sha256"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "rule": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                "blocked": {
+                  "type": "boolean"
+                },
+                "key": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "version",
+                "caseId",
+                "node",
+                "runIndex",
+                "ts",
+                "method",
+                "host",
+                "pathTemplate",
+                "path",
+                "query",
+                "body",
+                "bodyHash",
+                "rule",
+                "blocked",
+                "key"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "new": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "version": {
+                  "type": "string"
+                },
+                "caseId": {
+                  "type": "string"
+                },
+                "node": {
+                  "type": "string"
+                },
+                "runIndex": {
+                  "type": "number"
+                },
+                "ts": {
+                  "type": "number"
+                },
+                "method": {
+                  "type": "string"
+                },
+                "host": {
+                  "type": "string"
+                },
+                "pathTemplate": {
+                  "type": "string"
+                },
+                "path": {
+                  "type": "string"
+                },
+                "query": {
+                  "type": "object",
+                  "propertyNames": {
+                    "type": "string"
+                  },
+                  "additionalProperties": {
+                    "type": "string"
+                  }
+                },
+                "contentType": {
+                  "type": "string"
+                },
+                "body": {},
+                "bodyHash": {
+                  "type": "string"
+                },
+                "multipart": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      },
+                      "filename": {
+                        "type": "string"
+                      },
+                      "size": {
+                        "type": "number"
+                      },
+                      "sha256": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name",
+                      "size",
+                      "sha256"
+                    ],
+                    "additionalProperties": false
+                  }
+                },
+                "rule": {
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "id",
+                    "kind"
+                  ],
+                  "additionalProperties": false
+                },
+                "blocked": {
+                  "type": "boolean"
+                },
+                "key": {
+                  "type": "string"
+                }
+              },
+              "required": [
+                "version",
+                "caseId",
+                "node",
+                "runIndex",
+                "ts",
+                "method",
+                "host",
+                "pathTemplate",
+                "path",
+                "query",
+                "body",
+                "bodyHash",
+                "rule",
+                "blocked",
+                "key"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "volatile": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "stable": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "old",
+          "new",
+          "volatile"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "properties": {
+        "writeNodesTotal": {
+          "type": "number"
+        },
+        "writeNodesCaptured": {
+          "type": "number"
+        },
+        "replayedNodes": {
+          "type": "number"
+        },
+        "unsupported": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": [
+        "writeNodesTotal",
+        "writeNodesCaptured",
+        "replayedNodes",
+        "unsupported"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "generatedAt",
+    "runner",
+    "workflowId",
+    "engine",
+    "old",
+    "new",
+    "status",
+    "cases",
+    "calls",
+    "coverage"
+  ],
+  "additionalProperties": false
+}

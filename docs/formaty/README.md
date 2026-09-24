@@ -1,0 +1,38 @@
+# Formaty plików
+
+Każdy format ma schemat zod w `packages/schemas/src/index.ts` i wygenerowany z niego JSON Schema w tym katalogu (`npm run build`, potem `node scripts/export-schemas.mjs`). Kod, który czyta plik, waliduje go tym schematem; dokumentacja i kod nie mogą się rozjechać.
+
+| Format | Plik | Kto pisze | Kto czyta |
+|---|---|---|---|
+| konfiguracja | `.flowretest/config.yml` | `init`, człowiek | każda komenda |
+| fixture | `.flowretest/<workflow>/fixtures/<wykonanie>.json` | `pull` | `run`, `scan`, `redact` |
+| reguły proxy | `<sandbox>/rules/rules.json` | `run` (z tabel usług i stubów użytkownika) | obraz proxy |
+| przechwycenie | `<sandbox>/capture/requests.jsonl` | obraz proxy | `run` |
+| raport | `.flowretest/<workflow>/runs/<czas>/report.json` | `run`, `upgrade-check` | `diff`, `accept`, `redact --report` |
+| baseline | `.flowretest/<workflow>/baseline/<przypadek>.json` | `accept` | `diff --against baseline` |
+
+## Konfiguracja (`config.schema.json`)
+
+`instance.url` to adres instancji; klucz API leży osobno w `secrets.env` albo w `FLOWRETEST_API_KEY`. `engine.tag` to tag obrazu `n8nio/n8n`, który runner pobiera do sandboxa; `engine.timezone` trafia do `GENERIC_TIMEZONE` i `TZ`; `engine.env` to dodatkowe zmienne dla sandboxa, nigdy kopia produkcji. `normalize.ignore` to ścieżki w ciele żądania zastępowane przez `<ignored>` (np. `properties.last_activity`), `normalize.idSegments` to wyrażenia regularne segmentów ścieżki uznawanych za `{id}`. `run.stabilize` włącza podwójny przebieg, `run.executor` wybiera `batch` (jeden proces n8n na stronę) albo `execute` (proces na przypadek).
+
+## Fixture (`fixture.schema.json`)
+
+Jedno nagrane wykonanie. `trigger` to węzeł, od którego zaczęło się wykonanie, i jego elementy wyjściowe; `nodes` to wyjścia wszystkich węzłów per uruchomienie (`runs[]`, każde z `outputs[][]` po indeksie wyjścia, `startTime`, `executionTime`, `inputCount`). `workflowData` to wersja workflow z chwili nagrania, używana jako strona "stara", gdy wszystkie fixture'y mają ten sam `workflowVersionId`. `redacted: true` oznacza kopię po `redact`. Fixture'y zawierają dane klientów końcowych i są w `.gitignore`.
+
+## Reguły proxy (`rules.schema.json`)
+
+Lista uporządkowana; pierwsza pasująca reguła wygrywa. `match` ma `host` (dokładny albo wyrażenie od `^`), `method` (wyrażenie, np. `POST|PUT`) i `path` (wyrażenie). `respond` ma `status`, `headers`, `json` albo `body`, albo `close: true` (zamknięcie połączenia, w raporcie BLOCKED). `times` zużywa regułę po N trafieniach. W `json` działają szablony `{{seq}}`, `{{uuid}}`, `{{now}}`, `{{echo body.x}}`, także w środku tekstu.
+
+## Przechwycenie (`capture.schema.json`)
+
+Jedna linia JSON na żądanie. `version` i `case` pochodzą z `current.json` zapisywanego przez runner przed przypadkiem (w trybie partii `case` to `batch`, a przypisanie idzie po oknie czasowym wykonania). `headers` zawiera tylko listę dozwolonych nagłówków i flagę `x-frt-has-authorization`; wartość `Authorization` nigdy nie jest zapisywana. `body` do 256 kB, `multipart` jako lista części z rozmiarem i skrótem bez bajtów.
+
+## Raport (`report.schema.json`)
+
+`cases[]` to wynik diffu per przypadek: `status`, `entries[]` (`op` jako `=`, `~`, `+`, `-`, `!`, węzeł, metoda, host, szablon ścieżki, `fieldDiffs[]`, `flags[]`), `summary`, `error`, `warnings[]`. `calls` to znormalizowane rejestry obu stron, pola zmienne i znacznik `stable` per przypadek, z których korzystają `accept` i `diff --against baseline`. `coverage` liczy węzły piszące przechwycone i odtworzone oraz nieobsługiwane. `engine` i `engines` opisują obrazy z digestami. Flagi: `empty-value`, `missing-field`, `type-changed`, `expression-residue`, `duplicate-bodies`, `count-changed`, `count-per-item-changed`, `node-not-executed`, `blocked`.
+
+Wersja po `redact --report` ma ten sam kształt, ale wartości pól są zastąpione przez `<string 13 #a1b2c3d4>` (typ, długość, skrót), a ścieżki żądań przez szablony.
+
+## Baseline (`baseline.schema.json`)
+
+Zaakceptowany rejestr wywołań przypadku bez pól zależnych od czasu, z polami `acceptedAt`, `acceptedBy`, `message`, `volatilePaths` oraz `engineDigest`. `accept` odmawia zapisu, gdy przebieg nie sprawdził stabilności nowej wersji albo gdy nowa wersja różni się między dwoma przebiegami; `--force` to omija.

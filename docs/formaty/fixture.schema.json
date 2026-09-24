@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://flowretest.dev/schemas/fixture.schema.json",
+  "title": "flowretest fixture",
+  "type": "object",
+  "properties": {
+    "schemaVersion": {
+      "type": "number",
+      "const": 1
+    },
+    "source": {
+      "type": "object",
+      "properties": {
+        "instanceHost": {
+          "type": "string"
+        },
+        "workflowId": {
+          "type": "string"
+        },
+        "executionId": {
+          "type": "string"
+        },
+        "workflowVersionId": {
+          "type": "string"
+        },
+        "startedAt": {
+          "type": "string"
+        },
+        "mode": {
+          "type": "string"
+        },
+        "status": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "workflowId",
+        "executionId"
+      ],
+      "additionalProperties": false
+    },
+    "workflowData": {},
+    "trigger": {
+      "type": "object",
+      "properties": {
+        "node": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "typeVersion": {
+          "type": "number"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "json": {},
+              "pairedItem": {
+                "anyOf": [
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "item": {
+                        "type": "number"
+                      },
+                      "input": {
+                        "type": "number"
+                      }
+                    },
+                    "required": [
+                      "item"
+                    ],
+                    "additionalProperties": false
+                  },
+                  {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "item": {
+                          "type": "number"
+                        },
+                        "input": {
+                          "type": "number"
+                        }
+                      },
+                      "required": [
+                        "item"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                ]
+              },
+              "binary": {}
+            },
+            "required": [
+              "json"
+            ],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": [
+        "node",
+        "type",
+        "typeVersion",
+        "items"
+      ],
+      "additionalProperties": false
+    },
+    "nodes": {
+      "type": "object",
+      "propertyNames": {
+        "type": "string"
+      },
+      "additionalProperties": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": "string"
+          },
+          "typeVersion": {
+            "type": "number"
+          },
+          "runs": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "properties": {
+                "startTime": {
+                  "type": "number"
+                },
+                "executionTime": {
+                  "type": "number"
+                },
+                "inputCount": {
+                  "type": "number"
+                },
+                "outputs": {
+                  "type": "array",
+                  "items": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "json": {},
+                        "pairedItem": {
+                          "anyOf": [
+                            {
+                              "type": "number"
+                            },
+                            {
+                              "type": "object",
+                              "properties": {
+                                "item": {
+                                  "type": "number"
+                                },
+                                "input": {
+                                  "type": "number"
+                                }
+                              },
+                              "required": [
+                                "item"
+                              ],
+                              "additionalProperties": false
+                            },
+                            {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "item": {
+                                    "type": "number"
+                                  },
+                                  "input": {
+                                    "type": "number"
+                                  }
+                                },
+                                "required": [
+                                  "item"
+                                ],
+                                "additionalProperties": false
+                              }
+                            }
+                          ]
+                        },
+                        "binary": {}
+                      },
+                      "required": [
+                        "json"
+                      ],
+                      "additionalProperties": false
+                    }
+                  }
+                }
+              },
+              "required": [
+                "outputs"
+              ],
+              "additionalProperties": false
+            }
+          }
+        },
+        "required": [
+          "type",
+          "typeVersion",
+          "runs"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "sizeBytes": {
+      "type": "number"
+    },
+    "redacted": {
+      "type": "boolean"
+    }
+  },
+  "required": [
+    "schemaVersion",
+    "source",
+    "trigger",
+    "nodes",
+    "redacted"
+  ],
+  "additionalProperties": false
+}

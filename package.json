@@ -9,7 +9,8 @@
     "test": "turbo test",
     "type-check": "turbo type-check",
     "check:deps": "node scripts/check-no-n8n-deps.mjs",
-    "verify": "npm run check:deps && npm run type-check && npm run test"
+    "verify": "npm run check:deps && npm run type-check && npm run test",
+    "schemas": "node scripts/export-schemas.mjs"
   },
   "packageManager": "npm@11.9.0",
   "engines": {

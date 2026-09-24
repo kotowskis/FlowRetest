@@ -67,3 +67,14 @@ Zrobione:
 Decyzja odnotowana: przy węźle AI bez nagrania nie blokujemy przypadku, tylko wykonujemy go przeciw szablonowi zlewu (OpenAI odpowiada stałą treścią) i ostrzegamy; plan przewidywał BLOCKED, ale wtedy każdy dodany węzeł AI zatrzymywałby cały przypadek, a tak widać pozostałe wywołania.
 
 Poza sesją według planu tygodni 5 do 8: publikacja wyników `upgrade-check`, PR do n8n-as-code, dokumentacja formatów, makieta warstwy płatnej, opinia prawna.
+
+## Tydzień 7 (2026-09-24), dokumentacja formatów, integracje, FAQ
+
+Zrobione:
+
+- `packages/schemas` przestał być zaślepką: schematy zod (4.6) dla konfiguracji, fixture'a, reguł proxy, przechwycenia, raportu oraz baseline'u, funkcja `parseOrThrow` z czytelnymi komunikatami, eksport do JSON Schema (draft 2020-12) przez `npm run schemas` do `docs/formaty/*.schema.json`; `loadConfig` w CLI waliduje `config.yml` tym schematem;
+- `docs/formaty/README.md`: kto pisze i czyta każdy plik, znaczenie pól, lista flag diffu;
+- `docs/integracje.md`: co runner udostępnia integracjom (wejścia plikowe, wyjścia maszynowe, brak stanu poza `.flowretest/`), szkic subkomendy `test` dla n8n-as-code i narzędzia `flowretest_replay` dla n8n-mcp, kolejność wysyłania PR-ów po publikacji na npm;
+- README pakietu: sekcje "Privacy" (nic nie opuszcza maszyny, zero telemetrii, redakcja) i "Licensing" (MIT, zero kodu n8n, obraz klienta na jego maszynie).
+
+Poza sesją: publikacja wyników `upgrade-check` dla 3.0 na forum, makieta warstwy płatnej dla trzech agencji, opinia prawna (tydzień 6 w planie), licznik 30 dni od pierwszego raportu u każdej agencji. Bramka 5 (piątek tygodnia 8) wymaga tych trzech rzeczy plus pokrycia co najmniej 80% na eksportach agencji, więc bez sesji z agencjami nie da się jej zamknąć od strony technicznej.

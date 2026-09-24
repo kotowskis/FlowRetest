@@ -1,6 +1,7 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { parse, stringify } from 'yaml';
+import { ConfigSchema, parseOrThrow } from '@flowretest/schemas';
 
 export const CONFIG_DIR = '.flowretest';
 export const CONFIG_FILE = 'config.yml';
@@ -33,9 +34,7 @@ export function configDir(cwd: string): string {
 export function loadConfig(cwd: string): Config {
   const path = join(configDir(cwd), CONFIG_FILE);
   if (!existsSync(path)) throw new Error(`no ${CONFIG_DIR}/${CONFIG_FILE} in ${cwd}; run \`flowretest init\` first`);
-  const parsed = parse(readFileSync(path, 'utf8')) as Config;
-  if (parsed.schemaVersion !== 1) throw new Error(`unsupported config schemaVersion ${String(parsed.schemaVersion)}`);
-  return parsed;
+  return parseOrThrow(ConfigSchema, parse(readFileSync(path, 'utf8')), `${CONFIG_DIR}/${CONFIG_FILE}`) as Config;
 }
 
 export function saveConfig(cwd: string, config: Config): string {
