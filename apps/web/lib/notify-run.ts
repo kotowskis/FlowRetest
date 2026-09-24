@@ -33,10 +33,13 @@ export async function notifyRun(runId: string): Promise<void> {
   if (!run) return;
   const [{ data: workflow }, { data: workspace }] = await Promise.all([
     admin.from('workflows').select('name').eq('id', run.workflow_id).single(),
-    admin.from('workspaces').select('name').eq('id', run.workspace_id).single(),
+    admin.from('workspaces').select('name, organization_id').eq('id', run.workspace_id).single(),
   ]);
   const names = { workflowName: workflow?.name ?? 'workflow', workspaceName: workspace?.name ?? 'workspace' };
-  await Promise.all([emails(admin, run, names), slack(admin, run, names), githubCheck(admin, run, names.workflowName)]);
+  // GitHub checks and Slack come with the paid plans; emails to members come with every plan.
+  const { data: plan } = workspace ? await admin.rpc('org_plan', { org: workspace.organization_id }) : { data: null };
+  const integrations = plan?.[0]?.integrations === true ? true : `the ${plan?.[0]?.plan ?? 'free'} plan has no GitHub checks or Slack messages`;
+  await Promise.all([emails(admin, run, names), slack(admin, run, names, integrations), githubCheck(admin, run, names.workflowName, integrations)]);
 }
 
 function base(run: RunRow, names: { workflowName: string; workspaceName: string }) {
@@ -53,18 +56,26 @@ async function emails(admin: Admin, run: RunRow, names: { workflowName: string; 
   }
 }
 
-async function slack(admin: Admin, run: RunRow, names: { workflowName: string; workspaceName: string }): Promise<void> {
+async function slack(admin: Admin, run: RunRow, names: { workflowName: string; workspaceName: string }, integrations: true | string): Promise<void> {
   const { data: hooks } = await admin.from('slack_webhooks').select('url, url_hint, statuses').eq('workspace_id', run.workspace_id);
   for (const hook of (hooks ?? []).filter((h) => h.statuses.includes(run.status))) {
+    if (integrations !== true) {
+      await admin.from('notification_log').insert({ run_id: run.id, channel: 'slack', recipient: hook.url_hint, ok: false, detail: `not sent: ${integrations}` });
+      continue;
+    }
     const result = await sendSlack(hook.url, slackMessage(base(run, names)));
     // The hint, never the URL: the log is for support, and the URL is a credential.
     await admin.from('notification_log').insert({ run_id: run.id, channel: 'slack', recipient: hook.url_hint, ok: result.ok, detail: result.detail.slice(0, 500) });
   }
 }
 
-async function githubCheck(admin: Admin, run: RunRow, workflowName: string): Promise<void> {
+async function githubCheck(admin: Admin, run: RunRow, workflowName: string, integrations: true | string): Promise<void> {
   const config = githubConfig();
   if (!config || !run.git_repository || !run.git_sha) return;
+  if (integrations !== true) {
+    await admin.from('github_checks').insert({ run_id: run.id, workspace_id: run.workspace_id, ok: false, detail: `not posted: ${integrations}` });
+    return;
+  }
   const owner = run.git_repository.split('/')[0]?.toLowerCase();
   const { data: installations } = await admin.from('github_installations').select('installation_id, account_login').eq('workspace_id', run.workspace_id).is('suspended_at', null);
   const installation = (installations ?? []).find((i) => i.account_login.toLowerCase() === owner);

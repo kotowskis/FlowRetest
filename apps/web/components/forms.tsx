@@ -33,6 +33,25 @@ export function ActionForm({ action, submit, pending, children, className }: { a
   );
 }
 
+/** Plan buttons of one plan card: monthly and yearly, each a submit of the same form. */
+export function PlanChoice({ action, orgId, plan, options }: { action: Action; orgId: string; plan: string; options: Array<{ interval: 'month' | 'year'; label: string; current: boolean }> }) {
+  const [state, run, busy] = useActionState(action, {});
+  const hydrated = useHydrated();
+  return (
+    <form action={run} className="flex flex-col gap-2">
+      <input type="hidden" name="orgId" value={orgId} />
+      <input type="hidden" name="plan" value={plan} />
+      {options.map((o) => (
+        <button key={o.interval} name="interval" value={o.interval} disabled={busy || !hydrated || o.current} className={o.current ? 'rounded-md border border-line px-3 py-2 text-sm text-muted' : buttonClass}>
+          {o.current ? `Current plan, billed ${o.interval === 'month' ? 'monthly' : 'yearly'}` : busy ? 'Opening Stripe…' : o.label}
+        </button>
+      ))}
+      {state.error ? <p role="alert" className="text-sm text-error">{state.error}</p> : null}
+      {state.ok ? <p role="status" className="text-sm text-pass">{state.ok}</p> : null}
+    </form>
+  );
+}
+
 /** Creates a workspace token and shows it once, with the commands to use it. */
 export function TokenForm({ action, workspaceId, appUrl }: { action: Action; workspaceId: string; appUrl: string }) {
   const [state, run, busy] = useActionState(action, {});

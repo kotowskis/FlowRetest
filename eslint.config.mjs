@@ -29,7 +29,7 @@ export default tseslint.config(
   { ...reactHooks.configs.flat.recommended, files: ['apps/web/**/*.tsx'] },
   {
     files: ['**/*.mjs', '**/*.cjs', 'scripts/**'],
-    languageOptions: { globals: { process: 'readonly', console: 'readonly', Buffer: 'readonly', URL: 'readonly' } },
+    languageOptions: { globals: { process: 'readonly', console: 'readonly', Buffer: 'readonly', URL: 'readonly', URLSearchParams: 'readonly', fetch: 'readonly', AbortSignal: 'readonly' } },
     rules: { '@typescript-eslint/no-require-imports': 'off' },
   },
 );

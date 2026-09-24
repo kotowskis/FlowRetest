@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { diffCase, normalizeCall, redactPlanReport, type CaptureRecord, type PlanReport } from '@flowretest/core';
 import { generateToken } from '../../lib/tokens.ts';
-import { admin, appMissing, appUrl, supabaseMissing, user, type Db } from './helpers.ts';
+import { admin, appMissing, appUrl, setPlan, supabaseMissing, user, type Db } from './helpers.ts';
 
 const fakeUrl = process.env.GITHUB_APP_WEB_URL ?? '';
 async function fakeMissing(): Promise<string | undefined> {
@@ -34,6 +34,8 @@ before(async () => {
   owner = await user('gh-owner');
   outsider = await user('gh-outsider');
   const org = await owner.db.rpc('create_organization', { p_name: 'GitHub Agency' });
+  // GitHub checks and Slack come with the paid plans.
+  await setPlan(org.data as string, 'team');
   const ws = await owner.db.from('workspaces').insert({ organization_id: org.data as string, name: 'Acme' }).select('id').single();
   workspaceId = ws.data!.id;
   const t = generateToken();

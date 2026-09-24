@@ -4,13 +4,15 @@ import { MAX_REPORT_BYTES, prepareIngest } from '@/lib/ingest.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
 import { env } from '@/lib/env.ts';
 import { notifyRun } from '@/lib/notify-run.ts';
+import { planLimitOf } from '@/lib/limits.ts';
 import type { Json } from '@/lib/database.types.ts';
 
 export const dynamic = 'force-dynamic';
 
 /**
  * `flowretest upload`: stores one redacted report for the workspace of the bearer token.
- * 201 {id, url, status}; 400 not a redacted report; 401 bad or revoked token; 413 too large; 422 values left in.
+ * 201 {id, url, status}; 400 not a redacted report; 401 bad or revoked token; 402 workspace beyond the plan's limit;
+ * 413 too large; 422 values left in; 429 the plan's uploads per 24 hours used up.
  */
 export async function POST(request: NextRequest) {
   const auth = tokenHashOf(request);
@@ -31,6 +33,8 @@ export async function POST(request: NextRequest) {
   });
   if (error) {
     if (isTokenError(error)) return fail(401, 'invalid or revoked workspace token');
+    const limit = planLimitOf(error);
+    if (limit) return fail(limit === 'uploads' ? 429 : 402, `${error.message}; an owner can change the plan on the Billing page of the organization`);
     console.error('[api/runs] ingest_run failed:', error.code, error.message);
     return fail(500, 'could not store the run');
   }

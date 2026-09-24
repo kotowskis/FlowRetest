@@ -45,14 +45,39 @@ export async function listOrganizations(): Promise<Array<Organization & { role: 
   return orgs.map((o) => ({ ...o, role: roleOf.get(o.id) ?? 'member' }));
 }
 
+/** The organization's plan with its limits and what it uses now (org_plan); `workspaces` null means no limit. */
+export interface PlanLimits {
+  plan: string;
+  workspaces: number | null;
+  seats: number;
+  retention_days: number;
+  uploads_per_day: number;
+  integrations: boolean;
+  workspaces_used: number;
+  seats_used: number;
+  uploads_last_day: number;
+}
+
+export type Plan = Tables<'plans'>;
+export type BillingAccount = Pick<Tables<'billing_accounts'>, 'plan' | 'status' | 'billing_interval' | 'current_period_end' | 'cancel_at_period_end' | 'ended_at'>;
+
+async function planLimits(db: Db, orgId: string): Promise<PlanLimits> {
+  const { data, error } = await db.rpc('org_plan', { org: orgId });
+  if (error) throw new Error(`org_plan: ${error.message}`);
+  const row = data?.[0];
+  if (!row) notFound();
+  return row as PlanLimits;
+}
+
 export async function getOrganization(orgId: string) {
   const { db, user } = await session();
   assertId(orgId);
   const org = orFail(await db.from('organizations').select('*').eq('id', orgId).maybeSingle(), 'organization');
-  const [workspaces, members, invitations] = await Promise.all([
-    db.from('workspaces').select('*').eq('organization_id', orgId).order('name'),
+  const [workspaces, members, invitations, limits] = await Promise.all([
+    db.from('workspaces').select('*').eq('organization_id', orgId).order('created_at'),
     db.from('members').select('*').eq('organization_id', orgId).order('created_at'),
     db.from('invitations').select('*').eq('organization_id', orgId).order('created_at'),
+    planLimits(db, orgId),
   ]);
   const memberRows = orFail(members, 'members');
   return {
@@ -60,8 +85,32 @@ export async function getOrganization(orgId: string) {
     workspaces: orFail(workspaces, 'workspaces'),
     members: memberRows,
     invitations: orFail(invitations, 'invitations'),
+    limits,
     isOwner: memberRows.some((m) => m.user_id === user.id && m.role === 'owner'),
     userId: user.id,
+  };
+}
+
+export async function getBilling(orgId: string) {
+  const { db } = await session();
+  assertId(orgId);
+  const org = orFail(await db.from('organizations').select('*').eq('id', orgId).maybeSingle(), 'organization');
+  const [plans, account, invoices, owner, limits] = await Promise.all([
+    db.from('plans').select('*').order('sort'),
+    db.from('billing_accounts').select('plan, status, billing_interval, current_period_end, cancel_at_period_end, ended_at').eq('organization_id', orgId).maybeSingle(),
+    // RLS gives invoices to owners only; members get an empty list.
+    db.from('invoices').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(50),
+    db.rpc('is_owner', { org: orgId }),
+    planLimits(db, orgId),
+  ]);
+  if (account.error) throw new Error(`billing account: ${account.error.message}`);
+  return {
+    org,
+    plans: orFail(plans, 'plans'),
+    account: (account.data ?? undefined) as BillingAccount | undefined,
+    invoices: orFail(invoices, 'invoices'),
+    isOwner: owner.data === true,
+    limits,
   };
 }
 
@@ -74,11 +123,13 @@ export async function getWorkspace(workspaceId: string) {
     db.from('workspace_tokens').select('id, name, token_prefix, created_at, last_used_at, revoked_at').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
     db.from('workflows').select('*').eq('workspace_id', workspaceId).order('last_run_at', { ascending: false, nullsFirst: false }),
   ]);
-  const [subscription, installations, slack, owner] = await Promise.all([
+  const [subscription, installations, slack, owner, overLimit, limits] = await Promise.all([
     db.from('notification_subscriptions').select('statuses').eq('workspace_id', workspaceId).eq('user_id', user.id).maybeSingle(),
     db.from('github_installations').select('installation_id, account_login, account_type, suspended_at, created_at').eq('workspace_id', workspaceId).order('created_at'),
     db.from('slack_webhooks').select('id, url_hint, statuses, created_at').eq('workspace_id', workspaceId).order('created_at'),
     db.rpc('is_owner', { org: workspace.organization_id }),
+    db.rpc('workspace_over_limit', { ws: workspaceId }),
+    planLimits(db, workspace.organization_id),
   ]);
   if (subscription.error) throw new Error(`subscription: ${subscription.error.message}`);
   return {
@@ -90,6 +141,8 @@ export async function getWorkspace(workspaceId: string) {
     installations: orFail(installations, 'installations'),
     slackHooks: orFail(slack, 'slack webhooks'),
     isOwner: owner.data === true,
+    overLimit: overLimit.data === true,
+    limits,
   };
 }
 

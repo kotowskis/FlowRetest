@@ -89,6 +89,60 @@ export type Database = {
           },
         ]
       }
+      billing_accounts: {
+        Row: {
+          billing_interval: string | null
+          cancel_at_period_end: boolean
+          current_period_end: string | null
+          ended_at: string | null
+          organization_id: string
+          plan: string | null
+          status: string | null
+          stripe_customer_id: string
+          stripe_subscription_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          billing_interval?: string | null
+          cancel_at_period_end?: boolean
+          current_period_end?: string | null
+          ended_at?: string | null
+          organization_id: string
+          plan?: string | null
+          status?: string | null
+          stripe_customer_id: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          billing_interval?: string | null
+          cancel_at_period_end?: boolean
+          current_period_end?: string | null
+          ended_at?: string | null
+          organization_id?: string
+          plan?: string | null
+          status?: string | null
+          stripe_customer_id?: string
+          stripe_subscription_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "billing_accounts_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: true
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_accounts_plan_fkey"
+            columns: ["plan"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       github_checks: {
         Row: {
           check_run_id: number | null
@@ -216,6 +270,62 @@ export type Database = {
           },
         ]
       }
+      invoices: {
+        Row: {
+          amount_due: number
+          amount_paid: number
+          created_at: string
+          currency: string
+          hosted_invoice_url: string | null
+          id: string
+          invoice_pdf: string | null
+          number: string | null
+          organization_id: string
+          period_end: string | null
+          period_start: string | null
+          status: string
+          total: number
+        }
+        Insert: {
+          amount_due: number
+          amount_paid: number
+          created_at: string
+          currency: string
+          hosted_invoice_url?: string | null
+          id: string
+          invoice_pdf?: string | null
+          number?: string | null
+          organization_id: string
+          period_end?: string | null
+          period_start?: string | null
+          status: string
+          total: number
+        }
+        Update: {
+          amount_due?: number
+          amount_paid?: number
+          created_at?: string
+          currency?: string
+          hosted_invoice_url?: string | null
+          id?: string
+          invoice_pdf?: string | null
+          number?: string | null
+          organization_id?: string
+          period_end?: string | null
+          period_start?: string | null
+          status?: string
+          total?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       members: {
         Row: {
           created_at: string
@@ -333,6 +443,45 @@ export type Database = {
           created_by?: string | null
           id?: string
           name?: string
+        }
+        Relationships: []
+      }
+      plans: {
+        Row: {
+          id: string
+          integrations: boolean
+          name: string
+          price_month_cents: number
+          price_year_cents: number
+          retention_days: number
+          seats: number
+          sort: number
+          uploads_per_day: number
+          workspaces: number | null
+        }
+        Insert: {
+          id: string
+          integrations: boolean
+          name: string
+          price_month_cents: number
+          price_year_cents: number
+          retention_days: number
+          seats: number
+          sort: number
+          uploads_per_day: number
+          workspaces?: number | null
+        }
+        Update: {
+          id?: string
+          integrations?: boolean
+          name?: string
+          price_month_cents?: number
+          price_year_cents?: number
+          retention_days?: number
+          seats?: number
+          sort?: number
+          uploads_per_day?: number
+          workspaces?: number | null
         }
         Relationships: []
       }
@@ -464,6 +613,27 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      stripe_events: {
+        Row: {
+          detail: string | null
+          id: string
+          received_at: string
+          type: string
+        }
+        Insert: {
+          detail?: string | null
+          id: string
+          received_at?: string
+          type: string
+        }
+        Update: {
+          detail?: string | null
+          id?: string
+          received_at?: string
+          type?: string
+        }
+        Relationships: []
       }
       workflows: {
         Row: {
@@ -627,6 +797,20 @@ export type Database = {
         }
         Returns: boolean
       }
+      org_plan: {
+        Args: { org: string }
+        Returns: {
+          integrations: boolean
+          plan: string
+          retention_days: number
+          seats: number
+          seats_used: number
+          uploads_last_day: number
+          uploads_per_day: number
+          workspaces: number
+          workspaces_used: number
+        }[]
+      }
       pending_acceptances: {
         Args: { p_n8n_workflow_id: string; p_token_hash: string }
         Returns: {
@@ -638,14 +822,17 @@ export type Database = {
           message: string
         }[]
       }
+      purge_expired_runs: { Args: never; Returns: number }
       run_recipients: {
         Args: { p_run_id: string }
         Returns: {
           email: string
         }[]
       }
+      subscription_gives_plan: { Args: { p_status: string }; Returns: boolean }
       token_workspace: { Args: { p_token_hash: string }; Returns: string }
       workspace_org: { Args: { ws: string }; Returns: string }
+      workspace_over_limit: { Args: { ws: string }; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

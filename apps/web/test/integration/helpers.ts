@@ -50,6 +50,16 @@ export function anon(): Db {
   return createClient<Database>(url, anonKey, { auth: { autoRefreshToken: false, persistSession: false } });
 }
 
+/**
+ * Puts an organization on a plan as if Stripe had confirmed a subscription (billing tests go through the webhook
+ * instead). Tests that need more than the Free plan's single workspace or its integrations call this.
+ */
+export async function setPlan(orgId: string, plan: 'team' | 'agency', status = 'active'): Promise<void> {
+  const row = { organization_id: orgId, stripe_customer_id: `cus_test_${orgId}`, stripe_subscription_id: `sub_test_${orgId}`, plan, status, billing_interval: 'month', ended_at: null };
+  const { error } = await admin().from('billing_accounts').upsert(row);
+  if (error) throw error;
+}
+
 /** A confirmed user signed in with a password; tests use passwords, people use email codes. */
 export async function user(label: string): Promise<{ db: Db; id: string; email: string; cookie: string }> {
   const email = `${label}-${randomUUID().slice(0, 8)}@it.flowretest.test`;

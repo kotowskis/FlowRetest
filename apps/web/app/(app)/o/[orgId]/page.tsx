@@ -9,20 +9,33 @@ export const metadata: Metadata = { title: 'Organization' };
 
 export default async function OrganizationPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
-  const { org, workspaces, members, invitations, isOwner, userId } = await getOrganization(orgId);
+  const { org, workspaces, members, invitations, limits, isOwner, userId } = await getOrganization(orgId);
+  const planName = limits.plan.charAt(0).toUpperCase() + limits.plan.slice(1);
+  const count = (used: number, limit: number | null) => (limit === null ? `${used}, no limit` : `${used} of ${limit}`);
   return (
     <>
-      <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name }]} title={org.name} />
+      <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name }]} title={org.name}>
+        <Link href={`/o/${org.id}/billing`} className="text-sm text-muted hover:text-ink hover:underline">
+          {planName} plan · Billing
+        </Link>
+      </PageHeader>
 
-      <Section title="Workspaces" description="One workspace per customer n8n instance. Runs are uploaded with a workspace token.">
+      <Section
+        title="Workspaces"
+        description={<>One workspace per customer n8n instance. Runs are uploaded with a workspace token. {planName} plan: workspaces {count(limits.workspaces_used, limits.workspaces)}, run history {limits.retention_days} days.</>}
+      >
         {workspaces.length === 0 ? (
           <Empty>No workspaces yet.</Empty>
         ) : (
           <ul className="divide-y divide-line rounded-md border border-line bg-panel">
-            {workspaces.map((w) => (
+            {/* Oldest first: after a downgrade, the workspaces past the limit are the newest ones. */}
+            {workspaces.map((w, i) => (
               <li key={w.id}>
                 <Link href={`/w/${w.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 hover:bg-bg">
-                  <span className="font-medium">{w.name}</span>
+                  <span className="font-medium">
+                    {w.name}
+                    {limits.workspaces !== null && i >= limits.workspaces ? <span className="ml-2 text-xs font-normal text-error">over the plan limit, uploads refused</span> : null}
+                  </span>
                   <span className="font-mono text-xs text-muted">{[w.instance_host, w.engine_tag && `n8n ${w.engine_tag}`].filter(Boolean).join(' · ')}</span>
                 </Link>
               </li>
@@ -48,7 +61,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
         </div>
       </Section>
 
-      <Section title="Members" description={isOwner ? 'Invited people join when they next sign in with the invited address.' : undefined}>
+      <Section title="Members" description={`${isOwner ? 'Invited people join when they next sign in with the invited address. ' : ''}Seats: ${count(limits.seats_used, limits.seats)}, counting invitations.`}>
         <ul className="divide-y divide-line rounded-md border border-line bg-panel">
           {members.map((m) => (
             <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">

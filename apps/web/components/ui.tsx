@@ -58,6 +58,12 @@ export function Empty({ children }: { children: React.ReactNode }) {
   return <p className="rounded-md border border-dashed border-line px-4 py-6 text-sm text-muted">{children}</p>;
 }
 
+/** Minor units as "79 EUR" or "758.40 EUR"; fixed format, no locale. */
+export function money(cents: number, currency = 'eur'): string {
+  const amount = (cents / 100).toFixed(2).replace(/\.00$/, '');
+  return `${amount} ${currency.toUpperCase()}`;
+}
+
 export const inputClass = 'rounded-md border border-line px-3 py-2 text-sm';
 export const buttonClass = 'rounded-md bg-accent px-3 py-2 text-sm font-medium text-on-accent disabled:opacity-60';
 export const quietButtonClass = 'rounded-md border border-line px-2 py-1 text-xs text-muted hover:text-ink';

@@ -22,7 +22,13 @@ const GITHUB_MESSAGES: Record<string, { text: string; ok?: boolean }> = {
 export default async function WorkspacePage({ params, searchParams }: { params: Promise<{ workspaceId: string }>; searchParams: Promise<{ github?: string }> }) {
   const { workspaceId } = await params;
   const { github } = await searchParams;
-  const { workspace, org, tokens, workflows, statuses, installations, slackHooks, isOwner } = await getWorkspace(workspaceId);
+  const { workspace, org, tokens, workflows, statuses, installations, slackHooks, isOwner, overLimit, limits } = await getWorkspace(workspaceId);
+  const billing = `/o/${org.id}/billing`;
+  const planNote = limits.integrations ? null : (
+    <p className="mb-4 text-sm text-diff">
+      The Free plan sends no GitHub checks or Slack messages. <Link href={billing} className="underline">Team and Agency</Link> do.
+    </p>
+  );
   const githubReady = githubConfig() !== undefined;
   const githubMessage = github ? GITHUB_MESSAGES[github] : undefined;
   const subtitle = [workspace.instance_host, workspace.engine_tag && `n8n ${workspace.engine_tag}`].filter(Boolean).join(' · ');
@@ -31,6 +37,13 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
       <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name, href: `/o/${org.id}` }, { label: workspace.name }]} title={workspace.name}>
         {subtitle ? <span className="font-mono text-sm text-muted">{subtitle}</span> : null}
       </PageHeader>
+
+      {overLimit ? (
+        <p role="alert" className="mb-8 rounded-md border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
+          This workspace is beyond the {limits.workspaces} workspace{limits.workspaces === 1 ? '' : 's'} of the {limits.plan} plan, so uploads to it are refused. Existing runs stay readable.{' '}
+          <Link href={billing} className="underline">Change the plan</Link> or delete a newer workspace.
+        </p>
+      ) : null}
 
       <Section title="Workflows" description="A workflow appears here after its first uploaded run.">
         {workflows.length === 0 ? (
@@ -83,6 +96,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
 
       <div id="github">
         <Section title="GitHub" description="A check with the result and a link to the plan on the commit a CI run tested. To block merging on DIFF, make the check required in the branch protection rules.">
+          {planNote}
           {githubMessage ? <p role="status" className={`mb-4 text-sm ${githubMessage.ok ? 'text-pass' : 'text-diff'}`}>{githubMessage.text}</p> : null}
           {!githubReady ? (
             <Empty>This server has no GitHub App configured.</Empty>
@@ -120,6 +134,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
       </div>
 
       <Section title="Slack" description="An incoming webhook gets the status, counts and a link for runs with the chosen statuses.">
+        {planNote}
         {slackHooks.length > 0 ? (
           <ul className="mb-4 divide-y divide-line rounded-md border border-line bg-panel">
             {slackHooks.map((h) => (

@@ -6,6 +6,7 @@ import { z } from 'zod';
 import { session } from '@/lib/data.ts';
 import { generateToken } from '@/lib/tokens.ts';
 import { validateSlackWebhook } from '@/lib/slack.ts';
+import { planLimitOf } from '@/lib/limits.ts';
 
 export interface FormState {
   error?: string;
@@ -55,6 +56,7 @@ export async function createWorkspace(_prev: FormState, form: FormData): Promise
     .select('id')
     .single();
   if (error?.code === '23505') return { error: 'A workspace with this name already exists.' };
+  if (planLimitOf(error)) return { error: `${error?.message}. An owner can change the plan on the Billing page.` };
   if (error || !data) return { error: 'Could not create the workspace.' };
   redirect(`/w/${data.id}`);
 }
@@ -65,6 +67,7 @@ export async function inviteMember(_prev: FormState, form: FormData): Promise<Fo
   const { db, user } = await session();
   const { error } = await db.from('invitations').insert({ organization_id: input.data.orgId, email: input.data.email, invited_by: user.id });
   if (error?.code === '23505') return { error: 'This address is already invited.' };
+  if (planLimitOf(error)) return { error: `${error?.message}. Change the plan on the Billing page or remove someone first.` };
   if (error) return { error: 'Only owners can invite people.' };
   revalidatePath(`/o/${input.data.orgId}`);
   return { done: Date.now() };

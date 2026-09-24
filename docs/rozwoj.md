@@ -40,6 +40,8 @@ Logowanie jest bez hasła: mail z sześciocyfrowym kodem i linkiem. Lokalnie mai
 
 GitHub App i Slack lokalnie działają na atrapie: `node scripts/fake-services.mjs init` (w `apps/web`; klucz w `.fake-services/`, ustawienia dopisane do `.env.local`, po każdym `db:env` trzeba to powtórzyć), potem `node scripts/fake-services.mjs serve` i dopiero wtedy `npm run dev`. Atrapa zapisuje każde żądanie, `GET http://127.0.0.1:55390/__calls` je pokazuje.
 
+Stripe też jest w atrapie (ten sam `init` dopisuje `STRIPE_*`). Przycisk wyboru planu prowadzi na `http://127.0.0.1:55390/stripe/pay/<sesja>`, która od razu "płaci": zakłada subskrypcję i fakturę, wysyła podpisane webhooki do aplikacji i wraca na stronę Billing. `GET /__stripe` pokazuje stan atrapy, a `POST /__stripe/subscriptions/<id>` z `{"status":"past_due"}` albo `{"status":"canceled"}` udaje nieudaną kartę lub anulowanie. Nowa organizacja jest na planie Free (1 workspace); testy, które potrzebują więcej, wołają `setPlan` z `test/integration/helpers.ts`. Retencję uruchamia ręcznie `select public.purge_expired_runs();` w bazie (w `pg_cron` codziennie o 03:17 UTC).
+
 Powiadomienia e-mail wychodzą lokalnie do Mailpita (`MAILPIT_URL` w `.env.local`, zapisuje go `db:env`). Akceptacja z aplikacji trafia na dysk przez `flowretest sync` albo `pull` w katalogu projektu z zaakceptowanym przebiegiem.
 
 Upload z CLI do lokalnej aplikacji: token z ekranu workspace'u, potem `FLOWRETEST_TOKEN=frt_... node packages/cli/dist/bin.js upload --workflow <id> --url http://127.0.0.1:3100` w katalogu projektu po `run`.

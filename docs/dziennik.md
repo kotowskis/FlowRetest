@@ -205,3 +205,24 @@ Sprawdzone na żywo: "Connect GitHub" w przeglądarce przeszedł całą drogę p
 Lista dla założyciela na dzień rejestracji aplikacji: uprawnienia `checks: write` i `metadata: read`, zdarzenia `installation` i `installation_target`, setup URL `<domena>/api/github/setup` z zaznaczonym "Request user authorization (OAuth) during installation", callback URL ten sam, webhook `<domena>/api/github/webhook` z sekretem, zmienne `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_WEBHOOK_SECRET`.
 
 Pierwszy przebieg CI tygodnia 11: testy GitHuba w jobie `web` padły, choć lokalnie przechodziły. GitHub Actions ustawia na każdym runnerze `GITHUB_API_URL=https://api.github.com`, a zmienne procesu wygrywają z `.env.local`, więc aplikacja pytała prawdziwe API zamiast atrapy. Zmienne adresów to teraz `GITHUB_APP_API_URL` i `GITHUB_APP_WEB_URL`; job po porażce wypisuje logi aplikacji i atrapy. Lokalnie sprawdzone z ustawionym `GITHUB_API_URL`, jak na runnerze.
+
+## Tydzień 12: plany, Stripe, limity i retencja (2026-09-24)
+
+Zakres z planu (sekcja 11, tydzień 12). Decyzje są w ADR 0010. Konta Stripe nie ma, więc płatności działają na atrapie w `apps/web/scripts/fake-services.mjs`, a skrypt `apps/web/scripts/stripe-setup.mjs` przygotowuje prawdziwe konto w kilka minut.
+
+Zrobione:
+
+- migracja `20261214000000_billing.sql`: `plans` (Free, Team 79 EUR, Agency 199 EUR, rocznie o 20% taniej), `billing_accounts`, `invoices`, `stripe_events`; funkcje `org_plan` (plan z limitami oraz zużyciem), `workspace_over_limit`, `purge_expired_runs`; wyzwalacze limitu workspace'ów i miejsc; `ingest_run` sprawdza limit uploadów na dobę i workspace'y ponad limit; blokada usunięcia organizacji z żywą subskrypcją; zadanie `pg_cron` o 03:17 UTC;
+- `lib/stripe.ts` bez SDK: klient, Checkout, portal, subskrypcje, faktury, podpis webhooka; `lib/billing.ts`: synchronizacja subskrypcji i faktur, `/api/stripe/webhook`;
+- strona `/o/<org>/billing`: bieżący plan z zużyciem, trzy plany z cenami miesięcznymi i rocznymi, zmiana planu, portal Stripe, faktury (tylko właściciele); strona organizacji pokazuje plan i workspace'y ponad limit, strona workspace'u baner o odrzucanych uploadach i informację, że Check i Slack są w płatnych planach;
+- `POST /api/runs` odpowiada 402 dla workspace'u ponad limit i 429 po wyczerpaniu uploadów, z komunikatem wskazującym stronę Billing;
+- na planie Free Check i Slack nie wychodzą, a powód trafia do `github_checks` i `notification_log`.
+
+Sprawdzone na żywo w przeglądarce: organizacja na Free, drugi workspace odrzucony komunikatem "The Free plan includes 1 workspace", wybór Team miesięcznie przez akcję serwera, strona płatności atrapy, powrót z komunikatem o płatności i planem Team (10 workspace'ów, 90 dni), przełączenie na Agency rocznie z fakturą 1910.40 EUR na liście, portal tam i z powrotem, widok 375 px bez przewijania w poziomie. Testy: 7 nowych jednostkowych (podpis webhooka z tolerancją 300 s i rotacją sekretu, kodowanie formularza, stan subskrypcji, cały przepływ na atrapie) i 9 nowych integracyjnych (limity w bazie, retencja z okresem łaski, kto widzi rozliczenia, Checkout z webhookami, strona po płatności bez webhooka, podpisy oraz duplikaty zdarzeń, Free bez Checka i Slacka, 402 i 429 w API). Razem w `apps/web`: 22 jednostkowe i 23 integracyjne.
+
+Wnioski:
+
+- od wersji API `2025-03-31.basil` subskrypcja nie ma `current_period_end`; pole jest w pozycjach subskrypcji, a faktura wskazuje subskrypcję przez `parent.subscription_details`. Klient przypina `Stripe-Version`, żeby zmiana domyślnej wersji konta nie przesunęła pól;
+- funkcja wyzwalacza musi być `security definer`: blokada wiersza organizacji przez `select ... for update` z uprawnieniami członka nie zadziałałaby, bo RLS aktualizacji przepuszcza tylko właścicieli; stąd blokada doradcza zamiast blokady wiersza.
+
+Do decyzji założyciela: konto Stripe i dane firmy na fakturach, okres próbny, Stripe Tax i OSS, czy plan Free w aplikacji ma dwa miejsca (ADR 0010 ma listę kroków na dzień założenia konta).
