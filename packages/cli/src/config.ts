@@ -15,6 +15,8 @@ export interface Config {
   proxy: { image: string };
   normalize: { ignore: string[]; idSegments?: string[] };
   run: { timeoutSeconds: number; stabilize: boolean; executor?: 'batch' | 'execute' };
+  /** Hosted layer for `upload`; the token is a secret (FLOWRETEST_TOKEN), never in this file. */
+  cloud?: { url: string };
 }
 
 interface ProxyLock {
@@ -71,7 +73,10 @@ export function saveConfig(cwd: string, config: Config): string {
 
 export function saveApiKey(cwd: string, apiKey: string): void {
   mkdirSync(configDir(cwd), { recursive: true });
-  writeFileSync(join(configDir(cwd), SECRETS_FILE), `FLOWRETEST_API_KEY=${apiKey}\n`, { mode: 0o600 });
+  const path = join(configDir(cwd), SECRETS_FILE);
+  // Other secrets in the file (FLOWRETEST_TOKEN for upload) stay.
+  const others = existsSync(path) ? readFileSync(path, 'utf8').split(/\r?\n/).filter((l) => l && !l.startsWith('FLOWRETEST_API_KEY=')) : [];
+  writeFileSync(path, [`FLOWRETEST_API_KEY=${apiKey}`, ...others].join('\n') + '\n', { mode: 0o600 });
 }
 
 export function loadApiKey(cwd: string): string {
@@ -79,9 +84,19 @@ export function loadApiKey(cwd: string): string {
   if (fromEnv) return fromEnv;
   const path = join(configDir(cwd), SECRETS_FILE);
   if (!existsSync(path)) throw new Error(`no API key: set FLOWRETEST_API_KEY or run \`flowretest init --api-key\``);
-  const line = readFileSync(path, 'utf8').split('\n').find((l) => l.startsWith('FLOWRETEST_API_KEY='));
-  if (!line) throw new Error(`${path} has no FLOWRETEST_API_KEY line`);
-  return line.slice('FLOWRETEST_API_KEY='.length).trim();
+  const key = loadSecret(cwd, 'FLOWRETEST_API_KEY');
+  if (!key) throw new Error(`${path} has no FLOWRETEST_API_KEY line`);
+  return key;
+}
+
+/** A secret from the environment, or else a `NAME=value` line in .flowretest/secrets.env. */
+export function loadSecret(cwd: string, name: string): string | undefined {
+  const fromEnv = process.env[name];
+  if (fromEnv) return fromEnv;
+  const path = join(configDir(cwd), SECRETS_FILE);
+  if (!existsSync(path)) return undefined;
+  const line = readFileSync(path, 'utf8').split(/\r?\n/).find((l) => l.startsWith(`${name}=`));
+  return line?.slice(name.length + 1).trim() || undefined;
 }
 
 /** Adds the ignore rules for secrets, fixtures and runs once. */

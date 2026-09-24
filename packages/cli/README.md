@@ -69,7 +69,9 @@ The runner contains no n8n code. It pulls the official `n8nio/n8n` image of your
 
 ## Privacy
 
-Nothing leaves your machine. The runner talks to two places: your n8n instance (read only, through the public API) and the image registries (to pull `n8nio/n8n` and the proxy image). There is no telemetry. Fixtures contain your customers' data and are excluded from git by `init`; `redact` writes copies safe to share, and `redact --report` turns a run report into shapes (type, length, hash) instead of values.
+Nothing leaves your machine unless you run `upload`. The runner talks to two places: your n8n instance (read only, through the public API) and the image registries (to pull `n8nio/n8n` and the proxy image). There is no telemetry. Fixtures contain your customers' data and are excluded from git by `init`; `redact` writes copies safe to share, and `redact --report` turns a run report into shapes (type, length, hash) instead of values.
+
+`upload` (and `run --upload`) sends only that redacted report: plan entries, field paths, counts, flags and shapes. Fixtures, call registers and the full `report.json` stay local. The CLI checks the file with the same schema and redaction guard the server uses and refuses to send a report that still carries values. A failed upload after a PASS exits with 4; after a DIFF or an ERROR the plan's own exit code stays.
 
 Baselines (`.flowretest/<workflow>/baseline/`) are meant to be committed so CI can diff against them, and they hold the request bodies of the accepted run: real customer values. Commit them only to a repository that may hold that data; otherwise add `.flowretest/*/baseline/` to `.gitignore`. The GitHub Action posts the redacted plan as a pull request comment unless `values: 'true'` is set.
 
@@ -93,6 +95,7 @@ It does not judge new prompts or models (AI nodes are replayed from recordings),
 | `accept` | store the new version's calls as the baseline (needs a `--stabilize` run, or `--force`) |
 | `upgrade-check` | replay the same workflow on two n8n images; the plan opens with "Engine differences" (nodes that ran on one engine only, item counts, output keys, new errors) |
 | `redact` | redacted fixture copies for bug reports and shared catalogues |
+| `upload` | send the redacted report of a run to the hosted report viewer (`FLOWRETEST_TOKEN`, `--url` or `cloud.url`); `run --upload` and `upgrade-check --upload` do it after the plan |
 | `doctor` | check Docker, images and the sandbox seal |
 | `sandbox prune` | remove leftover sandbox containers |
 | `sandbox export --compose <dir>` | turn a sandbox kept with `run --keep` into a docker-compose file that opens its workflows and executions in the n8n editor on 127.0.0.1:5678, still without a route out |

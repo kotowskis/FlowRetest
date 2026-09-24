@@ -25,3 +25,28 @@ jobs:
       # Plan: npm audit at level high; once, not per OS.
       - if: matrix.os == 'ubuntu-latest'
         run: npm audit --audit-level=high
+
+  # Paid layer (apps/web): migrations on a local Supabase, generated types in sync, production build, then RLS and
+  # API tests against the built app.
+  web:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm run db:start -w @flowretest/web
+      - run: npm run db:env -w @flowretest/web
+      - run: node apps/web/scripts/db-types.mjs --check
+      - run: npx turbo build --filter=@flowretest/web
+      - name: start the app
+        working-directory: apps/web
+        run: |
+          npx next start --port 3100 > next.log 2>&1 &
+          for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:3100/login && exit 0; sleep 1; done
+          cat next.log; exit 1
+      - run: npm run test:integration -w @flowretest/web
+      - if: always()
+        run: npm run db:stop -w @flowretest/web

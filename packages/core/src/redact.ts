@@ -42,8 +42,56 @@ function shapeCall(call: NormalizedCall, options: ShapeOptions): NormalizedCall 
     query,
     path: call.pathTemplate,
     pathValue: call.pathTemplate,
-    multipart: call.multipart?.map((p) => ({ ...p, filename: p.filename ? String(shapeOf(p.filename, options)) : undefined })),
+    // An unsalted hash of a small body (one phone number sent to a known endpoint) is reversed by guessing the body;
+    // salted, it still pairs equal bodies inside one report.
+    bodyHash: saltedHash(call.bodyHash, options),
+    multipart: call.multipart?.map((p) => ({ ...p, sha256: saltedHash(p.sha256, options), filename: p.filename ? String(shapeOf(p.filename, options)) : undefined })),
   };
+}
+
+function saltedHash(hash: string, options: ShapeOptions): string {
+  return createHmac('sha256', options.salt).update(hash).digest('hex').slice(0, Math.max(hash.length, 16));
+}
+
+/** A string that `shapeOf` or the normaliser may leave in a redacted report. */
+const SHAPE = /^<(?:string \d+ #[0-9a-f]{8}|array \d+|object \d+|digits \d+|[a-z]+)>$/;
+
+function unshapedLeaves(value: unknown, path: string, out: string[]): void {
+  if (typeof value === 'string') {
+    if (!SHAPE.test(value)) out.push(path);
+  } else if (Array.isArray(value)) value.forEach((v, i) => unshapedLeaves(v, `${path}[${i}]`, out));
+  else if (value !== null && typeof value === 'object') for (const [k, v] of Object.entries(value as Record<string, unknown>)) unshapedLeaves(v, `${path}.${k}`, out);
+}
+
+/**
+ * Where a report that claims to be redacted still carries values: a string that is not a shape in a body, a query or
+ * a field diff, or a concrete path. The hosted layer refuses such a report, so a runner bug or a hand-edited file
+ * cannot put customer data on our servers. Empty when the report looks like `redactPlanReport` output.
+ */
+export function redactionProblems(report: Pick<PlanReport, 'cases'>, limit = 20): string[] {
+  const problems: string[] = [];
+  report.cases.forEach((c) => {
+    c.entries.forEach((e, i) => {
+      const where = `case ${c.caseId} entry ${i + 1}`;
+      for (const side of ['old', 'new'] as const) {
+        const call = e[side];
+        if (!call) continue;
+        if (call.path !== call.pathTemplate || (call.pathValue !== undefined && call.pathValue !== call.pathTemplate)) problems.push(`${where} ${side}.path: concrete path instead of the template`);
+        const leaves: string[] = [];
+        unshapedLeaves(call.body, `${side}.body`, leaves);
+        unshapedLeaves(call.query, `${side}.query`, leaves);
+        for (const p of call.multipart ?? []) if (p.filename !== undefined) unshapedLeaves(p.filename, `${side}.multipart.filename`, leaves);
+        problems.push(...leaves.map((l) => `${where} ${l}: value is not redacted`));
+      }
+      e.fieldDiffs.forEach((d) => {
+        for (const side of ['old', 'new'] as const) {
+          const v = d[side];
+          if ((typeof v === 'string' && !SHAPE.test(v)) || (v !== null && typeof v === 'object')) problems.push(`${where} field ${d.path} (${side}): value is not redacted`);
+        }
+      });
+    });
+  });
+  return problems.slice(0, limit);
 }
 
 /**

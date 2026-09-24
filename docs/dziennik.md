@@ -142,3 +142,26 @@ Uzupełnione: `expectations.yml` (ręczne kontrole wywołań nowej wersji, ADR 0
 Sprawdzone na żywo: `upgrade-check` przypadku 01 z 2.40.5 na `v3-nightly` z `--keep` dał PASS z sekcją "Engine differences" i sprawdzonymi oczekiwaniami; `sandbox export --compose` z zachowanego sandboxa przeszedł `docker compose config`, po `up` edytor odpowiedział na 127.0.0.1:5678 (`/healthz` 200), a n8n w tym zestawie nadal nie miał połączenia z internetem.
 
 eslint przy pierwszym uruchomieniu znalazł w teście proxy wyrażenie `'^.*\.googleapis\.com$'` w zwykłym stringu: backslashe znikały, więc kropka pasowała do dowolnego znaku. Poprawione.
+
+## Tydzień 9: szkielet warstwy płatnej (2026-09-24)
+
+Zakres z planu (sekcja 11, tydzień 9): logowanie, organizacje, workspace'y, tokeny, `POST /api/runs`, przeglądarka raportu. Bramka 5 nie jest zamknięta, więc aplikacja nie jest wdrożona; decyzje są w ADR 0007.
+
+Zrobione:
+
+- `apps/web` (Next.js 16.3, React 19.3, Tailwind 4, `@supabase/ssr`): logowanie kodem z maila, organizacje z zaproszeniami po adresie, workspace'y, tokeny `frt_...` pokazywane raz, lista workflow, historia przebiegów workflow, widok przebiegu z kafelkami, przypadkami, zmianami pól, flagami, sekcją "Engine differences", znaleziskami skanera i planem tekstowym jak w terminalu;
+- migracja `20261123000000_organizations_workspaces_runs.sql`: siedem tabel z RLS, `create_organization`, `claim_invitations`, `ingest_run`;
+- `POST /api/runs`: 201 z adresem przebiegu, 401 dla złego albo cofniętego tokenu, 400 dla innego formatu, 413 powyżej 5 MB, 422 gdy raport ma wartości zamiast kształtów;
+- CLI: `flowretest upload`, `run --upload`, `upgrade-check --upload`, `cloud.url` w `config.yml`, `FLOWRETEST_TOKEN` ze zmiennej albo z `.flowretest/secrets.env` (`init` go nie nadpisuje);
+- `@flowretest/schemas`: `RedactedReportSchema` i `docs/formaty/redacted-report.schema.json`; `core`: `redactionProblems` i solone skróty ciał w raporcie po redakcji;
+- CI: job `web` (Supabase w kontenerach, zgodność typów bazy, build, testy integracyjne), reguły `react-hooks` w eslint.
+
+Sprawdzone na żywo na Windows 11: logowanie kodem i linkiem (link także z innego klienta bez ciasteczek), organizacja, workspace, token, potem `run --upload` przypadków katalogu 01 i 15 na 2.40.5. Oba przebiegi trafiły do widoku jako DIFF, CLI zakończyło się kodem 1. Widok nie przewija się poziomo przy 375 px; sprawdzony w trybie jasnym i ciemnym. Testy: 5 jednostkowych w `apps/web`, 8 integracyjnych (RLS: obca organizacja nie widzi niczego, nie zapisze workspace'u ani tokenu, nikt nie odczyta `token_hash`, tylko `service_role` wywoła `ingest_run`; API: kody odpowiedzi, cofnięty token, przekierowanie niezalogowanych).
+
+Błędy znalezione w trakcie:
+
+- `ingest_run` padał na "column reference workspace_id is ambiguous": kolumny wyjściowe `returns table` przesłaniały kolumny tabel; poprawione dyrektywą `#variable_conflict use_column`;
+- jedno wciśnięcie Entera w formularzu tokenu dało pięć tokenów: formularz poszedł natywnym POST-em przed hydratacją, a każde przeładowanie karty wysyłało go ponownie; przyciski są nieaktywne do hydratacji;
+- `run --upload` na Windows kończył się kodem 127 z asercją libuv (`process.exit` tuż po `fetch`); teraz kod planu przechodzi przez `process.exitCode`.
+
+Do decyzji założyciela: domena warstwy płatnej (od niej zależy domyślny `cloud.url`), projekt Supabase w chmurze i region (dane agencji z UE), dostawca maili do logowania na produkcji (lokalnie Mailpit).

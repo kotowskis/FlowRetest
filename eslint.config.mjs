@@ -2,12 +2,13 @@
 // lint job has to stay fast.
 import js from '@eslint/js';
 import tseslint from 'typescript-eslint';
+import reactHooks from 'eslint-plugin-react-hooks';
 
 /** Modules that do IO; core and services are pure functions, the CLI and the proxy do the IO. */
 const IO_MODULES = ['fs', 'fs/promises', 'child_process', 'net', 'http', 'https', 'http2', 'dgram', 'dns', 'os', 'worker_threads', 'cluster'].flatMap((m) => [m, `node:${m}`]);
 
 export default tseslint.config(
-  { ignores: ['**/dist/**', '**/node_modules/**', '.turbo/**', 'docs/**'] },
+  { ignores: ['**/dist/**', '**/node_modules/**', '.turbo/**', 'docs/**', 'apps/web/.next/**', 'apps/web/next-env.d.ts', 'apps/web/lib/database.types.ts'] },
   js.configs.recommended,
   ...tseslint.configs.recommended,
   {
@@ -25,6 +26,7 @@ export default tseslint.config(
       'no-restricted-imports': ['error', { paths: IO_MODULES.map((name) => ({ name, message: 'core and services are pure: IO belongs in packages/cli or packages/proxy' })) }],
     },
   },
+  { ...reactHooks.configs.flat.recommended, files: ['apps/web/**/*.tsx'] },
   {
     files: ['**/*.mjs', '**/*.cjs', 'scripts/**'],
     languageOptions: { globals: { process: 'readonly', console: 'readonly', Buffer: 'readonly', URL: 'readonly' } },

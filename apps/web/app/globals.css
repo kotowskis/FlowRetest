@@ -1,0 +1,45 @@
+@import 'tailwindcss';
+
+/* One neutral scale plus the four plan colours; dark mode follows the system. */
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', 'JetBrains Mono', Menlo, Consolas, monospace;
+  --color-bg: #fbfaf8;
+  --color-panel: #ffffff;
+  --color-line: #e6e3de;
+  --color-ink: #1d1b18;
+  --color-muted: #6f6a62;
+  --color-accent: #2f5bd3;
+  --color-on-accent: #ffffff;
+  --color-pass: #1f7a4d;
+  --color-diff: #a15c00;
+  --color-error: #b3261e;
+  --color-blocked: #6b3fa0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-bg: #151412;
+    --color-panel: #1e1c19;
+    --color-line: #34312c;
+    --color-ink: #ece8e1;
+    --color-muted: #a39d93;
+    --color-accent: #8aa8ff;
+    --color-on-accent: #0f1733;
+    --color-pass: #5cc98f;
+    --color-diff: #f0a23b;
+    --color-error: #ff7a70;
+    --color-blocked: #c39bff;
+  }
+}
+
+body {
+  background: var(--color-bg);
+  color: var(--color-ink);
+}
+
+input,
+select,
+textarea {
+  background: var(--color-panel);
+}

@@ -6,6 +6,9 @@ All notable changes to this project are documented here. The format follows Keep
 
 ### Added
 
+- `upload`: sends the redacted report of a run (`report.redacted.json`) to the hosted report viewer with a workspace token (`FLOWRETEST_TOKEN`, from the environment or `.flowretest/secrets.env`) and prints the run URL. `run --upload` and `upgrade-check --upload` do it after the plan; a failed upload turns a PASS into exit code 4 and leaves DIFF and ERROR codes alone. The URL comes from `--url`, `FLOWRETEST_URL` or `cloud.url` in `config.yml`.
+- `docs/formaty/redacted-report.schema.json` (`RedactedReportSchema`): the only file that leaves the machine. The redacted report now carries `run` (the local run directory) and `upgrade` for `upgrade-check` runs.
+- `apps/web` (not deployed): hosted report viewer on Next.js 16 and Supabase with passwordless sign-in, organizations and invitations, workspaces, workspace tokens, `POST /api/runs` and a run page that shows the same plan as the terminal.
 - Stubs: `run --stub "<node>=<file>"` (repeatable) and `.flowretest/<workflow>/stubs.yml` answer a node with the items in a JSON or YAML file instead of running or replaying it: a database write, a read the recording never took, a recording over 1 MB. The case runs instead of being skipped, gets a `stub:` warning, and `coverage.stubbed` lists the nodes. `upgrade-check` takes `--stub` too; `scan` and the skip message point at it.
 - `expectations.yml` (ADR 0005): hand-written checks on the new version's calls (call counts per node, `notEmpty`, `absent`, `present`, `equals`, `matches`, `oneOf` on field paths with `[*]`). A failed check makes the case DIFF and shows as an `x` line; `diff --against baseline` checks them again.
 - `upgrade-check`: the plan, Markdown and JUnit open with "Engine differences": nodes that ran on one engine only, run and item counts, output keys and new errors per node, next to the call diff.
@@ -18,6 +21,8 @@ All notable changes to this project are documented here. The format follows Keep
 
 ### Fixed
 
+- `redact --report` salts the body hash and multipart hashes with the report key: an unsalted SHA-256 of a small body (one phone number sent to a known endpoint) could be reversed by guessing. A version label that is a file path keeps only the file name, and `generatedAt` is the run's time instead of the redaction time.
+- `init --api-key` keeps other lines of `.flowretest/secrets.env`.
 - Errors that escape a command exit with 4 (usage or environment) or 5 (internal) instead of 1, which means DIFF; the GitHub Action no longer reports a crashed run as DIFF with a green job.
 - A case skipped for an unsupported node on its path makes the run BLOCKED (exit code 3) instead of PASS.
 - The npm package is publishable: the workspace packages are bundled into `dist/bin.js` with esbuild, `private` is gone, `bin` is `dist/bin.js`, `proxy.lock.json` ships with the package, `engines` is `>=22.12` (commander 15).

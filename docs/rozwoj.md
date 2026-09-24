@@ -24,3 +24,24 @@ Pułapki:
 Instancja deweloperska do ręcznych prób: `docker run -d --name flowretest-dev-n8n -p 5678:5678 n8nio/n8n:2.40.5` plus odbiornik `node scripts/dev-receiver.mjs 8787` dla węzłów piszących (adres `http://host.docker.internal:8787/...` w workflow).
 
 Układ repozytorium: `packages/core` (czyste funkcje: klasyfikacja, rewriter, normalizacja, diff, skaner, plan, redakcja), `packages/cli` (komendy, sandbox, klient API, katalog regresji), `packages/proxy` (obraz proxy), `packages/services` (role, szablony zlewu, zaślepki poświadczeń), `packages/schemas` (schematy zod i eksport do JSON Schema), `action/` (GitHub Action), `scripts/` (strażnik zależności, eksport schematów, kontrola wydania), `docs/`.
+
+## Warstwa płatna (`apps/web`)
+
+Next.js 16 z App Router i Supabase. Lokalnie Supabase działa w Dockerze na portach 553xx (API 55321, baza 55322, Mailpit 55324), żeby nie kolidować z innymi projektami na domyślnych 543xx.
+
+```bash
+npm run db:start -w @flowretest/web   # pierwszy raz kilka minut: pobiera obrazy Supabase
+npm run db:env -w @flowretest/web     # zapisuje apps/web/.env.local z kluczami lokalnego stosu
+npm run dev -w @flowretest/web        # http://127.0.0.1:3100
+npm run test:integration -w @flowretest/web   # RLS i POST /api/runs; wymaga db:start i działającej aplikacji
+```
+
+Logowanie jest bez hasła: mail z sześciocyfrowym kodem i linkiem. Lokalnie maile trafiają do Mailpita pod `http://127.0.0.1:55324`. Po każdej nowej migracji w `apps/web/supabase/migrations/` trzeba uruchomić `npm run db:reset -w @flowretest/web` i `npm run db:types -w @flowretest/web`, a potem zacommitować `lib/database.types.ts`; job `web` w CI sprawdza zgodność (`db-types.mjs --check`).
+
+Upload z CLI do lokalnej aplikacji: token z ekranu workspace'u, potem `FLOWRETEST_TOKEN=frt_... node packages/cli/dist/bin.js upload --workflow <id> --url http://127.0.0.1:3100` w katalogu projektu po `run`.
+
+Pułapki:
+
+- formularz wysłany przed hydratacją idzie natywnym POST-em i przeładowanie strony wysyła go ponownie; przyciski formularzy są więc nieaktywne do hydratacji (`useHydrated` w `components/forms.tsx`);
+- w funkcji plpgsql z `returns table (...)` kolumny wyjściowe przesłaniają kolumny tabel o tej samej nazwie; `ingest_run` ma `#variable_conflict use_column`;
+- `process.exit()` tuż po `fetch` na Windows kończy Node asercją libuv (kod 127 zamiast kodu planu); `run --upload` ustawia `process.exitCode` i pozwala pętli zdarzeń się opróżnić.

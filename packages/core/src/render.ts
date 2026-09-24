@@ -42,7 +42,8 @@ export function staticSummary(report: Pick<PlanReport, 'static'>): string | unde
   return `Static findings: ${[errors ? part(errors, 'error') : '', warnings ? part(warnings, 'warning') : ''].filter(Boolean).join(', ')} (run \`flowretest scan\` for details)`;
 }
 
-const FLAG_TEXT: Record<string, string> = {
+/** Plain-language names of diff flags, shared by the terminal plan and the hosted report viewer. */
+export const FLAG_TEXT: Record<string, string> = {
   'empty-value': 'empty value in an id field',
   'missing-field': 'field dropped',
   'type-changed': 'field type changed',

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { Command, CommanderError, Option } from 'commander';
 import pc from 'picocolors';
 import { CLI_VERSION } from './index.ts';
@@ -10,6 +10,7 @@ import { defaultProxyImage } from './config.ts';
 import { describeError, exitCodeForError } from './errors.ts';
 import { byteSize, collect, formatList, idList, positiveInt } from './args.ts';
 import { colorPlan } from './color.ts';
+import { EXIT_CODES } from '@flowretest/core';
 
 type Formats = Array<'terminal' | 'json' | 'junit' | 'md'>;
 
@@ -124,13 +125,28 @@ program
   });
 
 /** Output of run and upgrade-check: the report itself with --json, the coloured plan otherwise. */
-function emitRun(result: { plan: string; reportPath: string; exitCode: number }): never {
+async function emitRun(result: { plan: string; reportPath: string; runDir: string; exitCode: number }, upload?: { workflowId: string; url?: string }): Promise<never> {
   if (globals().json) console.log(readFileSync(result.reportPath, 'utf8'));
   else {
     console.log('\n' + plan(result.plan));
     console.log(`\nreport: ${result.reportPath}`);
   }
-  process.exit(result.exitCode);
+  let code = result.exitCode;
+  if (upload) {
+    const { runUpload } = await import('./commands/upload.ts');
+    try {
+      await runUpload({ cwd: process.cwd(), workflowId: upload.workflowId, run: basename(result.runDir), url: upload.url, log: (line) => console.error(line) });
+    } catch (e) {
+      // A failed upload must not hide a DIFF or an ERROR; it only turns a PASS into an environment failure.
+      console.error(describeError(e, EXIT_CODES.ENVIRONMENT));
+      if (code === EXIT_CODES.PASS) code = EXIT_CODES.ENVIRONMENT;
+    }
+    // process.exit() right after fetch aborts Node on Windows (libuv assertion in async.c, exit code 127 instead of
+    // the plan's code); letting the event loop drain ends the process with the same code.
+    process.exitCode = code;
+    return undefined as never;
+  }
+  process.exit(code);
 }
 
 program
@@ -144,9 +160,11 @@ program
   .option('--stub <node=file>', 'answer a node with the items in a JSON or YAML file instead of running or replaying it (repeatable; also .flowretest/<id>/stubs.yml)', collect, [])
   .option('--format <list>', 'comma-separated: terminal, json, junit, md (files land in the run directory)', formatList, ['terminal'])
   .option('--keep', 'keep the sandbox for inspection (see `sandbox export --compose`)', false)
-  .action(async (opts: { workflow: string; new: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Formats; keep: boolean }) => {
+  .option('--upload', 'send the redacted report to the hosted layer (FLOWRETEST_TOKEN; see `upload`)', false)
+  .option('--url <url>', 'hosted layer URL for --upload (default: FLOWRETEST_URL or cloud.url in config.yml)')
+  .action(async (opts: { workflow: string; new: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Formats; keep: boolean; upload: boolean; url?: string }) => {
     const { runRun } = await import('./commands/run.ts');
-    emitRun(await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats: opts.format, keep: opts.keep, log }));
+    await emitRun(await runRun({ cwd: process.cwd(), workflowId: opts.workflow, newFile: opts.new, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats: opts.format, keep: opts.keep, log }), opts.upload ? { workflowId: opts.workflow, url: opts.url } : undefined);
   });
 
 program
@@ -161,9 +179,23 @@ program
   .option('--stub <node=file>', 'answer a node with the items in a JSON or YAML file (repeatable; also .flowretest/<id>/stubs.yml)', collect, [])
   .option('--format <list>', 'comma-separated: terminal, json, junit, md', formatList, ['terminal'])
   .option('--keep', 'keep the sandboxes for inspection', false)
-  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Formats; keep: boolean }) => {
+  .option('--upload', 'send the redacted report to the hosted layer (FLOWRETEST_TOKEN; see `upload`)', false)
+  .option('--url <url>', 'hosted layer URL for --upload (default: FLOWRETEST_URL or cloud.url in config.yml)')
+  .action(async (opts: { workflow: string; engineOld: string; engineNew: string; old: string; cases?: string[]; stabilize?: boolean; stub: string[]; format: Formats; keep: boolean; upload: boolean; url?: string }) => {
     const { runRun } = await import('./commands/run.ts');
-    emitRun(await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats: opts.format, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log }));
+    await emitRun(await runRun({ cwd: process.cwd(), workflowId: opts.workflow, old: opts.old, cases: opts.cases, stabilize: opts.stabilize, stubs: opts.stub, formats: opts.format, keep: opts.keep, engineOld: opts.engineOld, engineNew: opts.engineNew, log }), opts.upload ? { workflowId: opts.workflow, url: opts.url } : undefined);
+  });
+
+program
+  .command('upload')
+  .description('Send the redacted report of a run to the hosted layer; the full report and the fixtures stay on this machine.')
+  .requiredOption('--workflow <id>', 'workflow id (as pulled)')
+  .option('--run <stamp>', 'run directory name (default: latest)')
+  .option('--url <url>', 'hosted layer URL (default: FLOWRETEST_URL or cloud.url in config.yml)')
+  .action(async (opts: { workflow: string; run?: string; url?: string }) => {
+    const { runUpload } = await import('./commands/upload.ts');
+    const result = await runUpload({ cwd: process.cwd(), workflowId: opts.workflow, run: opts.run, url: opts.url, log });
+    emit(result, result.url);
   });
 
 program

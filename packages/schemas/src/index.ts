@@ -22,6 +22,8 @@ export const ConfigSchema = z.object({
     stabilize: z.boolean().default(false),
     executor: z.enum(['batch', 'execute']).optional(),
   }),
+  /** Hosted layer that `upload` and `run --upload` send redacted reports to. */
+  cloud: z.object({ url: z.string().url() }).optional(),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 
@@ -166,6 +168,30 @@ export const RunReportSchema = z.object({
 });
 export type RunReport = z.infer<typeof RunReportSchema>;
 
+/**
+ * report.redacted.json (`redact --report`, `upload`): the plan with shapes instead of values. It is the only file that
+ * leaves the customer's machine; `POST /api/runs` of the hosted layer accepts nothing else.
+ */
+export const RedactedReportSchema = z.object({
+  schemaVersion: z.literal(1),
+  generatedAt: z.string(),
+  redacted: z.literal(true),
+  runner: z.string(),
+  workflowId: z.string().min(1).max(200),
+  workflowName: z.string().max(500),
+  engine: z.object({ image: z.string(), digest: z.string().optional() }),
+  oldLabel: z.string(),
+  newLabel: z.string(),
+  cases: z.array(CaseDiffSchema),
+  coverage: z.object({ writeNodesTotal: z.number(), writeNodesCaptured: z.number(), replayedNodes: z.number(), unsupported: z.array(z.string()), stubbed: z.array(z.string()).optional() }),
+  sealed: z.boolean(),
+  static: z.object({ findings: z.array(ScanFindingSchema), diff: z.array(ScanFindingSchema) }).optional(),
+  upgrade: z.object({ engineOld: z.string(), engineNew: z.string() }).optional(),
+  /** Run directory name on the runner's machine, to find the full local report from the hosted one. */
+  run: z.string().optional(),
+});
+export type RedactedReport = z.infer<typeof RedactedReportSchema>;
+
 export const BaselineSchema = z.object({
   schemaVersion: z.literal(1),
   caseId: z.string(),
@@ -222,6 +248,7 @@ export const ALL_SCHEMAS = {
   rules: RulesFileSchema,
   capture: CaptureRecordSchema,
   report: RunReportSchema,
+  'redacted-report': RedactedReportSchema,
   baseline: BaselineSchema,
   stubs: StubsFileSchema,
   expectations: ExpectationsFileSchema,
