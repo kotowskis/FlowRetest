@@ -28,7 +28,7 @@ export interface CaptureContext {
 }
 
 /** Request headers copied into the capture record; everything else is dropped. */
-export const HEADER_ALLOWLIST = ['content-type', 'accept', 'content-length'] as const;
+export const HEADER_ALLOWLIST = ['content-type', 'accept', 'content-length', 'x-flowretest-node'] as const;
 
 /** Rule ids that carry a fixed kind; any other id is a service template. */
 export function ruleKind(ruleId: string): string {

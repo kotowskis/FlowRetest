@@ -9,7 +9,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  attributeToNode, classify, detectVolatile, diffCase, fromBaseline, inputCounts, maskVolatile, normalizeCall, renderPlan, rewriteWorkflow, runWindows, runsIdentical, toBaseline,
+  attributeRecord, attributeToNode, classify, detectVolatile, diffCase, fromBaseline, inputCounts, maskVolatile, normalizeCall, renderPlan, rewriteWorkflow, runWindows, runsIdentical, toBaseline,
   type CaptureRecord, type CaseDiff, type NormalizedCall, type RunTimings,
 } from '@flowretest/core';
 import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules } from '@flowretest/services';
@@ -103,10 +103,10 @@ export async function runSpikeDay7(options: SpikeDay7Options): Promise<{ plan: s
       }
       const windows = runWindows(runData);
       const records = session.readCapture().map((l) => JSON.parse(l) as CaptureRecord).filter((r) => r.version === label && r.case === p.caseId);
-      const calls = records.map((r) => normalizeCall(r, attributeToNode(r.ts, windows)));
+      const calls = records.map((r) => normalizeCall(r, attributeRecord(r, windows)));
       if (process.env.FRT_DEBUG_TIMING) {
         for (const w of windows) options.log(`    window ${w.node}#${w.runIndex} ${w.start}..${w.end} (${w.end - w.start} ms)`);
-        for (const r of records) options.log(`    capture ${r.ts} ${r.method} ${r.path} -> ${attributeToNode(r.ts, windows).node}`);
+        for (const r of records) options.log(`    capture ${r.ts} ${r.method} ${r.path} -> ${attributeRecord(r, windows).node}`);
       }
       options.log(`${p.caseId} [${label}] ${status}${error ? ' error=' + error : ''} calls=${calls.length} unattributed=${calls.filter((c) => c.node === '?').length} (${durationMs} ms)`);
       return { status, error, runData, calls, durationMs };

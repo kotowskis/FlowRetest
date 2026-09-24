@@ -41,3 +41,16 @@ Zrobione:
 Odkrycie warte zapamiętania: Docker Desktop na Windows zwraca `EIO` przy listowaniu katalogu z bind mountu, gdy ścieżka hosta ma około 180 znaków lub więcej (156 znaków działa, 182 nie), a Git Bash pokazuje w takich katalogach niepełne listy plików. Katalogi montowane do sandboxa (reguły, przechwycenia, certyfikaty, praca, wyjście) leżą teraz w katalogu tymczasowym systemu (`frt-<losowe>`), a w `.flowretest/<id>/runs/<czas>/` zostają tylko `report.json`, `plan.txt`, `junit.xml` oraz `plan.md`.
 
 Poza sesją: publikacja `0.2.0-next.1` (npm, GHCR), sesje z agencjami, pierwsze płatne wdrożenie, przypomnienie do license@n8n.io.
+
+## Tydzień 5 (2026-09-24), CLI 0.3 w toku
+
+Zrobione:
+
+- katalog regresji do 12 przypadków: 07 zamienione wyjścia IF (zamówienia VIP na zwykłym endpoincie), 08 Limit przed węzłem piszącym, 09 zmiana formatu daty, 10 zmiana metody z PUT na POST, 11 zmiana nazwy pola w ciele, 12 usunięty parametr zapytania; oczekiwania w teście e2e;
+- luka w diffie: parametry zapytania nie były porównywane (dwa wywołania z tym samym ciałem i innym `?dry_run` wyglądały jak zmiana bez różnic); teraz wchodzą do porównania jako ścieżki `?nazwa`;
+- nagłówek `X-FlowRetest-Node` dodawany przez rewriter do węzłów HTTP Request z rolą zapisu (tylko przy nagłówkach klucz-wartość, nie przy JSON), zapisywany przez proxy i preferowany przy przypisaniu; indeks uruchomienia nadal z okien czasowych; potwierdzone na instancji deweloperskiej po przebudowie obrazu proxy;
+- reguła skanera S007 (IF albo Filter z identycznymi warunkami).
+
+Uwagi operacyjne: `sandbox prune` usuwało dotąd wszystkie zasoby `frt-*`, także sandbox innego trwającego przebiegu (tak padł jeden test e2e); teraz pomija działające kontenery, chyba że `--force`. Zmiana w pakiecie proxy wymaga przebudowy obrazu (`docker build -t flowretest-proxy:dev packages/proxy`); stary obraz zachowuje się jak dawniej bez komunikatu. W wydaniu obraz jest przypięty digestem, w rozwoju łatwo o to zapomnieć.
+
+Do końca tygodni 5 do 8 według planu: przypadki 13 do 15 (w tym z węzłem AI), odtwarzanie węzłów AI, tabela ról Postgres i MySQL dla odczytów, redakcja raportu przed wysyłką, PR do n8n-as-code, dokumentacja formatów, makieta warstwy płatnej.

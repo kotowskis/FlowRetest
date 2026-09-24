@@ -209,9 +209,10 @@ program
   .command('sandbox')
   .description('Sandbox housekeeping.')
   .command('prune')
-  .description('Remove leftover frt-* containers, volumes and networks.')
-  .action(async () => {
-    await pruneSandboxes((line) => console.log(line));
+  .description('Remove leftover frt-* containers, volumes and networks (running sandboxes are kept unless --force).')
+  .option('--force', 'also remove running sandboxes', false)
+  .action(async (opts: { force: boolean }) => {
+    await pruneSandboxes((line) => console.log(line), opts.force);
     console.log('prune done');
   });
 

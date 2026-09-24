@@ -232,12 +232,17 @@ export class SandboxSession {
   }
 }
 
-/** Removes every leftover sandbox resource whose name starts with `frt-`. */
-export async function pruneSandboxes(log: (line: string) => void = () => {}): Promise<void> {
-  const containers = await docker(['ps', '-aq', '--filter', 'name=^frt-'], { timeoutMs: 30_000 });
-  for (const id of containers.stdout.split(/\s+/).filter(Boolean)) {
-    await docker(['rm', '-f', id], { timeoutMs: 30_000 });
-    log(`removed container ${id}`);
+/** Removes leftover sandbox resources named `frt-*`. Running containers belong to a live run and are kept unless `force`. */
+export async function pruneSandboxes(log: (line: string) => void = () => {}, force = false): Promise<void> {
+  const containers = await docker(['ps', '-a', '--filter', 'name=^frt-', '--format', '{{.ID}} {{.State}} {{.Names}}'], { timeoutMs: 30_000 });
+  for (const line of containers.stdout.split('\n').filter(Boolean)) {
+    const [id, state, name] = line.split(' ');
+    if (state === 'running' && !force) {
+      log(`kept running container ${name} (another run is using it; pass --force to remove)`);
+      continue;
+    }
+    await docker(['rm', '-f', id as string], { timeoutMs: 30_000 });
+    log(`removed container ${name}`);
   }
   const volumes = await docker(['volume', 'ls', '-q', '--filter', 'name=^frt-'], { timeoutMs: 30_000 });
   for (const name of volumes.stdout.split(/\s+/).filter(Boolean)) {

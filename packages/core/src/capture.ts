@@ -76,6 +76,17 @@ export interface Attribution {
  * runs nodes of one execution sequentially, so windows do not overlap; a
  * tolerance absorbs clock granularity and the hop through the proxy.
  */
+/** Prefers the node named in the X-FlowRetest-Node header; the run index still comes from timing. */
+export function attributeRecord(record: { ts: number; headers: Record<string, string> }, windows: NodeRunWindow[], toleranceMs = 25): Attribution {
+  const tagged = record.headers['x-flowretest-node'];
+  const byTime = attributeToNode(record.ts, windows, toleranceMs);
+  if (!tagged) return byTime;
+  if (byTime.node === tagged) return byTime;
+  const runsOfNode = windows.filter((w) => w.node === tagged);
+  const containing = runsOfNode.find((w) => record.ts >= w.start - toleranceMs && record.ts <= w.end + toleranceMs);
+  return { node: tagged, runIndex: containing ? containing.runIndex : runsOfNode.length === 1 ? (runsOfNode[0] as NodeRunWindow).runIndex : -1 };
+}
+
 export function attributeToNode(ts: number, windows: NodeRunWindow[], toleranceMs = 25): Attribution {
   // Windows of one execution are contiguous and never overlap, so a strict hit is unambiguous.
   const strict = windows.filter((w) => ts >= w.start && ts < Math.max(w.end, w.start + 1));

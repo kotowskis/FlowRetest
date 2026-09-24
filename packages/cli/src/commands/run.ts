@@ -3,7 +3,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, 
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  attributeToNode, classify, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
+  attributeRecord, attributeToNode, classify, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
   type CaptureRecord, type CaseDiff, type Fixture, type N8nWorkflow, type NormalizedCall, type PlanFormat, type PlanReport, type RunTimings,
 } from '@flowretest/core';
 import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules } from '@flowretest/services';
@@ -114,7 +114,7 @@ class SideRunner {
     }
     const windows = runWindows(runData);
     const records = this.session.readCapture().map((l) => JSON.parse(l) as CaptureRecord).filter((r) => r.version === label && r.case === p.caseId);
-    const calls = records.map((r) => normalizeCall(r, attributeToNode(r.ts, windows), this.normalizeOptions()));
+    const calls = records.map((r) => normalizeCall(r, attributeRecord(r, windows), this.normalizeOptions()));
     this.log(`case ${p.caseId} [${label}] ${status}${error ? ' ' + error : ''}, ${calls.length} call${calls.length === 1 ? '' : 's'}`);
     return { status, error, runData, calls };
   }
@@ -155,7 +155,7 @@ class SideRunner {
       const err = snap.data?.resultData?.error;
       const error = err ? `${err.node?.name ?? '?'}: ${err.message ?? 'error'}` : entry?.executionStatus === 'error' ? entry.error : undefined;
       const windows = runWindows(runData);
-      const calls = allRecords.filter((r) => owner(r.ts) === item.id).map((r) => normalizeCall({ ...r, case: item.caseId }, attributeToNode(r.ts, windows), this.normalizeOptions()));
+      const calls = allRecords.filter((r) => owner(r.ts) === item.id).map((r) => normalizeCall({ ...r, case: item.caseId }, attributeRecord(r, windows), this.normalizeOptions()));
       const status = snap.status ?? entry?.executionStatus ?? 'unknown';
       this.log(`case ${item.caseId} [${label}] ${status}${error ? ' ' + error : ''}, ${calls.length} call${calls.length === 1 ? '' : 's'}`);
       results.set(item.id, { status, error, runData, calls });

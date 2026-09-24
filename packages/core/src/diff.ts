@@ -45,6 +45,13 @@ export interface DiffOptions {
 const EMPTY_VALUES = new Set(['', 'undefined', 'null', 'NaN', '[object Object]']);
 const ID_FIELD = /(^|[._\-\]])(id|_id|Id|ID|email|Email|uuid|key)$/;
 
+/** Body fields plus query parameters (as `?name`), so a dropped or changed parameter shows up as a field diff. */
+export function flattenCall(call: NormalizedCall): Map<string, unknown> {
+  const out = flatten(call.body);
+  for (const [k, v] of Object.entries(call.query)) out.set(`?${k}`, v);
+  return out;
+}
+
 function similarity(a: Map<string, unknown>, b: Map<string, unknown>): number {
   const keys = new Set([...a.keys(), ...b.keys()]);
   if (keys.size === 0) return 1;
@@ -70,7 +77,7 @@ function isEmpty(value: unknown): boolean {
 /** Flags on a single call of the new version, independent of the old one. */
 export function callFlags(call: NormalizedCall): string[] {
   const flags = new Set<string>();
-  const flat = flatten(call.body);
+  const flat = flattenCall(call);
   for (const [path, value] of flat) {
     if (ID_FIELD.test(path) && isEmpty(value)) flags.add('empty-value');
     if (typeof value === 'string' && (/\{\{|\}\}/.test(value) || /^=\s*\{\{/.test(value) || value.includes('[object Object]') || /\bundefined\b/.test(value))) flags.add('expression-residue');
@@ -127,9 +134,9 @@ export function diffCase(caseId: string, oldCalls: NormalizedCall[], newCalls: N
       let bestJ = -1;
       let bestScore = -1;
       for (let i = 0; i < olds.length; i++) {
-        const fa = flatten((olds[i] as NormalizedCall).body);
+        const fa = flattenCall(olds[i] as NormalizedCall);
         for (let j = 0; j < news.length; j++) {
-          const score = similarity(fa, flatten((news[j] as NormalizedCall).body));
+          const score = similarity(fa, flattenCall(news[j] as NormalizedCall));
           if (score > bestScore) {
             bestScore = score;
             bestI = i;
@@ -140,7 +147,7 @@ export function diffCase(caseId: string, oldCalls: NormalizedCall[], newCalls: N
       if (bestScore < threshold) break;
       const o = olds.splice(bestI, 1)[0] as NormalizedCall;
       const n = news.splice(bestJ, 1)[0] as NormalizedCall;
-      const diffs = fieldDiffs(flatten(o.body), flatten(n.body));
+      const diffs = fieldDiffs(flattenCall(o), flattenCall(n));
       entries.push({ op: '~', ...base, old: o, new: n, fieldDiffs: diffs, flags: entryFlags(o, n, diffs) });
     }
     // 3. leftovers on both sides with the same key: pair in time order so the reader sees field changes, not a removal plus an addition
@@ -149,7 +156,7 @@ export function diffCase(caseId: string, oldCalls: NormalizedCall[], newCalls: N
     while (olds.length && news.length) {
       const o = olds.shift() as NormalizedCall;
       const n = news.shift() as NormalizedCall;
-      const diffs = fieldDiffs(flatten(o.body), flatten(n.body));
+      const diffs = fieldDiffs(flattenCall(o), flattenCall(n));
       entries.push({ op: '~', ...base, old: o, new: n, fieldDiffs: diffs, flags: entryFlags(o, n, diffs) });
     }
     for (const o of olds) entries.push({ op: '-', ...base, old: o, fieldDiffs: [], flags: [] });

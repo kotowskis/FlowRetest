@@ -161,6 +161,96 @@ export function catalogCases(): CatalogCase[] {
     stabilize: true,
   });
 
+  // 07: IF branches swapped: VIP orders go to the regular endpoint and the other way round.
+  const ifNode: N8nNode = {
+    parameters: { conditions: { options: { caseSensitive: true, leftValue: '', typeValidation: 'strict', version: 2 }, conditions: [{ id: 'c1', leftValue: '={{ $json.body.customer_id }}', rightValue: 'C-1', operator: { type: 'string', operation: 'equals' } }], combinator: 'and' }, options: {} },
+    name: 'Is VIP',
+    type: 'n8n-nodes-base.if',
+    typeVersion: 2.2,
+    position: [300, 0],
+  };
+  const pushTo = (name: string, path: string, position: [number, number]): N8nNode => ({ ...push(name, position), parameters: { ...push(name, position).parameters, url: `https://erp.example.com${path}` } });
+  const flattenNode = map('Flatten', [150, 0], [['email', '={{ $json.body.email }}'], ['customer_id', '={{ $json.body.customer_id }}']]);
+  cases.push({
+    id: '07-if-branches-swapped',
+    title: 'IF outputs reconnected the wrong way round, VIP orders land on the regular endpoint',
+    expect: '2 changed calls (each endpoint now receives the other customer)',
+    old: {
+      name: 'case07',
+      nodes: [webhook(), flattenNode, { ...ifNode, parameters: { ...ifNode.parameters, conditions: { ...(ifNode.parameters.conditions as object), conditions: [{ id: 'c1', leftValue: '={{ $json.customer_id }}', rightValue: 'C-1', operator: { type: 'string', operation: 'equals' } }] } } }, pushTo('VIP', '/api/vip-orders', [600, -100]), pushTo('Regular', '/api/orders', [600, 100])],
+      connections: { Webhook: { main: [[{ node: 'Flatten', type: 'main', index: 0 }]] }, Flatten: { main: [[{ node: 'Is VIP', type: 'main', index: 0 }]] }, 'Is VIP': { main: [[{ node: 'VIP', type: 'main', index: 0 }], [{ node: 'Regular', type: 'main', index: 0 }]] } },
+    },
+    new: {
+      name: 'case07',
+      nodes: [webhook(), flattenNode, { ...ifNode, parameters: { ...ifNode.parameters, conditions: { ...(ifNode.parameters.conditions as object), conditions: [{ id: 'c1', leftValue: '={{ $json.customer_id }}', rightValue: 'C-1', operator: { type: 'string', operation: 'equals' } }] } } }, pushTo('VIP', '/api/vip-orders', [600, -100]), pushTo('Regular', '/api/orders', [600, 100])],
+      connections: { Webhook: { main: [[{ node: 'Flatten', type: 'main', index: 0 }]] }, Flatten: { main: [[{ node: 'Is VIP', type: 'main', index: 0 }]] }, 'Is VIP': { main: [[{ node: 'Regular', type: 'main', index: 0 }], [{ node: 'VIP', type: 'main', index: 0 }]] } },
+    },
+    fixture: fixture(),
+  });
+
+  // 08: a Limit node added before the write node silently caps the batch.
+  const limit: N8nNode = { parameters: { maxItems: 1, keep: 'firstItems' }, name: 'Limit', type: 'n8n-nodes-base.limit', typeVersion: 1, position: [450, 0] };
+  cases.push({
+    id: '08-limit-before-write',
+    title: 'Limit node inserted before the write node, only the first order goes out',
+    expect: '1 removed call, flag count-changed (calls per input item unchanged)',
+    old: { name: 'case08', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}'], ['customer_id', '={{ $json.body.customer_id }}']]), push('Push', [600, 0])], connections: chain('Webhook', 'Map', 'Push') },
+    new: { name: 'case08', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}'], ['customer_id', '={{ $json.body.customer_id }}']]), limit, push('Push', [600, 0])], connections: chain('Webhook', 'Map', 'Limit', 'Push') },
+    fixture: fixture(),
+  });
+
+  // 09: date format flipped from ISO to day-first; the ERP receives a different string.
+  const datedItems = (): RecordedItem[] => webhookItems().map((i) => ({ json: { ...(i.json as object), body: { ...((i.json as { body: object }).body), created: '2026-09-21T08:14:02.000Z' } } }));
+  const datedFixture = (): Fixture => {
+    const f = fixture();
+    f.trigger.items = datedItems();
+    f.nodes.Webhook = { type: 'n8n-nodes-base.webhook', typeVersion: 2, runs: [{ outputs: [datedItems()] }] };
+    return f;
+  };
+  cases.push({
+    id: '09-date-format-changed',
+    title: 'Date formatting switched from yyyy-MM-dd to dd-MM-yyyy',
+    expect: '2 changed calls with the created field differing',
+    old: { name: 'case09', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}'], ['created', "={{ DateTime.fromISO($json.body.created).toFormat('yyyy-MM-dd') }}"]]), push('Push', [600, 0])], connections: chain('Webhook', 'Map', 'Push') },
+    new: { name: 'case09', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}'], ['created', "={{ DateTime.fromISO($json.body.created).toFormat('dd-MM-yyyy') }}"]]), push('Push', [600, 0])], connections: chain('Webhook', 'Map', 'Push') },
+    fixture: datedFixture(),
+  });
+
+  // 10: HTTP method changed from PUT to POST on the same endpoint.
+  const putNode = (): N8nNode => ({ ...push('Push', [600, 0]), parameters: { ...push('Push', [600, 0]).parameters, method: 'PUT' } });
+  cases.push({
+    id: '10-http-method-changed',
+    title: 'Write node switched from PUT to POST',
+    expect: '2 removed (PUT) and 2 added (POST) calls',
+    old: { name: 'case10', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}']]), putNode()], connections: chain('Webhook', 'Map', 'Push') },
+    new: { name: 'case10', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}']]), push('Push', [600, 0])], connections: chain('Webhook', 'Map', 'Push') },
+    fixture: fixture(),
+  });
+
+  // 11: a body field renamed; the receiver keeps getting 200 while the old key is gone.
+  cases.push({
+    id: '11-body-field-renamed',
+    title: 'Body field customer_id renamed to customerId',
+    expect: '2 changed calls, flag missing-field',
+    old: { name: 'case11', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}'], ['customer_id', '={{ $json.body.customer_id }}']]), push('Push', [600, 0])], connections: chain('Webhook', 'Map', 'Push') },
+    new: { name: 'case11', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}'], ['customerId', '={{ $json.body.customer_id }}']]), push('Push', [600, 0])], connections: chain('Webhook', 'Map', 'Push') },
+    fixture: fixture(),
+  });
+
+  // 12: a query parameter dropped from the write request.
+  const withQuery = (dryRun: boolean): N8nNode => {
+    const p = push('Push', [600, 0]);
+    return { ...p, parameters: { ...p.parameters, sendQuery: dryRun, queryParameters: dryRun ? { parameters: [{ name: 'dry_run', value: 'true' }] } : undefined } };
+  };
+  cases.push({
+    id: '12-query-param-dropped',
+    title: 'The dry_run query parameter disappeared from the write request',
+    expect: '2 changed calls with ?dry_run missing, flag missing-field',
+    old: { name: 'case12', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}']]), withQuery(true)], connections: chain('Webhook', 'Map', 'Push') },
+    new: { name: 'case12', nodes: [webhook(), map('Map', [300, 0], [['email', '={{ $json.body.email }}']]), withQuery(false)], connections: chain('Webhook', 'Map', 'Push') },
+    fixture: fixture(),
+  });
+
   void rl;
   return cases;
 }

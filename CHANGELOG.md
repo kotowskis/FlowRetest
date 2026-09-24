@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Added
+
+- Regression catalogue cases 07 to 12: IF branches swapped, Limit before the write node, date format changed, HTTP method changed, body field renamed, query parameter dropped.
+- HTTP Request write nodes get an `X-FlowRetest-Node` header in the sandbox; the proxy records it and attribution prefers it over timing.
+- Scanner rule S007: IF or Filter nodes with identical conditions.
+
+### Fixed
+
+- Query parameters now take part in the diff (`?name` paths); a dropped parameter shows as a changed call with `missing-field`.
+
 ## [0.2.0-next.1] - 2026-09-24
 
 ### Added

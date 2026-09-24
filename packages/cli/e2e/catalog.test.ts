@@ -14,6 +14,14 @@ const EXPECT: Record<string, { status: string; flags: string[]; changed?: number
   '04-execute-once-toggled': { status: 'DIFF', flags: ['count-changed', 'count-per-item-changed'], removed: 1 },
   '05-code-filter-drops-everything': { status: 'DIFF', flags: ['node-not-executed'], removed: 2 },
   '06-random-nonce-unchanged': { status: 'PASS', flags: [] },
+  // each endpoint keeps one call, but with the other customer: paired as changed, not added plus removed
+  '07-if-branches-swapped': { status: 'DIFF', flags: [], changed: 2 },
+  // Limit shrinks the input of the write node, so calls per input item stay 1:1; only the total count changes
+  '08-limit-before-write': { status: 'DIFF', flags: ['count-changed'], removed: 1 },
+  '09-date-format-changed': { status: 'DIFF', flags: [], changed: 2 },
+  '10-http-method-changed': { status: 'DIFF', flags: [] },
+  '11-body-field-renamed': { status: 'DIFF', flags: ['missing-field'], changed: 2 },
+  '12-query-param-dropped': { status: 'DIFF', flags: ['missing-field'], changed: 2 },
 };
 
 test('catalogue cases produce the expected plan', { timeout: 20 * 60 * 1000 }, async () => {

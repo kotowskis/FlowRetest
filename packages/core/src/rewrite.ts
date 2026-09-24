@@ -12,6 +12,25 @@ export interface RewriteOptions {
   /** Recorded data injected into one node above this size marks the node unsupported (default 1 MB). */
   maxInjectBytes?: number;
   executionTimeoutSeconds?: number;
+  /** Add an X-FlowRetest-Node header to HTTP Request write nodes so the proxy can attribute calls without timing (default true). */
+  tagHttpRequests?: boolean;
+}
+
+export const NODE_TAG_HEADER = 'X-FlowRetest-Node';
+
+/** HTTP Request v3+ with key/value headers: appends the tag header; JSON-specified headers are left alone. */
+function tagHttpRequest(node: N8nNode): boolean {
+  if (node.type !== 'n8n-nodes-base.httpRequest' || node.typeVersion < 3) return false;
+  const params = node.parameters;
+  if (params.specifyHeaders !== undefined && params.specifyHeaders !== 'keypair') return false;
+  const headerParameters = (params.headerParameters as { parameters?: Array<{ name: string; value: string }> } | undefined) ?? { parameters: [] };
+  const list = Array.isArray(headerParameters.parameters) ? headerParameters.parameters.filter((h) => h && (h.name !== '' || h.value !== '')) : [];
+  if (list.some((h) => h.name === NODE_TAG_HEADER)) return true;
+  list.push({ name: NODE_TAG_HEADER, value: node.name });
+  params.sendHeaders = true;
+  params.specifyHeaders = 'keypair';
+  params.headerParameters = { parameters: list };
+  return true;
 }
 
 export interface ReplacedNode {
@@ -183,6 +202,11 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
     }
     replaceWithReplay(workflow, node, outputs, options.replayVariant, true);
     replaced.push({ node: node.name, kind: 'read', variant: options.replayVariant, runs: outputs.length });
+  }
+
+  // 3b. Tag HTTP Request write nodes so captured requests carry their node name.
+  if (options.tagHttpRequests !== false) {
+    for (const node of workflow.nodes) if (roles[node.name] === 'write') tagHttpRequest(node);
   }
 
   // 4. Respond to Webhook has no HTTP response to write to in cli mode; a No Operation keeps the data flowing.

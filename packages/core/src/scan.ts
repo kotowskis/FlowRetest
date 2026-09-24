@@ -109,10 +109,18 @@ export function scanWorkflow(workflow: N8nWorkflow, classification: Classificati
     if (node.disabled) findings.push({ rule: 'S011', severity: 'info', node: node.name, message: 'node is disabled and passes data through' });
   }
   for (const u of classification.unsupportedOnPath) findings.push({ rule: 'S000', severity: 'error', node: u, message: `unsupported node on the execution path (${classification.notes[u] ?? 'no role table'}); cases reaching it are skipped` });
+  // S007: two IF or Filter nodes with identical conditions, a known editor slip when a branch is copied.
+  const byConditions = new Map<string, string[]>();
+  for (const node of workflow.nodes) {
+    if (node.type !== 'n8n-nodes-base.if' && node.type !== 'n8n-nodes-base.filter') continue;
+    const key = stableJson(node.parameters.conditions ?? null);
+    byConditions.set(key, [...(byConditions.get(key) ?? []), node.name]);
+  }
+  for (const names of byConditions.values()) if (names.length > 1) findings.push({ rule: 'S007', severity: 'warn', node: names[0], message: `identical conditions in ${names.map((n) => `"${n}"`).join(' and ')}` });
   return { support, findings };
 }
 
-function stableJson(value: unknown): string {
+export function stableJson(value: unknown): string {
   if (Array.isArray(value)) return `[${value.map(stableJson).join(',')}]`;
   if (value !== null && typeof value === 'object') return `{${Object.keys(value as object).sort().map((k) => `${JSON.stringify(k)}:${stableJson((value as Record<string, unknown>)[k])}`).join(',')}}`;
   return JSON.stringify(value);
