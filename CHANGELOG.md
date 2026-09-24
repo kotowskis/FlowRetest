@@ -41,6 +41,8 @@ All notable changes to this project are documented here. The format follows Keep
 - Arguments: `--max-size 5mb`, positive `--last`, trimmed `--cases`, `--against` and `--format` checked against their choices; `accept` exits with 3 when it wrote no baseline; `spike` commands are hidden from `--help`.
 - Proxy image: base image pinned by digest, dependencies installed with `npm ci` from `packages/proxy/package-lock.json`, mockttp pinned exactly; `release-check` refuses a stale proxy lock.
 - `config.schema.json` is exported as an input schema, so fields with a default are optional in editors.
+- `run` serves the Google Sheets and Airtable sinks the header row the recordings show (the sheet's real columns) instead of a fixed `email, customer_id`, so a renamed field lands in the wrong column or none, as in production.
+- The end-to-end catalogue test runs every case through `flowretest run` in its own project (report files, exit codes) and case 01 through `accept` and `diff --against baseline`; before, it went through the spike path only.
 - `release.yml` refuses a tag that differs from the package versions, picks the npm dist-tag from the version (a prerelease never goes to `latest`), writes the proxy digest into `proxy.lock.json` before publishing and stops when the package is private or the digest is missing.
 
 ## [0.3.0-next.1] - 2026-09-24

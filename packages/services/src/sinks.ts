@@ -16,6 +16,27 @@ export interface SinkContext {
   sheetHeaders?: string[];
 }
 
+/**
+ * Header row for the Google Sheets and Airtable sinks, from what those nodes returned in the recordings: a Sheets
+ * append or update returns the written row keyed by the sheet's columns, Airtable returns `fields`. With the real
+ * columns a renamed or missing field lands in another column or none, as it would in production; with a fixed
+ * header the regression would not show. Keys in first-seen order; `row_number` is n8n's own.
+ */
+export function sheetHeadersFromRecordings(nodes: Array<{ type: string; runs: Array<{ outputs: Array<Array<{ json: unknown }>> }> }>): string[] | undefined {
+  const headers: string[] = [];
+  const add = (value: unknown) => {
+    if (value === null || typeof value !== 'object' || Array.isArray(value)) return;
+    for (const key of Object.keys(value as Record<string, unknown>)) if (key !== 'row_number' && !headers.includes(key)) headers.push(key);
+  };
+  for (const node of nodes) {
+    const sheets = node.type === 'n8n-nodes-base.googleSheets';
+    const airtable = node.type === 'n8n-nodes-base.airtable';
+    if (!sheets && !airtable) continue;
+    for (const run of node.runs) for (const item of run.outputs[0] ?? []) add(sheets ? item.json : (item.json as { fields?: unknown } | null)?.fields);
+  }
+  return headers.length > 0 ? headers : undefined;
+}
+
 export function tokenRules(): SinkRule[] {
   return [
     {

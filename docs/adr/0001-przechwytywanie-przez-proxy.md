@@ -13,5 +13,5 @@ Runner uruchamia oficjalny obraz `n8nio/n8n:<tag klienta>` w sieci Docker `--int
 ## Skutki
 
 - Zero kodu n8n w runnerze; licencja Sustainable Use nie obejmuje runnera.
-- Pokrycie tylko dla ruchu HTTP; węzły z zapisem przez sterowniki (Postgres, SMTP, SFTP) kończą jako BLOCKED.
+- Pokrycie tylko dla ruchu HTTP. Węzeł z zapisem przez sterownik (Postgres, MySQL, SMTP, SFTP) na ścieżce oznacza przypadek SKIPPED, a cały przebieg kończy się wynikiem BLOCKED i kodem 3. Wywołanie HTTP, którego żadna reguła nie obsługuje, jest zamykane i widoczne w planie jako `!` (BLOCKED).
 - Utrzymanie sprowadza się do macierzy obrazów w CI, bez śledzenia wewnętrznych API n8n.

@@ -17,15 +17,14 @@ Wniosek: bramka 5 nie może być zamknięta bez rozmów z agencjami. Technicznie
 - CLI `0.3.0-next.1`: `init`, `pull`, `scan`, `run`, `diff`, `accept`, `upgrade-check`, `redact`, `doctor`, `sandbox prune`; formaty terminal, JSON, JUnit, Markdown; GitHub Action.
 - Sandbox: obraz klienta w sieci `--internal`, proxy z własnym CA, zero kodu n8n w runnerze, test szczelności w `doctor`.
 - Pokrycie węzłów: HTTP Request, Slack, HubSpot, Google Sheets, Airtable, Notion, OpenAI (przez łańcuchy LangChain), Code przez helpery; odczyty Postgres i MySQL odtwarzane; zapisy do baz, SMTP, SFTP oraz Gemini nieobsługiwane z jasnym komunikatem.
-- Katalog regresji: 15 przypadków, wszystkie zielone na 2.40.5; sześć pierwszych także na `v3-nightly`.
+- Katalog regresji: 15 przypadków zgodnych z oczekiwaniami na 2.40.5; sześć pierwszych także na `v3-nightly`. Do audytu test szedł ścieżką spike'u; od audytu idzie przez `flowretest run`, czyli produkcyjną ścieżkę z `executeBatch`.
 - Czasy: przebieg 3 przypadków ze stabilizacją na instancji deweloperskiej 49 s, `upgrade-check` na dwóch obrazach 53 s, przypadek w partii 1 do 2 s.
-- Dokumentacja: notatka decyzyjna, plan, dziennik spike'u, dziennik tygodni 3 do 7, formaty ze schematami, integracje, README pakietu po angielsku.
+- Dokumentacja: notatka decyzyjna, plan, dziennik spike'u, dziennik tygodni 3 do 8, formaty ze schematami, integracje, README repozytorium i pakietu po angielsku, audyt z 2026-09-24, ADR 0006 z odstępstwami od planu.
 
 ## Czego brakuje do wersji 0.3.0 na npm
 
 - publikacja pakietu i obrazu proxy według listy wydania w `docs/dziennik.md` (sekcja po audycie); do audytu pakiet był prywatny i nie dało się go opublikować;
 - commit `proxy.lock.json` z digestem po pierwszym wydaniu (`release.yml` wpisuje digest przed publikacją i zostawia plik jako artefakt);
-- poprawki diffu z `docs/audyt-2026-09-24.md` (punkty 6 do 16), zanim pilotaż zacznie liczyć PASS;
 - test na eksporcie choć jednej agencji.
 
 ## Liczby, które trzeba zebrać w sesjach

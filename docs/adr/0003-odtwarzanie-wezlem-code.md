@@ -13,5 +13,8 @@ Wariant podstawowy: węzeł Code (JavaScript, "Run Once for All Items") o nazwie
 ## Skutki
 
 - Poprawne powiązania elementów także przy wielu uruchomieniach w pętli.
-- Zależność od task runnera w komendzie `execute`; do potwierdzenia.
+- Zależność od task runnera w komendach `execute` i `executeBatch`; potwierdzona w dniu 3 spike'u (2.40.5) i w dniu 10 (`v3-nightly`).
 - Limit 1 MB wstrzykniętych danych na węzeł.
+- Nazwa węzła trafia do kodu tylko jako literał JSON bez znaków końca linii; prefiks `frt:` w nazwach jest zarezerwowany dla węzłów runnera.
+- Wariant rezerwowy wstawia dane do wyrażenia, więc klamry w tekstach są zapisywane jako `\u007b` i `\u007d`, a sąsiednie klamry struktury rozdzielone spacją; żadne `{{` ani `}}` nie kończy wyrażenia przedwcześnie.
+- Gdy nowa wersja podaje odtwarzanemu węzłowi inną liczbę elementów niż w nagraniu, przypadek dostaje ostrzeżenie `replay-input-mismatch`.

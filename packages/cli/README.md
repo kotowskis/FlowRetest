@@ -7,7 +7,7 @@ n8n shows you that a workflow ran green. FlowRetest shows you what it sent: the 
 ## Requirements
 
 - Docker (Desktop or Engine) on the machine that runs the tests
-- Node 22.5 or newer
+- Node 22.12 or newer
 - An n8n instance on 2.20 or newer, with a public API key that can read workflows and executions
 - Successful executions saved on that instance (the default)
 

@@ -1,11 +1,22 @@
 /**
- * End-to-end: the regression catalogue through a real sandbox.
+ * End-to-end: the regression catalogue through the production path, `flowretest run` (executeBatch, exclusive
+ * capture attribution, report files, exit codes), one temporary project per case. Case 01 also goes through
+ * `accept` and `diff --against baseline`.
  * Needs Docker and the images; run with `npm run e2e -w packages/cli`.
- * FLOWRETEST_ENGINE selects the n8n tag (default 2.40.5).
+ * FLOWRETEST_ENGINE selects the n8n tag (default 2.40.5), FLOWRETEST_PROXY_IMAGE the proxy image
+ * (default flowretest-proxy:dev), FLOWRETEST_E2E_CONCURRENCY how many cases run at once (default 3).
  */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { runSpikeDay7 } from '../src/commands/spike-day7.ts';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { EXIT_CODES, type CaseDiff } from '@flowretest/core';
+import { catalogCases, type CatalogCase } from '../src/catalog/cases.ts';
+import { defaultConfig, saveConfig } from '../src/config.ts';
+import { runRun } from '../src/commands/run.ts';
+import { runAccept } from '../src/commands/accept.ts';
+import { runDiff } from '../src/commands/diff.ts';
 
 const EXPECT: Record<string, { status: string; flags: string[]; changed?: number; removed?: number; warnings?: number }> = {
   '01-empty-id-after-field-rename': { status: 'DIFF', flags: ['empty-value'], changed: 2 },
@@ -27,18 +38,90 @@ const EXPECT: Record<string, { status: string; flags: string[]; changed?: number
   '15-hubspot-property-empty-after-rename': { status: 'DIFF', flags: [], changed: 2 },
 };
 
-test('catalogue cases produce the expected plan', { timeout: 20 * 60 * 1000 }, async () => {
-  const engine = process.env.FLOWRETEST_ENGINE ?? '2.40.5';
-  const { cases } = await runSpikeDay7({ n8nImage: `n8nio/n8n:${engine}`, proxyImage: process.env.FLOWRETEST_PROXY_IMAGE ?? 'flowretest-proxy:dev', log: (l) => console.log(l) });
+/** Exit code of a run whose only case has this status. */
+const EXIT_FOR: Record<string, number> = { PASS: EXIT_CODES.PASS, DIFF: EXIT_CODES.DIFF, ERROR: EXIT_CODES.ERROR, BLOCKED: EXIT_CODES.BLOCKED, SKIPPED: EXIT_CODES.BLOCKED };
+
+const engine = process.env.FLOWRETEST_ENGINE ?? '2.40.5';
+const proxyImage = process.env.FLOWRETEST_PROXY_IMAGE ?? 'flowretest-proxy:dev';
+const concurrency = Math.max(1, Number(process.env.FLOWRETEST_E2E_CONCURRENCY ?? 3));
+const WORKFLOW_ID = 'catalog1';
+
+/** A project directory as `init` and `pull` leave it: config, published workflow, one fixture; plus the new version. */
+function project(c: CatalogCase): { cwd: string; newFile: string } {
+  const cwd = mkdtempSync(join(tmpdir(), 'frt-e2e-'));
+  const config = defaultConfig('http://localhost:5678', engine, 'UTC');
+  config.proxy.image = proxyImage;
+  saveConfig(cwd, config);
+  const dir = join(cwd, '.flowretest', WORKFLOW_ID);
+  mkdirSync(join(dir, 'fixtures'), { recursive: true });
+  writeFileSync(join(dir, 'workflow.published.json'), JSON.stringify(c.old));
+  writeFileSync(join(dir, 'fixtures', `${c.fixture.source.executionId}.json`), JSON.stringify(c.fixture));
+  const newFile = join(cwd, 'new.json');
+  writeFileSync(newFile, JSON.stringify(c.new));
+  return { cwd, newFile };
+}
+
+interface Outcome {
+  c: CatalogCase;
+  cwd: string;
+  diff: CaseDiff;
+  exitCode: number;
+  logs: string[];
+}
+
+async function runCase(c: CatalogCase): Promise<Outcome> {
+  const { cwd, newFile } = project(c);
+  const logs: string[] = [];
+  // Case 01 is accepted afterwards, and accept needs a run that checked stability.
+  const stabilize = c.stabilize === true || c.id.startsWith('01-');
+  const result = await runRun({ cwd, workflowId: WORKFLOW_ID, newFile, old: 'published', stabilize, formats: ['terminal', 'junit', 'md'], log: (l) => logs.push(l) });
+  const report = JSON.parse(readFileSync(result.reportPath, 'utf8')) as { cases: CaseDiff[] };
+  assert.ok(existsSync(join(result.runDir, 'junit.xml')), `${c.id}: junit.xml`);
+  assert.ok(existsSync(join(result.runDir, 'plan.md')), `${c.id}: plan.md`);
+  return { c, cwd, diff: report.cases[0] as CaseDiff, exitCode: result.exitCode, logs };
+}
+
+async function pool<T, R>(items: T[], size: number, fn: (item: T) => Promise<R>): Promise<R[]> {
+  const out: R[] = new Array(items.length);
+  let next = 0;
+  await Promise.all(
+    Array.from({ length: Math.min(size, items.length) }, async () => {
+      while (next < items.length) {
+        const i = next++;
+        out[i] = await fn(items[i] as T);
+      }
+    }),
+  );
+  return out;
+}
+
+test('catalogue cases produce the expected plan through `flowretest run`', { timeout: 40 * 60 * 1000 }, async () => {
+  const cases = catalogCases();
   assert.equal(cases.length, Object.keys(EXPECT).length);
-  for (const c of cases) {
-    const e = EXPECT[c.caseId];
-    assert.ok(e, `unexpected case ${c.caseId}`);
-    assert.equal(c.status, e.status, `${c.caseId} status`);
-    const flags = new Set(c.entries.flatMap((x) => x.flags));
-    for (const f of e.flags) assert.ok(flags.has(f), `${c.caseId} missing flag ${f}`);
-    if (e.changed !== undefined) assert.equal(c.summary.changed, e.changed, `${c.caseId} changed`);
-    if (e.removed !== undefined) assert.equal(c.summary.removed, e.removed, `${c.caseId} removed`);
-    if (e.warnings !== undefined) assert.equal((c.warnings ?? []).length, e.warnings, `${c.caseId} warnings ${JSON.stringify(c.warnings)}`);
+  const outcomes = await pool(cases, concurrency, runCase);
+  try {
+    for (const { c, diff, exitCode, logs } of outcomes) {
+      const e = EXPECT[c.id];
+      assert.ok(e, `unexpected case ${c.id}`);
+      const context = `${c.id}\n${logs.join('\n')}`;
+      console.log(`${c.id}: ${diff.status} ${JSON.stringify(diff.summary)}${diff.error ? ` ${diff.error}` : ''}`);
+      assert.equal(diff.status, e.status, `${context}\nstatus`);
+      assert.equal(exitCode, EXIT_FOR[e.status], `${c.id} exit code`);
+      const flags = new Set(diff.entries.flatMap((x) => x.flags));
+      for (const f of e.flags) assert.ok(flags.has(f), `${c.id} missing flag ${f}`);
+      if (e.changed !== undefined) assert.equal(diff.summary.changed, e.changed, `${c.id} changed`);
+      if (e.removed !== undefined) assert.equal(diff.summary.removed, e.removed, `${c.id} removed`);
+      if (e.warnings !== undefined) assert.equal((diff.warnings ?? []).length, e.warnings, `${c.id} warnings ${JSON.stringify(diff.warnings)}`);
+    }
+
+    // accept -> diff against baseline: the new version against its own baseline passes.
+    const first = outcomes.find((o) => o.c.id.startsWith('01-')) as Outcome;
+    const written = runAccept({ cwd: first.cwd, workflowId: WORKFLOW_ID, message: 'e2e', log: () => {} });
+    assert.equal(written.length, 1, 'case 01 accepted');
+    const againstBaseline = runDiff({ cwd: first.cwd, workflowId: WORKFLOW_ID, against: 'baseline', log: () => {} });
+    assert.equal(againstBaseline.cases[0]?.status, 'PASS');
+    assert.equal(againstBaseline.exitCode, EXIT_CODES.PASS);
+  } finally {
+    for (const o of outcomes) if (o) rmSync(o.cwd, { recursive: true, force: true });
   }
 });

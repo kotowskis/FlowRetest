@@ -47,3 +47,14 @@ test('service rules have unique ids and end with the token rule', () => {
   assert.equal(new Set(ids).size, ids.length);
   assert.equal(ids[ids.length - 1], 'token');
 });
+
+test('the sheet header row comes from the recorded Sheets and Airtable outputs', async () => {
+  const { sheetHeadersFromRecordings } = await import('../src/sinks.ts');
+  const headers = sheetHeadersFromRecordings([
+    { type: 'n8n-nodes-base.httpRequest', runs: [{ outputs: [[{ json: { ignored: 1 } }]] }] },
+    { type: 'n8n-nodes-base.googleSheets', runs: [{ outputs: [[{ json: { row_number: 2, Email: 'a@b.pl', 'Customer ID': 'C-1' } }]] }] },
+    { type: 'n8n-nodes-base.airtable', runs: [{ outputs: [[{ json: { id: 'rec1', fields: { Email: 'a@b.pl', Phone: '1' } } }]] }] },
+  ]);
+  assert.deepEqual(headers, ['Email', 'Customer ID', 'Phone']);
+  assert.equal(sheetHeadersFromRecordings([]), undefined);
+});

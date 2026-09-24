@@ -34,7 +34,7 @@ Zrobione:
 - `run --stabilize` wykonuje obie wersje dwa razy: pola zmienne z obu par, znacznik `stable` per przypadek w `report.json`; `accept` odmawia bez sprawdzonej stabilności albo przy niestabilnej nowej wersji, chyba że `--force`;
 - `run --format terminal,json,junit,md`: `junit.xml` (jeden testcase na przypadek, DIFF oraz ERROR jako failure, BLOCKED oraz SKIPPED jako skipped) i `plan.md` (tabela, sekcje zwijane per przypadek, limit 60 kB) w katalogu przebiegu;
 - `upgrade-check --engine-old --engine-new`: ta sama wersja workflow na dwóch obrazach w dwóch sandboxach; na instancji deweloperskiej 2.40.5 przeciw `v3-nightly` dało PASS w 53 s;
-- `redact --workflow`: kopie fixture'ów z podmienionymi e-mailami, nazwiskami oraz telefonami, z zachowanymi identyfikatorami, datami oraz liczbami; ta sama wartość dostaje tę samą zamianę, więc złączenia między węzłami działają;
+- `redact --workflow` (w planie `redact --fixtures`, zob. ADR 0006): kopie fixture'ów z podmienionymi e-mailami, nazwiskami oraz telefonami, z zachowanymi identyfikatorami, datami oraz liczbami; ta sama wartość dostaje tę samą zamianę, więc złączenia między węzłami działają;
 - GitHub Action (`action/action.yml`, composite): `init`, `pull`, `run` z formatami, artefakt z raportem, komentarz w PR aktualizowany w miejscu, porażka zadania przy ERROR i BLOCKED;
 - wersja `0.2.0-next.1`.
 
@@ -61,7 +61,7 @@ Zrobione:
 
 - odtwarzanie węzłów AI: klasyfikator rozpoznaje węzeł główny klastra LangChain (ma połączenie `main`) jako odczyt, a sub-węzły podłączone przez `ai_*` jako logikę; rewriter po podmianie węzła głównego usuwa jego modele, pamięć, narzędzia oraz parsery, także zagnieżdżone; `aiReplayWarnings` porównuje parametry węzła głównego oraz jego sub-węzłów między wersjami i dodaje ostrzeżenie `stale-ai-replay` do przypadku (renderowane w planie jako linia `?` i w Markdown jako "Warning"); nowy węzeł AI bez nagrania dostaje ostrzeżenie o wykonaniu przeciw zlewowi;
 - tabela ról Postgres i MySQL: `select` odtwarzany z nagrania, `executeQuery` oraz zapisy nieobsługiwane z notatką "database write does not go over HTTP"; przypadek z takim węzłem na ścieżce kończy jako SKIPPED zamiast czekać 13 s na błąd DNS;
-- redakcja raportu przed wysyłką: `redact --report [przebieg]` zapisuje `report.redacted.json`, w którym wartości pól i parametrów zapytania są zastąpione kształtem `<string 13 #a1b2c3d4>`, a ścieżki, liczby, flagi oraz szablony ścieżek zostają; to format dla warstwy płatnej z planu (punkt 6.7);
+- redakcja raportu przed wysyłką: `redact --report [przebieg]` zapisuje `report.redacted.json`, w którym wartości pól i parametrów zapytania są zastąpione kształtem `<string 13 #a1b2c3d4>`, a ścieżki, liczby, flagi oraz szablony ścieżek zostają; to format dla warstwy płatnej z planu (punkt 6.13);
 - katalog do 15 przypadków: 13 łańcuch LLM odtworzony po zmianie promptu (PASS z ostrzeżeniem), 14 Postgres `select` odtworzony i nowy `insert` (SKIPPED), 15 HubSpot z pustą właściwością po zmianie nazwy pola.
 
 Decyzja odnotowana: przy węźle AI bez nagrania nie blokujemy przypadku, tylko wykonujemy go przeciw szablonowi zlewu (OpenAI odpowiada stałą treścią) i ostrzegamy; plan przewidywał BLOCKED, ale wtedy każdy dodany węzeł AI zatrzymywałby cały przypadek, a tak widać pozostałe wywołania.

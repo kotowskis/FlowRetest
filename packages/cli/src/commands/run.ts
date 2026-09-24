@@ -6,7 +6,7 @@ import {
   aiReplayWarnings, replayInputWarnings, attributeRecord, attributeToNode, classify, detectVolatile, diffCase, exitCodeFor, inputCounts, maskVolatile, normalizeCall, overallStatus, renderFormat, rewriteWorkflow, runWindows, runsIdentical,
   type CaptureRecord, type CaseDiff, type Fixture, type N8nWorkflow, type NormalizedCall, type PlanFormat, type PlanReport, type RunTimings,
 } from '@flowretest/core';
-import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules } from '@flowretest/services';
+import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules, sheetHeadersFromRecordings } from '@flowretest/services';
 import { loadConfig, workflowDir, type Config } from '../config.ts';
 import { SandboxSession } from '../sandbox/session.ts';
 import { extractRun, logErrors } from '../sandbox/probe-workflow.ts';
@@ -230,7 +230,9 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
   const unsupported = new Set<string>();
   const prepared: Prepared[] = [];
   try {
-    for (const s of distinctSessions) await s.start({ schemaVersion: 1, rules: [...serviceRules(), genericSinkRule(), blockRule()] });
+    const sheetHeaders = sheetHeadersFromRecordings(fixtures.flatMap((f) => Object.values(f.nodes)));
+    if (sheetHeaders) options.log(`sheet header row from the recordings: ${sheetHeaders.join(', ')}`);
+    for (const s of distinctSessions) await s.start({ schemaVersion: 1, rules: [...serviceRules({ sheetHeaders }), genericSinkRule(), blockRule()] });
     const uses: Record<Side, Array<{ type: string; id?: string; name?: string; node: string }>> = { old: [], new: [] };
     for (const fixture of fixtures) {
       const caseId = fixture.source.executionId;

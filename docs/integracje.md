@@ -1,11 +1,11 @@
 # Integracje
 
-Propozycje z planu (punkt 6.6): subkomenda w n8n-as-code i narzędzie w n8n-mcp. Obie to kanały dystrybucji, nie konkurenci; obie wymagają PR-ów do cudzych repozytoriów, więc poniżej jest to, co runner musi udostępnić, i szkic każdej propozycji.
+Propozycje z planu (sekcja 8, tygodnie 5 do 8): subkomenda w n8n-as-code i narzędzie w n8n-mcp. Obie to kanały dystrybucji, nie konkurenci; obie wymagają PR-ów do cudzych repozytoriów, więc poniżej jest to, co runner musi udostępnić, i szkic każdej propozycji.
 
 ## Co runner udostępnia
 
 - Wejścia po stronie plików: `--old <plik>` i `--new <plik>` przyjmują JSON workflow w formacie eksportu n8n, także z repozytorium prowadzonego przez n8n-as-code; instancja jest potrzebna tylko do `pull` fixture'ów.
-- Wyjścia dla maszyn: `run --format json,junit,md`, `scan --json`, `diff --json`, kody wyjścia 0 do 5.
+- Wyjścia dla maszyn: `run --format json,junit,md`, `scan --json`, `diff --json`, kody wyjścia 0 do 5 (0 PASS, 1 DIFF, 2 ERROR, 3 BLOCKED, 4 problem z użyciem albo środowiskiem, 5 błąd wewnętrzny).
 - Brak stanu poza `.flowretest/`; katalog można trzymać w repozytorium bez sekretów i fixture'ów (reguły `.gitignore` z `init`).
 
 ## n8n-as-code: subkomenda `test`

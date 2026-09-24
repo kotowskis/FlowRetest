@@ -1,30 +1,36 @@
 # FlowRetest
 
-Narzędzie do testowania zmian w workflow n8n przed wdrożeniem. Odtwarza prawdziwe wykonania na starej i nowej wersji workflow w lokalnym sandboksie z przechwyconym ruchem HTTP i pokazuje różnicę w wywołaniach, które workflow próbowałby wysłać do zewnętrznych systemów.
+Regression tests for n8n workflows. FlowRetest replays real executions of a workflow against the published version and a changed draft, inside a sealed sandbox on your machine, and shows the difference in the API calls each version would send. Nothing reaches the real services.
 
-Stan: wersja `0.1.0-next.1` po dziesięciodniowym spike'u wykonalności; pilotaże w tygodniu 3. Interfejs produktu jest po angielsku ([packages/cli/README.md](packages/cli/README.md)), dokumenty wewnętrzne po polsku.
+Status: `0.3.0-next.1`, not yet on npm. Usage, requirements and exit codes are in [packages/cli/README.md](packages/cli/README.md); the GitHub Action is in [action/](action/action.yml).
 
-- Notatka decyzyjna z 2026-09-23: [docs/analiza-pomyslu-2026-09-23.md](docs/analiza-pomyslu-2026-09-23.md)
-- Plan implementacji z 2026-09-23: [docs/plan-implementacji-2026-09-23.md](docs/plan-implementacji-2026-09-23.md)
-- Dziennik spike'u (dni 1 do 10): [docs/spike/wyniki.md](docs/spike/wyniki.md)
-- Dziennik po spike'u: [docs/dziennik.md](docs/dziennik.md)
-- Decyzje architektoniczne: [docs/adr](docs/adr)
+## Repository
 
-## Rozwój
+| Path | What it holds |
+|---|---|
+| `packages/cli` | the `flowretest` command: sandbox, n8n API client, commands, regression catalogue |
+| `packages/core` | pure functions: node roles, workflow rewriting, capture attribution, normalisation, diff, plan, redaction |
+| `packages/proxy` | the intercepting proxy image the sandbox runs next to n8n |
+| `packages/services` | role tables, sink templates and credential stubs for app nodes |
+| `packages/schemas` | zod schemas of every file format, exported to JSON Schema in `docs/formaty` |
+| `action/` | composite GitHub Action |
+| `docs/` | decision memo, plan, spike and weekly logs, ADRs, formats, audit (in Polish) |
 
-Wymagania: Node 24, npm 11, Docker Desktop (do sandboxa).
+## Development
+
+Node 24, npm 11 and Docker.
 
 ```bash
 npm install
-npm run verify        # strażnik zależności, type-check, testy jednostkowe
+npm run verify
 npm run build
 docker build -t flowretest-proxy:dev packages/proxy
 node packages/cli/dist/bin.js doctor --engine 2.40.5
-npm run e2e -w packages/cli   # katalog regresji przez prawdziwy sandbox, kilka minut
+npm run e2e -w packages/cli
 ```
 
-`doctor` pobiera obraz `n8nio/n8n:2.40.5` (kilkaset MB przy pierwszym uruchomieniu), stawia sieć `--internal` z proxy, importuje workflow sondujący, wykonuje go przez proxy i sprawdza, że kontener bez proxy nie ma dostępu do internetu. `--keep` zostawia sandbox do oglądania, `sandbox prune` sprząta.
+More detail (in Polish) in [docs/rozwoj.md](docs/rozwoj.md).
 
-Instancja deweloperska do ręcznych prób: `docker run -d --name flowretest-dev-n8n -p 5678:5678 n8nio/n8n:2.40.5` plus odbiornik `node scripts/dev-receiver.mjs 8787` dla węzłów piszących (adres `http://host.docker.internal:8787/...` w workflow).
+## Licence
 
-Układ repozytorium: `packages/core` (czyste funkcje: klasyfikacja, rewriter, normalizacja, diff, skaner, plan), `packages/cli` (komendy, sandbox, klient API), `packages/proxy` (obraz proxy), `packages/services` (role, szablony zlewu, zaślepki poświadczeń), `packages/schemas` (schematy), `docs/`.
+MIT. The runner contains no n8n code; it runs the official `n8nio/n8n` image you already use, on your machine.

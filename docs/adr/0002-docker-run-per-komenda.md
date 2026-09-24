@@ -14,4 +14,5 @@ Każda komenda to `docker run --rm` z tym samym wolumenem `/home/node/.n8n`. Skr
 
 - Koszt startu procesu n8n na komendę; cel poniżej 10 s, mierzony w spike'u.
 - Odporność na zmiany entrypointa w n8n 3.0.
-- `executeBatch --concurrency=1` jako opcjonalna optymalizacja, jeśli skraca przebieg o ponad połowę.
+- `executeBatch --concurrency=1 --snapshot` jest ścieżką podstawową od dnia 4 (skróciło przebieg z 49,5 s do 8,8 s dla 6 przypadków), `execute` per przypadek zostaje rezerwą (`run.executor: execute`).
+- Każda komenda działa w kontenerze o nazwie `frt-<sandbox>-cmd-<n>`; po przekroczeniu czasu runner usuwa go po nazwie, bo zabicie klienta Dockera na Windows nie zatrzymuje kontenera.

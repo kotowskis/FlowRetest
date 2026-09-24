@@ -15,7 +15,7 @@ Zrobione:
 
 Zmierzone: 17 testów jednostkowych, `npm run verify` w około 3 s na Windows.
 
-## Dzień 2 (2026-09-24), bramka 1 z planu (dzień 2) zaliczona
+## Dzień 2 (2026-09-24), bramka 1 z planu (w planie dzień 5) zaliczona już w dniu 2
 
 Uruchomienie `flowretest doctor --engine 2.40.5` na Windows 11 z Docker Desktop 29.1.3 (WSL 2):
 
@@ -87,7 +87,7 @@ Czas na przypadek przez `execute`: 7,7 do 8,8 s. `executeBatch --ids=<6 id> --co
 Wnioski:
 
 1. Zaślepki OAuth2 z `oauthTokenData` i odległym `expires_in` działają: Slack i HubSpot nie odświeżają tokenu. Konto usługi Google podpisuje JWT wygenerowanym kluczem RSA i wymienia go na token przez regułę `token`; w trybie `cli` robi to przed każdym żądaniem, co jest widoczne w przechwyceniach jako szum do odfiltrowania w normalizacji.
-2. Szablony zlewu z sekcji 6.5 planu są wystarczające dla trzech usług. Google Sheets append w 4.7 nie używa `values:append`, tylko `:batchUpdate` (dopisanie wierszy) i `PUT values/<zakres>`; nagłówki z `values.get` muszą odpowiadać kluczom elementów wejściowych, dlatego CLI wylicza je z nagrania. HubSpot upsert kontaktu idzie przez API v1 (`createOrUpdate`, potem `profile`), nie przez `/crm/v3`.
+2. Szablony zlewu z sekcji 6.5 planu są wystarczające dla trzech usług. Google Sheets append w 4.7 nie używa `values:append`, tylko `:batchUpdate` (dopisanie wierszy) i `PUT values/<zakres>`; nagłówki z `values.get` muszą odpowiadać kluczom elementów wejściowych, dlatego CLI wylicza je z nagrania. Uzupełnienie po audycie: do 2026-09-24 `run` podawał stałe nagłówki `email`, `customer_id`; teraz bierze je z nagranego wyjścia węzłów Google Sheets i Airtable. HubSpot upsert kontaktu idzie przez API v1 (`createOrUpdate`, potem `profile`), nie przez `/crm/v3`.
 3. ADR 0002 uzupełniony: podstawową ścieżką wykonania jest `executeBatch --concurrency=1 --snapshot=<katalog>`. Plik `--output` to tylko podsumowanie, ale snapshot `<id>-snapshot.json` ma pełne `data.resultData.runData` z `startTime` i `executionTime` per uruchomienie węzła oraz `startedAt` i `stoppedAt` wykonania. Przypisanie przechwyceń do przypadku odbywa się po oknie czasowym wykonania, do węzła po czasach z `runData`; plik `current.json` zostaje dla `doctor` i dla ścieżki rezerwowej z `execute` per przypadek.
 4. Import 6 poświadczeń i 6 workflow jedną komendą każdy: 12 do 13 s na komendę; to stały koszt przebiegu, nie na przypadek.
 
@@ -209,7 +209,7 @@ Obraz `n8nio/n8n:v3-nightly` z 2026-09-24 (digest `sha256:2d4136…`): `doctor` 
 | `executeBatch`, ze stabilizacją (3 partie) | 49 s |
 | `executeBatch`, bez stabilizacji (2 partie) | 48 s |
 
-Koszt stały (sandbox, import poświadczeń, import workflow) to około 30 s; koszt na przypadek w partii to 1 do 2 s, więc stabilizacja jest teraz prawie darmowa i może być domyślnie włączona.
+Koszt stały (sandbox, import poświadczeń, import workflow) to około 30 s; koszt na przypadek w partii to 1 do 2 s, więc stabilizacja jest teraz prawie darmowa i może być domyślnie włączona. Decyzja z tygodnia 4: w CLI zostaje włączana ręcznie (`--stabilize`), w GitHub Action domyślnie (ADR 0006).
 
 Dwie pułapki `executeBatch` znalezione i obejście:
 
