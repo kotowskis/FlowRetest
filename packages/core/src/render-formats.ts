@@ -41,12 +41,13 @@ function caseSection(c: CaseDiff): string[] {
   const lines: string[] = [];
   const visible = c.entries.filter((e) => e.op !== '=');
   const title = `case ${c.caseId}: ${statusEmojiFree(c.status)} (${c.summary.changed} changed, ${c.summary.added} added, ${c.summary.removed} removed, ${c.summary.blocked} blocked)`;
-  if (visible.length === 0 && !c.error) {
+  if (visible.length === 0 && !c.error && !(c.warnings ?? []).length) {
     lines.push(`- ${title}`);
     return lines;
   }
   lines.push('<details>', `<summary>${title}</summary>`, '');
   if (c.error) lines.push(`Execution: ${c.error}`, '');
+  for (const w of c.warnings ?? []) lines.push(`Warning: ${w}`, '');
   lines.push('```');
   for (const e of visible) {
     lines.push(`${e.op} ${e.node}  ${e.method} ${e.host}${e.pathTemplate}`);

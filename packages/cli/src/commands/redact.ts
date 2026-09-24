@@ -1,7 +1,8 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Redactor, type Fixture } from '@flowretest/core';
+import { Redactor, redactPlanReport, type Fixture, type PlanReport } from '@flowretest/core';
 import { loadConfig, workflowDir } from '../config.ts';
+import { loadReport } from './report-files.ts';
 
 export interface RedactOptions {
   cwd: string;
@@ -9,6 +10,18 @@ export interface RedactOptions {
   outDir?: string;
   keepFields?: string[];
   log: (line: string) => void;
+}
+
+/** Writes `report.redacted.json` next to a run's report: shapes instead of values, ready to upload or share. */
+export function runRedactReport(options: { cwd: string; workflowId: string; run?: string; log: (line: string) => void }): string {
+  loadConfig(options.cwd);
+  const { run, report } = loadReport(options.cwd, options.workflowId, options.run);
+  const plan: PlanReport = { runner: report.runner, workflowName: report.workflowName ?? report.workflowId, workflowId: report.workflowId, engine: report.engine, oldLabel: report.old, newLabel: report.new, cases: report.cases, coverage: report.coverage, sealed: true };
+  const redacted = redactPlanReport(plan);
+  const path = join(workflowDir(options.cwd, options.workflowId), 'runs', run, 'report.redacted.json');
+  writeFileSync(path, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), redacted: true, ...redacted }, null, 2));
+  options.log(`redacted report for run ${run}: ${path} (values replaced by type, length and hash; paths, counts and flags kept)`);
+  return path;
 }
 
 /** Writes redacted copies of every fixture of a workflow; the originals stay where they are. */

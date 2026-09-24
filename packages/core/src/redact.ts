@@ -1,5 +1,55 @@
 import { createHash } from 'node:crypto';
 import type { Fixture, RecordedItem } from './fixture.ts';
+import type { PlanReport } from './render.ts';
+import type { NormalizedCall } from './normalize.ts';
+
+/** `<string 12 #a1b2c3d4>`: type, length and a short hash instead of the value. Numbers and booleans stay. */
+export function shapeOf(value: unknown): unknown {
+  if (value === null || value === undefined || typeof value === 'number' || typeof value === 'boolean') return value;
+  if (typeof value === 'string') {
+    if (value.startsWith('<') && value.endsWith('>')) return value; // placeholders such as <ts>, <volatile>
+    return `<string ${value.length} #${createHash('sha256').update(value).digest('hex').slice(0, 8)}>`;
+  }
+  if (Array.isArray(value)) return `<array ${value.length}>`;
+  if (typeof value === 'object') return `<object ${Object.keys(value as object).length}>`;
+  return `<${typeof value}>`;
+}
+
+function shapeBody(value: unknown): unknown {
+  if (Array.isArray(value)) return value.map(shapeBody);
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = shapeBody(v);
+    return out;
+  }
+  return shapeOf(value);
+}
+
+function shapeCall(call: NormalizedCall): NormalizedCall {
+  const query: Record<string, string> = {};
+  for (const [k, v] of Object.entries(call.query)) query[k] = String(shapeOf(v));
+  return { ...call, body: shapeBody(call.body), query, path: call.pathTemplate, multipart: call.multipart?.map((p) => ({ ...p, filename: p.filename ? String(shapeOf(p.filename)) : undefined })) };
+}
+
+/**
+ * The report that may leave the customer's machine: field names, paths, counts,
+ * flags and shapes of values, never the values themselves. Everything the
+ * hosted layer needs to show a plan and a trend is still here.
+ */
+export function redactPlanReport(report: PlanReport): PlanReport {
+  return {
+    ...report,
+    cases: report.cases.map((c) => ({
+      ...c,
+      entries: c.entries.map((e) => ({
+        ...e,
+        old: e.old ? shapeCall(e.old) : undefined,
+        new: e.new ? shapeCall(e.new) : undefined,
+        fieldDiffs: e.fieldDiffs.map((d) => ({ path: d.path, old: shapeOf(d.old), new: shapeOf(d.new) })),
+      })),
+    })),
+  };
+}
 
 /**
  * Replaces personal-looking values with synthetic ones of the same type and

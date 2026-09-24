@@ -14,7 +14,10 @@ test('service roles come from resource and operation with defaults', () => {
   assert.equal(serviceRole(node('n8n-nodes-base.notion', { resource: 'databasePage', operation: 'create' }))?.role, 'write');
   assert.equal(serviceRole(node('n8n-nodes-base.slack', { resource: 'message', operation: 'nope' }))?.role, 'unsupported');
   assert.equal(serviceRole(node('n8n-nodes-base.slack', { resource: 'message', operation: '={{ $json.op }}' }))?.role, 'write');
-  assert.equal(serviceRole(node('n8n-nodes-base.postgres', {})), undefined);
+  assert.equal(serviceRole(node('n8n-nodes-base.postgres', { operation: 'select' }))?.role, 'read');
+  assert.equal(serviceRole(node('n8n-nodes-base.postgres', { operation: 'insert' }))?.role, 'unsupported');
+  assert.match(serviceRole(node('n8n-nodes-base.postgres', { operation: 'insert' }))?.note ?? '', /database write/);
+  assert.equal(serviceRole(node('n8n-nodes-base.mongoDb', {})), undefined);
 });
 
 test('service rules have unique ids and end with the token rule', () => {

@@ -78,6 +78,7 @@ export function renderPlan(report: PlanReport): string {
   for (const c of report.cases) {
     if (c.status === 'ERROR') lines.push(`E [${c.caseId}] execution failed: ${c.error}`);
     for (const e of c.entries) if (e.op !== '=') lines.push(...entryLines(c.caseId, e));
+    for (const w of c.warnings ?? []) lines.push(`? [${c.caseId}] ${w}`);
   }
   const unchanged = report.cases.reduce((n, c) => n + c.summary.unchanged, 0);
   if (unchanged > 0) lines.push(`= ${unchanged} unchanged call${unchanged === 1 ? '' : 's'}`);

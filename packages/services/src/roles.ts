@@ -34,6 +34,9 @@ const TABLES: Record<string, OperationTable> = {
     base: { getMany: 'read', getSchema: 'read' },
     record: { create: 'write', update: 'write', upsert: 'write', deleteRecord: 'write', get: 'read', search: 'read' },
   },
+  // Database nodes: reads are replayed from the recording like any node; writes cannot be captured over HTTP.
+  'n8n-nodes-base.postgres': { database: { select: 'read', executeQuery: 'write', insert: 'write', update: 'write', upsert: 'write', deleteTable: 'write' } },
+  'n8n-nodes-base.mySql': { database: { select: 'read', executeQuery: 'write', insert: 'write', update: 'write', upsert: 'write', deleteTable: 'write' } },
   'n8n-nodes-base.notion': {
     page: { create: 'write', archive: 'write', search: 'read' },
     block: { append: 'write', getAll: 'read' },
@@ -49,6 +52,8 @@ const DEFAULT_RESOURCE: Record<string, string> = {
   'n8n-nodes-base.googleSheets': 'sheet',
   'n8n-nodes-base.airtable': 'record',
   'n8n-nodes-base.notion': 'page',
+  'n8n-nodes-base.postgres': 'database',
+  'n8n-nodes-base.mySql': 'database',
 };
 
 /** Consulted by the classifier before its built-in rules. Unknown operations are unsupported, never silently reads. */
@@ -62,7 +67,11 @@ export function serviceRole(node: N8nNode): RoleVerdict | undefined {
   const op = typeof operation === 'string' ? operation : Object.keys(ops ?? {})[0];
   const role = ops?.[op ?? ''];
   if (!role) return { role: 'unsupported', note: `no role for ${node.type} ${resource}.${String(op)}` };
+  if (role === 'write' && NON_HTTP_TYPES.has(node.type)) return { role: 'unsupported', note: `database write (${String(op)}) does not go over HTTP and cannot be captured; case skipped` };
   return { role };
 }
+
+/** Nodes whose writes bypass HTTP; their reads still replay from recordings. */
+const NON_HTTP_TYPES = new Set(['n8n-nodes-base.postgres', 'n8n-nodes-base.mySql']);
 
 export const SUPPORTED_SERVICE_TYPES = Object.keys(TABLES);

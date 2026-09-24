@@ -53,6 +53,8 @@ export interface RewriteResult {
   name: string;
   replaced: ReplacedNode[];
   removedTriggers: string[];
+  /** AI sub-nodes (models, memory, tools, parsers) dropped because their root was replayed. */
+  removedSubNodes: string[];
   warnings: string[];
   /** Nodes left untouched although they are reads, because they have no recording or it is too large. */
   unreplayed: string[];
@@ -145,6 +147,7 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
   const replaced: ReplacedNode[] = [];
   const unreplayed: string[] = [];
   const removedTriggers: string[] = [];
+  const removedSubNodes: string[] = [];
   const maxBytes = options.maxInjectBytes ?? 1024 * 1024;
   const name = `frt/${options.version}/${options.caseId}`;
   const id = workflowId(name);
@@ -202,6 +205,11 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
     }
     replaceWithReplay(workflow, node, outputs, options.replayVariant, true);
     replaced.push({ node: node.name, kind: 'read', variant: options.replayVariant, runs: outputs.length });
+    // An AI root replayed from its recording no longer needs its model, memory, tools or parsers.
+    for (const sub of aiFeeders(workflow, node.name)) {
+      removeNode(workflow, sub);
+      removedSubNodes.push(sub);
+    }
   }
 
   // 3b. Tag HTTP Request write nodes so captured requests carry their node name.
@@ -233,7 +241,26 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
     settings,
   };
 
-  return { workflow: importable, id, name, replaced, removedTriggers, warnings, unreplayed, credentials: collectCredentials(importable) };
+  return { workflow: importable, id, name, replaced, removedTriggers, removedSubNodes, warnings, unreplayed, credentials: collectCredentials(importable) };
+}
+
+/** Nodes feeding `root` through non-main connections, recursively (a tool may have its own model). */
+function aiFeeders(workflow: N8nWorkflow, root: string): string[] {
+  const out: string[] = [];
+  const queue = [root];
+  while (queue.length) {
+    const target = queue.shift() as string;
+    for (const [from, outputs] of Object.entries(workflow.connections)) {
+      for (const [type, byIndex] of Object.entries(outputs)) {
+        if (type === 'main') continue;
+        if (byIndex.some((targets) => (targets ?? []).some((t) => t.node === target)) && !out.includes(from)) {
+          out.push(from);
+          queue.push(from);
+        }
+      }
+    }
+  }
+  return out;
 }
 
 function replaceWithReplay(workflow: N8nWorkflow, node: N8nNode, runs: RecordedItem[][], variant: ReplayVariant, withPairing: boolean): void {

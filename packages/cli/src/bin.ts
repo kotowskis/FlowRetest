@@ -120,9 +120,11 @@ program
   .requiredOption('--workflow <id>', 'workflow id (as pulled)')
   .option('--out <dir>', 'output directory (default: .flowretest/<id>/fixtures-redacted)')
   .option('--keep-fields <names>', 'comma-separated field names never redacted')
-  .action(async (opts: { workflow: string; out?: string; keepFields?: string }) => {
-    const { runRedact } = await import('./commands/redact.ts');
-    runRedact({ cwd: process.cwd(), workflowId: opts.workflow, outDir: opts.out, keepFields: opts.keepFields?.split(','), log: (l) => console.log(l) });
+  .option('--report [run]', 'redact a run report instead of the fixtures (default: latest run)')
+  .action(async (opts: { workflow: string; out?: string; keepFields?: string; report?: string | boolean }) => {
+    const { runRedact, runRedactReport } = await import('./commands/redact.ts');
+    if (opts.report !== undefined) runRedactReport({ cwd: process.cwd(), workflowId: opts.workflow, run: typeof opts.report === 'string' ? opts.report : undefined, log: (l) => console.log(l) });
+    else runRedact({ cwd: process.cwd(), workflowId: opts.workflow, outDir: opts.out, keepFields: opts.keepFields?.split(','), log: (l) => console.log(l) });
   });
 
 program

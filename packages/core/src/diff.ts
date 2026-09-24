@@ -26,6 +26,8 @@ export interface CaseDiff {
   summary: { oldCalls: number; newCalls: number; unchanged: number; changed: number; added: number; removed: number; blocked: number };
   /** Execution error of the new version, when the workflow itself failed. */
   error?: string;
+  /** Case-level warnings, e.g. an AI node replayed although its prompt changed. */
+  warnings?: string[];
 }
 
 export interface DiffOptions {

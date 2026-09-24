@@ -64,9 +64,62 @@ export function isTriggerType(type: string): boolean {
   return TRIGGER_TYPES.has(type) || /trigger$/i.test(type);
 }
 
-function classifyOne(node: N8nNode, options: ClassifyOptions): { role: NodeRole; note?: string } {
+const LANGCHAIN_PREFIX = '@n8n/n8n-nodes-langchain.';
+
+/** Nodes that feed another node through an `ai_*` connection (models, memory, tools, parsers, embeddings). */
+export function aiSubNodes(workflow: N8nWorkflow): Set<string> {
+  const subs = new Set<string>();
+  for (const [from, outputs] of Object.entries(workflow.connections)) {
+    for (const type of Object.keys(outputs)) if (type !== 'main') subs.add(from);
+  }
+  return subs;
+}
+
+export function isAiRoot(node: N8nNode, subNodes: Set<string>): boolean {
+  return node.type.startsWith(LANGCHAIN_PREFIX) && !subNodes.has(node.name) && !isTriggerType(node.type);
+}
+
+function stable(value: unknown): string {
+  if (Array.isArray(value)) return `[${value.map(stable).join(',')}]`;
+  if (value !== null && typeof value === 'object') return `{${Object.keys(value as object).sort().map((k) => `${JSON.stringify(k)}:${stable((value as Record<string, unknown>)[k])}`).join(',')}}`;
+  return JSON.stringify(value);
+}
+
+/**
+ * Warnings for AI nodes replayed from a recording in the new version: a changed
+ * prompt, model or sub-node makes the recorded output stale, and a brand-new AI
+ * node has no recording at all.
+ */
+export function aiReplayWarnings(oldWorkflow: N8nWorkflow, newWorkflow: N8nWorkflow): string[] {
+  const warnings: string[] = [];
+  const oldSubs = aiSubNodes(oldWorkflow);
+  const newSubs = aiSubNodes(newWorkflow);
+  const oldNodes = new Map(oldWorkflow.nodes.map((n) => [n.name, n]));
+  const feedersOf = (workflow: N8nWorkflow, root: string): string =>
+    stable(
+      Object.entries(workflow.connections)
+        .flatMap(([from, outputs]) => Object.entries(outputs).filter(([type]) => type !== 'main').flatMap(([type, byIndex]) => byIndex.flatMap((targets) => (targets ?? []).filter((t) => t.node === root).map(() => `${type}:${from}:${stable(workflow.nodes.find((n) => n.name === from)?.parameters ?? null)}`))))
+        .sort(),
+    );
+  for (const node of newWorkflow.nodes) {
+    if (!isAiRoot(node, newSubs)) continue;
+    const before = oldNodes.get(node.name);
+    if (!before || !isAiRoot(before, oldSubs)) {
+      warnings.push(`AI node "${node.name}" is new in this version and has no recording; its call is executed for real against the sink`);
+      continue;
+    }
+    if (stable(before.parameters) !== stable(node.parameters) || feedersOf(oldWorkflow, node.name) !== feedersOf(newWorkflow, node.name)) {
+      warnings.push(`stale-ai-replay: AI node "${node.name}" is replayed from its recording although its prompt, model or sub-nodes changed; the recorded output may not match the new configuration`);
+    }
+  }
+  return warnings;
+}
+
+function classifyOne(node: N8nNode, options: ClassifyOptions, subNodes: Set<string>): { role: NodeRole; note?: string } {
   if (node.name === options.triggerNode) return { role: 'trigger' };
   if (isTriggerType(node.type)) return { role: 'trigger', note: 'trigger that did not start the recording, removed' };
+  if (subNodes.has(node.name)) return { role: 'logic', note: 'AI sub-node, removed together with its replayed root' };
+  if (isAiRoot(node, subNodes)) return { role: 'read', note: 'AI node replayed from the recording; a changed prompt or model is not evaluated' };
   const fromService = options.serviceRole?.(node);
   if (fromService) return fromService;
   if (node.type === 'n8n-nodes-base.respondToWebhook') return { role: 'replace', note: 'replaced by No Operation, no outbound call' };
@@ -91,13 +144,14 @@ function classifyOne(node: N8nNode, options: ClassifyOptions): { role: NodeRole;
 export function classify(workflow: N8nWorkflow, options: ClassifyOptions): Classification {
   const roles: Record<string, NodeRole> = {};
   const notes: Record<string, string> = {};
+  const subNodes = aiSubNodes(workflow);
   for (const node of workflow.nodes) {
     if (node.disabled) {
       roles[node.name] = 'logic';
       notes[node.name] = 'disabled, passes data through';
       continue;
     }
-    const { role, note } = classifyOne(node, options);
+    const { role, note } = classifyOne(node, options, subNodes);
     roles[node.name] = role;
     if (note) notes[node.name] = note;
   }

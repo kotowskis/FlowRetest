@@ -7,7 +7,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { runSpikeDay7 } from '../src/commands/spike-day7.ts';
 
-const EXPECT: Record<string, { status: string; flags: string[]; changed?: number; removed?: number }> = {
+const EXPECT: Record<string, { status: string; flags: string[]; changed?: number; removed?: number; warnings?: number }> = {
   '01-empty-id-after-field-rename': { status: 'DIFF', flags: ['empty-value'], changed: 2 },
   '02-loop-sends-first-item-n-times': { status: 'DIFF', flags: ['duplicate-bodies'], changed: 1 },
   '03-merge-by-position-truncates': { status: 'DIFF', flags: ['count-changed'], removed: 1 },
@@ -22,6 +22,9 @@ const EXPECT: Record<string, { status: string; flags: string[]; changed?: number
   '10-http-method-changed': { status: 'DIFF', flags: [] },
   '11-body-field-renamed': { status: 'DIFF', flags: ['missing-field'], changed: 2 },
   '12-query-param-dropped': { status: 'DIFF', flags: ['missing-field'], changed: 2 },
+  '13-ai-prompt-changed-replayed': { status: 'PASS', flags: [], warnings: 1 },
+  '14-postgres-select-replayed-insert-skipped': { status: 'SKIPPED', flags: [] },
+  '15-hubspot-property-empty-after-rename': { status: 'DIFF', flags: [], changed: 2 },
 };
 
 test('catalogue cases produce the expected plan', { timeout: 20 * 60 * 1000 }, async () => {
@@ -36,5 +39,6 @@ test('catalogue cases produce the expected plan', { timeout: 20 * 60 * 1000 }, a
     for (const f of e.flags) assert.ok(flags.has(f), `${c.caseId} missing flag ${f}`);
     if (e.changed !== undefined) assert.equal(c.summary.changed, e.changed, `${c.caseId} changed`);
     if (e.removed !== undefined) assert.equal(c.summary.removed, e.removed, `${c.caseId} removed`);
+    if (e.warnings !== undefined) assert.equal((c.warnings ?? []).length, e.warnings, `${c.caseId} warnings ${JSON.stringify(c.warnings)}`);
   }
 });

@@ -251,6 +251,57 @@ export function catalogCases(): CatalogCase[] {
     fixture: fixture(),
   });
 
-  void rl;
+  // 13: an LLM chain replayed from its recording; the prompt changed, so the plan is PASS with a warning.
+  const llmChain = (text: string): N8nNode => ({ parameters: { promptType: 'define', text, messages: {}, batching: {} }, name: 'LLM Chain', type: '@n8n/n8n-nodes-langchain.chainLlm', typeVersion: 1.7, position: [450, 0] });
+  const openAiModel: N8nNode = { parameters: { model: rl('list', 'gpt-4o-mini'), options: {} }, name: 'OpenAI Chat Model', type: '@n8n/n8n-nodes-langchain.lmChatOpenAi', typeVersion: 1.2, position: [450, 200], credentials: { openAiApi: { id: 'frtopenai000001', name: 'OpenAI' } } };
+  const aiConnections = (): N8nWorkflow['connections'] => ({
+    Webhook: { main: [[{ node: 'Flatten', type: 'main', index: 0 }]] },
+    Flatten: { main: [[{ node: 'LLM Chain', type: 'main', index: 0 }]] },
+    'OpenAI Chat Model': { ai_languageModel: [[{ node: 'LLM Chain', type: 'ai_languageModel', index: 0 }]] },
+    'LLM Chain': { main: [[{ node: 'Push', type: 'main', index: 0 }]] },
+  });
+  const flattenForAi = map('Flatten', [250, 0], [['email', '={{ $json.body.email }}']]);
+  cases.push({
+    id: '13-ai-prompt-changed-replayed',
+    title: 'LLM chain replayed from its recording after a prompt change',
+    expect: 'PASS with a stale-ai-replay warning (recorded answers reused, calls unchanged)',
+    old: { name: 'case13', nodes: [webhook(), flattenForAi, llmChain('={{ $json.email }}'), openAiModel, push('Push', [900, 0])], connections: aiConnections() },
+    new: { name: 'case13', nodes: [webhook(), flattenForAi, llmChain("={{ 'Greet ' + $json.email }}"), openAiModel, push('Push', [900, 0])], connections: aiConnections() },
+    fixture: fixture({
+      'LLM Chain': { type: '@n8n/n8n-nodes-langchain.chainLlm', typeVersion: 1.7, runs: [{ inputCount: 2, outputs: [[{ json: { text: 'hello a' }, pairedItem: { item: 0 } }, { json: { text: 'hello c' }, pairedItem: { item: 1 } }]] }] },
+    }),
+  });
+
+  // 14: a Postgres select is replayed like any read; a Postgres insert added later cannot be captured, the case is skipped.
+  const pgSelect: N8nNode = { parameters: { operation: 'select', schema: rl('list', 'public'), table: rl('list', 'customers'), options: {} }, name: 'Load customers', type: 'n8n-nodes-base.postgres', typeVersion: 2.5, position: [300, 0], credentials: { postgres: { id: 'frtpostgres0001', name: 'Postgres' } } };
+  const pgInsert: N8nNode = { parameters: { operation: 'insert', schema: rl('list', 'public'), table: rl('list', 'audit'), columns: { mappingMode: 'autoMapInputData', value: null, matchingColumns: [], schema: [] }, options: {} }, name: 'Audit', type: 'n8n-nodes-base.postgres', typeVersion: 2.5, position: [1200, 0], credentials: { postgres: { id: 'frtpostgres0001', name: 'Postgres' } } };
+  const pgFixture = fixture({ 'Load customers': { type: 'n8n-nodes-base.postgres', typeVersion: 2.5, runs: [{ inputCount: 2, outputs: [[{ json: { id: 'C-1', tier: 'gold' }, pairedItem: { item: 0 } }, { json: { id: 'C-2', tier: 'silver' }, pairedItem: { item: 1 } }]] }] } });
+  cases.push({
+    id: '14-postgres-select-replayed-insert-skipped',
+    title: 'Postgres select replayed from the recording; a new Postgres insert makes the case unsupported',
+    expect: 'SKIPPED (database write on the path); the old version alone would replay the select and send 2 calls',
+    old: { name: 'case14', nodes: [webhook(), pgSelect, map('Map', [600, 0], [['email', "={{ $('Webhook').item.json.body.email }}"], ['tier', '={{ $json.tier }}']]), push('Push', [900, 0])], connections: chain('Webhook', 'Load customers', 'Map', 'Push') },
+    new: { name: 'case14', nodes: [webhook(), pgSelect, map('Map', [600, 0], [['email', "={{ $('Webhook').item.json.body.email }}"], ['tier', '={{ $json.tier }}']]), push('Push', [900, 0]), pgInsert], connections: chain('Webhook', 'Load customers', 'Map', 'Push', 'Audit') },
+    fixture: pgFixture,
+  });
+
+  // 15: HubSpot upsert keeps working while the first name property goes out empty after a field rename.
+  const namedItems = (): RecordedItem[] => webhookItems().map((i) => ({ json: { ...(i.json as object), body: { ...((i.json as { body: object }).body), first_name: 'Anna' } } }));
+  const namedFixture = (): Fixture => {
+    const f = fixture();
+    f.trigger.items = namedItems();
+    f.nodes.Webhook = { type: 'n8n-nodes-base.webhook', typeVersion: 2, runs: [{ outputs: [namedItems()] }] };
+    return f;
+  };
+  const hubspot = (firstNameExpr: string): N8nNode => ({ parameters: { authentication: 'appToken', resource: 'contact', operation: 'upsert', email: '={{ $json.body.email }}', additionalFields: { firstName: firstNameExpr }, options: {} }, name: 'HubSpot', type: 'n8n-nodes-base.hubspot', typeVersion: 2.2, position: [300, 0], credentials: { hubspotAppToken: { id: 'frthubtoken0001', name: 'HubSpot token' } } });
+  cases.push({
+    id: '15-hubspot-property-empty-after-rename',
+    title: 'HubSpot upsert sends an empty first name after the source field was renamed',
+    expect: '2 changed calls on api.hubapi.com with the firstname property empty, flag empty-value or missing-field',
+    old: { name: 'case15', nodes: [webhook(), hubspot('={{ $json.body.first_name }}')], connections: chain('Webhook', 'HubSpot') },
+    new: { name: 'case15', nodes: [webhook(), hubspot('={{ $json.body.firstName }}')], connections: chain('Webhook', 'HubSpot') },
+    fixture: namedFixture(),
+  });
+
   return cases;
 }

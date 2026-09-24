@@ -10,6 +10,11 @@ All notable changes to this project are documented here. The format follows Keep
 - HTTP Request write nodes get an `X-FlowRetest-Node` header in the sandbox; the proxy records it and attribution prefers it over timing.
 - Scanner rule S007: IF or Filter nodes with identical conditions.
 
+- AI nodes (LLM chains, agents, extractors) are replayed from their recordings; their models, memory, tools and parsers are dropped in the sandbox. A changed prompt, model or sub-node yields a `stale-ai-replay` warning on the case; a new AI node without a recording is executed against the sink.
+- Postgres and MySQL: `select` is replayed from the recording; writes are unsupported (the case is skipped with a clear note) instead of failing after a DNS timeout.
+- `redact --report [run]` writes `report.redacted.json` with values replaced by type, length and hash; paths, counts and flags stay.
+- Regression catalogue cases 13 to 15: replayed LLM chain with a changed prompt, Postgres select plus a new insert, HubSpot property empty after a field rename.
+
 ### Fixed
 
 - Query parameters now take part in the diff (`?name` paths); a dropped parameter shows as a changed call with `missing-field`.

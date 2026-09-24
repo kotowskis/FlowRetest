@@ -9,7 +9,7 @@ import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  attributeRecord, attributeToNode, classify, detectVolatile, diffCase, fromBaseline, inputCounts, maskVolatile, normalizeCall, renderPlan, rewriteWorkflow, runWindows, runsIdentical, toBaseline,
+  aiReplayWarnings, attributeRecord, attributeToNode, classify, detectVolatile, diffCase, fromBaseline, inputCounts, maskVolatile, normalizeCall, renderPlan, rewriteWorkflow, runWindows, runsIdentical, toBaseline,
   type CaptureRecord, type CaseDiff, type NormalizedCall, type RunTimings,
 } from '@flowretest/core';
 import { blockRule, buildCredentialStubs, genericSinkRule, serviceRole, serviceRules } from '@flowretest/services';
@@ -139,6 +139,8 @@ export async function runSpikeDay7(options: SpikeDay7Options): Promise<{ plan: s
         oldNodesRun: Object.keys(oldRun.runData),
         newNodesRun: Object.keys(newRun.runData),
       });
+      const ai = aiReplayWarnings(c.old, c.new);
+      if (ai.length) d.warnings = ai;
       diffs.push(d);
       options.log(`${c.id}: ${d.status} (${JSON.stringify(d.summary)}) expected: ${c.expect}`);
       const p = prepared.find((x) => x.caseId === c.id && x.version === 'new') as (typeof prepared)[number];

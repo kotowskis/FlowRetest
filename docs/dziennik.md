@@ -54,3 +54,16 @@ Zrobione:
 Uwagi operacyjne: `sandbox prune` usuwało dotąd wszystkie zasoby `frt-*`, także sandbox innego trwającego przebiegu (tak padł jeden test e2e); teraz pomija działające kontenery, chyba że `--force`. Zmiana w pakiecie proxy wymaga przebudowy obrazu (`docker build -t flowretest-proxy:dev packages/proxy`); stary obraz zachowuje się jak dawniej bez komunikatu. W wydaniu obraz jest przypięty digestem, w rozwoju łatwo o to zapomnieć.
 
 Do końca tygodni 5 do 8 według planu: przypadki 13 do 15 (w tym z węzłem AI), odtwarzanie węzłów AI, tabela ról Postgres i MySQL dla odczytów, redakcja raportu przed wysyłką, PR do n8n-as-code, dokumentacja formatów, makieta warstwy płatnej.
+
+## Tydzień 6 (2026-09-24), CLI 0.3 w toku
+
+Zrobione:
+
+- odtwarzanie węzłów AI: klasyfikator rozpoznaje węzeł główny klastra LangChain (ma połączenie `main`) jako odczyt, a sub-węzły podłączone przez `ai_*` jako logikę; rewriter po podmianie węzła głównego usuwa jego modele, pamięć, narzędzia oraz parsery, także zagnieżdżone; `aiReplayWarnings` porównuje parametry węzła głównego oraz jego sub-węzłów między wersjami i dodaje ostrzeżenie `stale-ai-replay` do przypadku (renderowane w planie jako linia `?` i w Markdown jako "Warning"); nowy węzeł AI bez nagrania dostaje ostrzeżenie o wykonaniu przeciw zlewowi;
+- tabela ról Postgres i MySQL: `select` odtwarzany z nagrania, `executeQuery` oraz zapisy nieobsługiwane z notatką "database write does not go over HTTP"; przypadek z takim węzłem na ścieżce kończy jako SKIPPED zamiast czekać 13 s na błąd DNS;
+- redakcja raportu przed wysyłką: `redact --report [przebieg]` zapisuje `report.redacted.json`, w którym wartości pól i parametrów zapytania są zastąpione kształtem `<string 13 #a1b2c3d4>`, a ścieżki, liczby, flagi oraz szablony ścieżek zostają; to format dla warstwy płatnej z planu (punkt 6.7);
+- katalog do 15 przypadków: 13 łańcuch LLM odtworzony po zmianie promptu (PASS z ostrzeżeniem), 14 Postgres `select` odtworzony i nowy `insert` (SKIPPED), 15 HubSpot z pustą właściwością po zmianie nazwy pola.
+
+Decyzja odnotowana: przy węźle AI bez nagrania nie blokujemy przypadku, tylko wykonujemy go przeciw szablonowi zlewu (OpenAI odpowiada stałą treścią) i ostrzegamy; plan przewidywał BLOCKED, ale wtedy każdy dodany węzeł AI zatrzymywałby cały przypadek, a tak widać pozostałe wywołania.
+
+Poza sesją według planu tygodni 5 do 8: publikacja wyników `upgrade-check`, PR do n8n-as-code, dokumentacja formatów, makieta warstwy płatnej, opinia prawna.
