@@ -119,3 +119,9 @@ Wnioski warte zapamiętania:
 - domyślne operacje węzłów wzięte z opisów w obrazie `n8nio/n8n:2.40.5` (`dist/types/nodes.json`); tabela ról miała przy okazji nieistniejącą operację `user.get` w Slacku v2;
 - e2e katalogu po zmianach: 15 z 15 zgodnie z oczekiwaniami na 2.40.5;
 - punkt 18 (uprawnienia na Linuksie) jest poprawiony w kodzie, ale nie był uruchomiony na runnerze GitHuba; pierwszy przebieg `e2e.yml` to sprawdzi.
+
+## Pierwszy przebieg CI na GitHubie (2026-09-24)
+
+Po wypchnięciu `main`: `ci` zielone na Ubuntu, Windows i macOS; `e2e` przez `flowretest run` zielone na 2.40.5 i `next`. Na Linuksie `doctor` przeszedł, więc poprawka uprawnień z audytu (punkt 18) działa na runnerze GitHuba (uid 1001).
+
+`v3-nightly` z tego dnia (raportuje 2.41.0) padł na `import:credentials` z komunikatem "No active encryption key found". n8n włącza domyślnie rotację kluczy szyfrowania (`N8N_ENV_FEAT_ENCRYPTION_KEY_ROTATION`, wyłączana tylko wartością `false`): poświadczenia szyfruje klucz danych zapisany w bazie, a tworzą go wyłącznie procesy serwera (`n8n start` oraz tryby webhook i worker, pole `seedsInstanceIdentity`). Sandbox ma świeżą bazę i używa tylko komend CLI, więc klucza nie było. Sandbox ustawia teraz tę flagę na `false`; n8n szyfruje wtedy kluczem instancji jak w 2.40. Gdy n8n usunie flagę, trzeba będzie jednorazowo zasiać klucz (np. krótkim `n8n start` na wolumenie sandboxa); macierz e2e z `v3-nightly` pokaże to od razu.

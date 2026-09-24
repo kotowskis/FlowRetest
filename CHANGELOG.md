@@ -42,6 +42,7 @@ All notable changes to this project are documented here. The format follows Keep
 - Proxy image: base image pinned by digest, dependencies installed with `npm ci` from `packages/proxy/package-lock.json`, mockttp pinned exactly; `release-check` refuses a stale proxy lock.
 - `config.schema.json` is exported as an input schema, so fields with a default are optional in editors.
 - `run` serves the Google Sheets and Airtable sinks the header row the recordings show (the sheet's real columns) instead of a fixed `email, customer_id`, so a renamed field lands in the wrong column or none, as in production.
+- n8n 2.41 (`v3-nightly`): the sandbox turns off encryption key rotation (`N8N_ENV_FEAT_ENCRYPTION_KEY_ROTATION=false`), because only the server process seeds the data key and `import:credentials` on a fresh sandbox database failed with "No active encryption key found".
 - The end-to-end catalogue test runs every case through `flowretest run` in its own project (report files, exit codes) and case 01 through `accept` and `diff --against baseline`; before, it went through the spike path only.
 - `release.yml` refuses a tag that differs from the package versions, picks the npm dist-tag from the version (a prerelease never goes to `latest`), writes the proxy digest into `proxy.lock.json` before publishing and stops when the package is private or the digest is missing.
 

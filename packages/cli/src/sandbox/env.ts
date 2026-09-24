@@ -22,6 +22,11 @@ export function buildN8nEnv(options: N8nEnvOptions): Record<string, string> {
   const proxy = `http://${options.proxyHost}:${options.proxyPort}`;
   const sandbox: Record<string, string> = {
     N8N_ENCRYPTION_KEY: options.encryptionKey ?? randomBytes(24).toString('hex'),
+    // n8n 2.41 (v3-nightly, 2026-09-24) turns on key rotation by default: credentials are encrypted with a data key
+    // stored in the database, and only `n8n start`, `webhook` or `worker` create it. The sandbox runs CLI commands on
+    // a fresh database, so `import:credentials` failed with "No active encryption key found". With the flag off n8n
+    // uses N8N_ENCRYPTION_KEY directly, as 2.40 does; older versions ignore the variable.
+    N8N_ENV_FEAT_ENCRYPTION_KEY_ROTATION: 'false',
     DB_TYPE: 'sqlite',
     HTTP_PROXY: proxy,
     HTTPS_PROXY: proxy,

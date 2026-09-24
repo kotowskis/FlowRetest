@@ -21,6 +21,8 @@ test('sandbox env points every process at the proxy and never leaks extras over 
   assert.equal(env.N8N_SSRF_PROTECTION_ENABLED, 'false');
   assert.equal(env.GENERIC_TIMEZONE, 'Europe/Warsaw');
   assert.match(env.N8N_ENCRYPTION_KEY ?? '', /^[0-9a-f]{48}$/);
+  // n8n 2.41+ needs a seeded data key for import:credentials unless key rotation is off
+  assert.equal(env.N8N_ENV_FEAT_ENCRYPTION_KEY_ROTATION, 'false');
   assert.equal(env.N8N_LOG_OUTPUT, 'file');
 });
 
