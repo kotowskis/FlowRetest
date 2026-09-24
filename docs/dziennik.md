@@ -78,3 +78,13 @@ Zrobione:
 - README pakietu: sekcje "Privacy" (nic nie opuszcza maszyny, zero telemetrii, redakcja) i "Licensing" (MIT, zero kodu n8n, obraz klienta na jego maszynie).
 
 Poza sesją: publikacja wyników `upgrade-check` dla 3.0 na forum, makieta warstwy płatnej dla trzech agencji, opinia prawna (tydzień 6 w planie), licznik 30 dni od pierwszego raportu u każdej agencji. Bramka 5 (piątek tygodnia 8) wymaga tych trzech rzeczy plus pokrycia co najmniej 80% na eksportach agencji, więc bez sesji z agencjami nie da się jej zamknąć od strony technicznej.
+
+## Tydzień 8 (2026-09-24), przygotowanie 0.3.0 i bramki 5
+
+Zrobione:
+
+- wersja `0.3.0-next.1` we wszystkich pakietach, CHANGELOG z sekcją wydania;
+- `packages/cli/proxy.lock.json`: obraz proxy i digest z wydania; `init` używa obrazu z digestem, gdy lock go ma, a w rozwoju `flowretest-proxy:dev`; `release.yml` po pierwszym pushu do GHCR wypełnia digest;
+- `docs/bramka-5.md`: trzy warunki bramki ze stanem (wszystkie czekają na sesje z agencjami i mail licencyjny), lista gotowych elementów, braki do publikacji, liczby do zebrania w sesjach, rekomendacja publikacji `0.3.0` jako OSS niezależnie od decyzji o SaaS.
+
+Lista wydania dla założyciela: `npm login`, `docker login ghcr.io`, tag `v0.3.0` na `main` (uruchamia `release.yml`: verify, build, obraz proxy do GHCR, `npm publish --provenance` na kanał `latest`; tagi z `-next` idą na kanał `next`). Po wydaniu: wpisać digest obrazu do `proxy.lock.json`, uzupełnić README o `npx flowretest@latest`, wysłać PR do n8n-as-code według `docs/integracje.md`.

@@ -49,11 +49,18 @@ export async function runSpikeDay7(options: SpikeDay7Options): Promise<{ plan: s
     mkdirSync(join(session.dirs.work, 'cases'), { recursive: true });
     const selected = catalogCases().filter((c) => !options.only || options.only.some((o) => c.id.startsWith(o)));
     const prepared: Array<{ caseId: string; version: 'old' | 'new'; id: string; writeNodes: string[] }> = [];
+    const skippedCases = new Map<string, string>();
     const uses = [];
     for (const c of selected) {
       for (const version of ['old', 'new'] as const) {
         const workflow = version === 'old' ? c.old : c.new;
         const cls = classify(workflow, { triggerNode: c.fixture.trigger.node, serviceRole });
+        if (cls.unsupportedOnPath.length > 0) {
+          // Same rule as `run`: an unsupported node on the path skips the case instead of executing it.
+          skippedCases.set(c.id, `${version}: unsupported on path: ${cls.unsupportedOnPath.join(', ')}`);
+          for (const u of cls.unsupportedOnPath) unsupported.add(u);
+          continue;
+        }
         const r = rewriteWorkflow(workflow, c.fixture, cls.roles, { version, caseId: c.id, replayVariant: 'code', executionTimeoutSeconds: 60 });
         session.writeWork(`cases/${c.id}-${version}.json`, JSON.stringify(r.workflow, null, 2));
         uses.push(...r.credentials);
@@ -113,9 +120,15 @@ export async function runSpikeDay7(options: SpikeDay7Options): Promise<{ plan: s
     };
 
     const runs = new Map<string, VersionRun>();
-    for (const p of prepared) runs.set(`${p.caseId}|${p.version}`, await executeVersion(p, p.version));
+    for (const p of prepared) if (!skippedCases.has(p.caseId)) runs.set(`${p.caseId}|${p.version}`, await executeVersion(p, p.version));
 
     for (const c of selected) {
+      const skipReason = skippedCases.get(c.id);
+      if (skipReason) {
+        diffs.push({ caseId: c.id, status: 'SKIPPED', entries: [], summary: { oldCalls: 0, newCalls: 0, unchanged: 0, changed: 0, added: 0, removed: 0, blocked: 0 }, error: skipReason });
+        options.log(`${c.id}: SKIPPED (${skipReason}) expected: ${c.expect}`);
+        continue;
+      }
       const oldRun = runs.get(`${c.id}|old`) as VersionRun;
       const newRun = runs.get(`${c.id}|new`) as VersionRun;
       let oldCalls = oldRun.calls;

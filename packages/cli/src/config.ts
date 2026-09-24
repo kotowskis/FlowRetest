@@ -1,5 +1,6 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { parse, stringify } from 'yaml';
 import { ConfigSchema, parseOrThrow } from '@flowretest/schemas';
 
@@ -16,12 +17,33 @@ export interface Config {
   run: { timeoutSeconds: number; stabilize: boolean; executor?: 'batch' | 'execute' };
 }
 
+interface ProxyLock {
+  image: string;
+  tag: string;
+  digest: string | null;
+}
+
+/** The proxy image this CLI version was released with; a null digest (development) falls back to the local dev image. */
+export function proxyLock(): ProxyLock {
+  try {
+    const path = fileURLToPath(new URL('../proxy.lock.json', import.meta.url));
+    return JSON.parse(readFileSync(path, 'utf8')) as ProxyLock;
+  } catch {
+    return { image: 'flowretest-proxy', tag: 'dev', digest: null };
+  }
+}
+
+export function defaultProxyImage(): string {
+  const lock = proxyLock();
+  return lock.digest ? `${lock.image}@${lock.digest}` : 'flowretest-proxy:dev';
+}
+
 export function defaultConfig(url: string, tag: string, timezone: string): Config {
   return {
     schemaVersion: 1,
     instance: { url: url.replace(/\/+$/, '') },
     engine: { image: 'n8nio/n8n', tag, timezone },
-    proxy: { image: 'flowretest-proxy:dev' },
+    proxy: { image: defaultProxyImage() },
     normalize: { ignore: [] },
     run: { timeoutSeconds: 120, stabilize: false, executor: 'batch' },
   };
