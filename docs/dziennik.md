@@ -108,3 +108,14 @@ Lista wydania dla założyciela, poprawiona:
 5. Pobrać artefakt `proxy-lock` z przebiegu i zacommitować `packages/cli/proxy.lock.json` na `main`.
 
 Przed publikacją warto jeszcze naprawić punkty 6 do 16 z audytu (diff przepuszcza zmianę ID w ścieżce, duże ciała, zapisy HTTP Request v1, polskie nazwy węzłów w nagłówku), bo bez nich pilotaż pokaże PASS tam, gdzie jest regresja.
+
+## Po audycie (2026-09-24), punkty 6 do 23
+
+Punkty 6 do 16 (diff) są w commicie `acbe51f`, punkty 17 do 23 (odporność, Action, prywatność) w następnym. Szczegóły są w `CHANGELOG.md`, stan każdego punktu w `docs/audyt-2026-09-24.md`.
+
+Wnioski warte zapamiętania:
+
+- porównanie konkretnej ścieżki URL wyciągnęło problem z `{{seq}}`: numer liczony z ciała żądania zmieniał `vid` HubSpota po zmianie ciała, a razem z nim ścieżkę następnego GET, więc przypadek 15 pokazywał 4 zmiany zamiast 2; numer jest teraz liczony per endpoint i wersję;
+- domyślne operacje węzłów wzięte z opisów w obrazie `n8nio/n8n:2.40.5` (`dist/types/nodes.json`); tabela ról miała przy okazji nieistniejącą operację `user.get` w Slacku v2;
+- e2e katalogu po zmianach: 15 z 15 zgodnie z oczekiwaniami na 2.40.5;
+- punkt 18 (uprawnienia na Linuksie) jest poprawiony w kodzie, ale nie był uruchomiony na runnerze GitHuba; pierwszy przebieg `e2e.yml` to sprawdzi.

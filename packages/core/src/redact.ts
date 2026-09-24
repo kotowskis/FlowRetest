@@ -1,51 +1,84 @@
-import { createHash } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import type { Fixture, RecordedItem } from './fixture.ts';
 import type { PlanReport } from './render.ts';
-import type { NormalizedCall } from './normalize.ts';
+import type { NormalizedCall, QueryValues } from './normalize.ts';
 
-/** `<string 12 #a1b2c3d4>`: type, length and a short hash instead of the value. Numbers and booleans stay. */
-export function shapeOf(value: unknown): unknown {
+/** Placeholders written by the normaliser; they carry no customer data and stay readable in a redacted report. */
+const PLACEHOLDERS = new Set(['<ts>', '<uuid>', '<epoch>', '<token>', '<volatile>', '<ignored>']);
+
+export interface ShapeOptions {
+  /** Secret for the value hash. Without it a short hash of a phone number or a PESEL is reversed by brute force in seconds. */
+  salt: string;
+}
+
+/** `<string 12 #a1b2c3d4>`: type, length and a salted hash instead of the value. Numbers and booleans stay. */
+export function shapeOf(value: unknown, options: ShapeOptions = { salt: randomBytes(16).toString('hex') }): unknown {
   if (value === null || value === undefined || typeof value === 'number' || typeof value === 'boolean') return value;
   if (typeof value === 'string') {
-    if (value.startsWith('<') && value.endsWith('>')) return value; // placeholders such as <ts>, <volatile>
-    return `<string ${value.length} #${createHash('sha256').update(value).digest('hex').slice(0, 8)}>`;
+    if (PLACEHOLDERS.has(value)) return value;
+    return `<string ${value.length} #${createHmac('sha256', options.salt).update(value).digest('hex').slice(0, 8)}>`;
   }
   if (Array.isArray(value)) return `<array ${value.length}>`;
   if (typeof value === 'object') return `<object ${Object.keys(value as object).length}>`;
   return `<${typeof value}>`;
 }
 
-function shapeBody(value: unknown): unknown {
-  if (Array.isArray(value)) return value.map(shapeBody);
+function shapeBody(value: unknown, options: ShapeOptions): unknown {
+  if (Array.isArray(value)) return value.map((v) => shapeBody(v, options));
   if (value !== null && typeof value === 'object') {
     const out: Record<string, unknown> = {};
-    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = shapeBody(v);
+    for (const [k, v] of Object.entries(value as Record<string, unknown>)) out[k] = shapeBody(v, options);
     return out;
   }
-  return shapeOf(value);
+  return shapeOf(value, options);
 }
 
-function shapeCall(call: NormalizedCall): NormalizedCall {
-  const query: Record<string, string> = {};
-  for (const [k, v] of Object.entries(call.query)) query[k] = String(shapeOf(v));
-  return { ...call, body: shapeBody(call.body), query, path: call.pathTemplate, multipart: call.multipart?.map((p) => ({ ...p, filename: p.filename ? String(shapeOf(p.filename)) : undefined })) };
+function shapeCall(call: NormalizedCall, options: ShapeOptions): NormalizedCall {
+  const query: QueryValues = {};
+  for (const [k, v] of Object.entries(call.query)) query[k] = Array.isArray(v) ? v.map((x) => String(shapeOf(x, options))) : String(shapeOf(v, options));
+  return {
+    ...call,
+    body: shapeBody(call.body, options),
+    query,
+    path: call.pathTemplate,
+    pathValue: call.pathTemplate,
+    multipart: call.multipart?.map((p) => ({ ...p, filename: p.filename ? String(shapeOf(p.filename, options)) : undefined })),
+  };
+}
+
+/**
+ * Error text from n8n often quotes the request ("customer anna@firma.pl not found"). Emails, quoted strings and
+ * long digit runs become shapes; the rest of the message (node name, error class) stays readable.
+ */
+export function scrubText(text: string, options: ShapeOptions): string {
+  // One pass, so a shape written for one match is never rewritten by another alternative.
+  return text.replace(/([^\s@"'<>]+@[^\s@"'<>]+\.[^\s@"'<>]+)|"([^"]*)"|'([^']*)'|(\d{4,})/g, (m, email?: string, dq?: string, sq?: string, digits?: string) => {
+    if (email !== undefined) return String(shapeOf(email, options));
+    if (digits !== undefined) return `<digits ${digits.length}>`;
+    const inner = dq ?? sq ?? '';
+    return inner === '' ? m : `"${String(shapeOf(inner, options))}"`;
+  });
 }
 
 /**
  * The report that may leave the customer's machine: field names, paths, counts,
  * flags and shapes of values, never the values themselves. Everything the
- * hosted layer needs to show a plan and a trend is still here.
+ * hosted layer needs to show a plan and a trend is still here. The hash salt is
+ * random per call unless given, so equal hashes only mean equal values inside one report.
  */
-export function redactPlanReport(report: PlanReport): PlanReport {
+export function redactPlanReport(report: PlanReport, options: Partial<ShapeOptions> = {}): PlanReport {
+  const shape: ShapeOptions = { salt: options.salt ?? randomBytes(16).toString('hex') };
   return {
     ...report,
     cases: report.cases.map((c) => ({
       ...c,
+      // Warnings are written by the runner from node names only; errors come from n8n and may quote customer data.
+      error: c.error === undefined ? undefined : scrubText(c.error, shape),
       entries: c.entries.map((e) => ({
         ...e,
-        old: e.old ? shapeCall(e.old) : undefined,
-        new: e.new ? shapeCall(e.new) : undefined,
-        fieldDiffs: e.fieldDiffs.map((d) => ({ path: d.path, old: shapeOf(d.old), new: shapeOf(d.new) })),
+        old: e.old ? shapeCall(e.old, shape) : undefined,
+        new: e.new ? shapeCall(e.new, shape) : undefined,
+        fieldDiffs: e.fieldDiffs.map((d) => ({ path: d.path, old: shapeOf(d.old, shape), new: shapeOf(d.new, shape) })),
       })),
     })),
   };
@@ -64,23 +97,35 @@ export interface RedactOptions {
 }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+/** Phone numbers, PESEL, card and account numbers: seven or more digits, bare or with spaces, dashes and brackets. */
 const PHONE = /^\+?[\d\s()-]{7,}$/;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}(?:[T ]\d{2}:\d{2}(?::\d{2}(?:\.\d{1,9})?)?(?:Z|[+-]\d{2}:?\d{2})?)?$/;
 const UUID = /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$/;
 const URL_LIKE = /^https?:\/\//i;
 const NUMERIC = /^-?\d+(\.\d+)?$/;
-/** Short codes such as C-1, ORD-2026-17, rec123: identifiers, kept as they are. */
-const CODE = /^[A-Za-z]{1,6}[-_]?\d[\w-]{0,15}$/;
+/** Short codes such as C-1, ORD-2026-17, rec123: identifiers, kept. A mixed-case word with digits (Anna1990) is not a code. */
+const CODE = /^(?:[A-Z]{1,6}[-_]?|[a-z]{1,3}[-_]?|[a-z]{1,6}[-_])\d[\w-]{0,15}$/;
 const KEEP_KEYS = new Set(['id', 'type', 'typeVersion', 'status', 'mode', 'method', 'operation', 'resource']);
+/** Words of a key name that mark personal data; values under them are redacted whatever they look like. */
+const PERSONAL_WORDS = new Set([
+  'name', 'firstname', 'lastname', 'first', 'last', 'surname', 'fullname', 'email', 'mail', 'phone', 'tel', 'telephone', 'mobile',
+  'address', 'street', 'city', 'zip', 'postal', 'postcode', 'pesel', 'nip', 'regon', 'iban', 'card', 'birth', 'birthday', 'birthdate',
+  'dob', 'login', 'user', 'username', 'nick', 'nickname', 'password', 'imie', 'nazwisko', 'adres', 'telefon', 'ulica', 'miasto',
+]);
+const BIRTH_WORDS = new Set(['birth', 'birthday', 'birthdate', 'dob', 'urodzenia']);
+
+function keyWords(key: string | undefined): string[] {
+  if (!key) return [];
+  return key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').toLowerCase().split(/[^a-z0-9]+/).filter(Boolean);
+}
 
 export class Redactor {
   private readonly map = new Map<string, string>();
   private readonly salt: string;
   private readonly keep: Set<string>;
-  private counter = 0;
 
   constructor(options: RedactOptions = {}) {
-    this.salt = options.salt ?? createHash('sha256').update(String(Math.random())).digest('hex');
+    this.salt = options.salt ?? randomBytes(16).toString('hex');
     this.keep = new Set([...KEEP_KEYS, ...(options.keepFields ?? [])]);
   }
 
@@ -88,44 +133,83 @@ export class Redactor {
     return parseInt(createHash('sha256').update(`${this.salt}:${value}`).digest('hex').slice(0, 8), 16);
   }
 
+  /** Same length and letter case; any letter (Ł, Ż, Cyrillic) becomes an ASCII letter, digits stay digits. */
   private sameLengthWord(value: string, seed: number): string {
     const alphabet = 'abcdefghijklmnopqrstuvwxyz';
     let out = '';
     let state = seed;
     for (const ch of value) {
       state = (Math.imul(state, 1103515245) + 12345) >>> 0;
-      if (/[A-Z]/.test(ch)) out += (alphabet[state % 26] as string).toUpperCase();
-      else if (/[a-z]/.test(ch)) out += alphabet[state % 26];
+      if (/\p{Lu}/u.test(ch)) out += (alphabet[state % 26] as string).toUpperCase();
+      else if (/\p{L}/u.test(ch)) out += alphabet[state % 26];
       else if (/\d/.test(ch)) out += String(state % 10);
       else out += ch;
     }
     return out;
   }
 
+  private digits(value: string, seed: number): string {
+    return value.replace(/\d/g, (d, i: number) => String((seed + i * 7 + Number(d)) % 10));
+  }
+
+  /** Local part and domain replaced with the same lengths; the top-level domain stays so the value still reads as an email. */
+  private email(value: string, seed: number): string {
+    const [local = '', domain = ''] = value.split('@');
+    const labels = domain.split('.');
+    const tld = labels.pop() ?? '';
+    return `${this.sameLengthWord(local, seed)}@${[...labels.map((l, i) => this.sameLengthWord(l, seed + i + 1)), tld].join('.')}`;
+  }
+
+  /** Endpoints stay; credentials in the URL are dropped, query values and email-like path segments are redacted. */
+  private url(value: string): string {
+    try {
+      const url = new URL(value);
+      url.username = '';
+      url.password = '';
+      url.pathname = url.pathname.split('/').map((s) => (EMAIL.test(decodeURIComponent(s)) ? encodeURIComponent(this.redactString(decodeURIComponent(s))) : s)).join('/');
+      for (const [k, v] of [...url.searchParams.entries()]) url.searchParams.set(k, this.isIdKey(k) ? v : this.sameLengthWord(v, this.token(v)));
+      return url.toString();
+    } catch {
+      return this.sameLengthWord(value, this.token(value));
+    }
+  }
+
+  private isIdKey(key: string | undefined): boolean {
+    return !!key && (this.keep.has(key) || /(^|[_-])id$|Id$|ID$/.test(key));
+  }
+
+  private isPersonalKey(key: string | undefined): boolean {
+    return keyWords(key).some((w) => PERSONAL_WORDS.has(w));
+  }
+
   redactString(value: string, key?: string): string {
     // Identifiers are what the diff keys on; they are codes, not personal data.
-    if (key && (this.keep.has(key) || /(^|[_-])id$|Id$|ID$/.test(key))) return value;
-    if (value === '' || ISO_DATE.test(value) || UUID.test(value) || NUMERIC.test(value) || CODE.test(value)) return value;
+    if (this.isIdKey(key)) return value;
+    if (value === '' || UUID.test(value)) return value;
+    const personal = this.isPersonalKey(key);
+    const birth = keyWords(key).some((w) => BIRTH_WORDS.has(w));
+    if (ISO_DATE.test(value) && !birth) return value;
+    if (!personal && (CODE.test(value) || (NUMERIC.test(value) && !PHONE.test(value)))) return value;
     const cached = this.map.get(value);
     if (cached) return cached;
     const seed = this.token(value);
     let out: string;
-    if (EMAIL.test(value)) {
-      this.counter += 1;
-      out = `user${this.counter}@example.com`;
-    } else if (PHONE.test(value)) {
-      out = value.replace(/\d/g, (d, i) => String((seed + i + Number(d)) % 10));
-    } else if (URL_LIKE.test(value)) {
-      out = value; // endpoints are configuration, not personal data
-    } else {
-      out = this.sameLengthWord(value, seed);
-    }
+    if (ISO_DATE.test(value) || PHONE.test(value) || NUMERIC.test(value)) out = this.digits(value, seed);
+    else if (URL_LIKE.test(value)) out = this.url(value);
+    else if (EMAIL.test(value)) out = this.email(value, seed);
+    else out = this.sameLengthWord(value, seed);
     this.map.set(value, out);
     return out;
   }
 
   redactValue(value: unknown, key?: string): unknown {
     if (typeof value === 'string') return this.redactString(value, key);
+    // Numbers stay (amounts, counts) unless the field is personal (a phone or PESEL stored as a number).
+    if (typeof value === 'number' && Number.isSafeInteger(value) && !this.isIdKey(key) && this.isPersonalKey(key)) {
+      const text = String(Math.abs(value));
+      const out = this.digits(text, this.token(text)).replace(/^0/, '1');
+      return value < 0 ? -Number(out) : Number(out);
+    }
     if (Array.isArray(value)) return value.map((v) => this.redactValue(v, key));
     if (value !== null && typeof value === 'object') {
       const out: Record<string, unknown> = {};
@@ -135,8 +219,9 @@ export class Redactor {
     return value;
   }
 
+  /** Binary data (file contents and names) is dropped: the replay never injects it, and it is the hardest part to redact. */
   redactItems(items: RecordedItem[]): RecordedItem[] {
-    return items.map((item) => ({ ...item, json: this.redactValue(item.json) }));
+    return items.map(({ binary: _binary, ...item }) => ({ ...item, json: this.redactValue(item.json) }));
   }
 
   /** Redacts every recorded item in a fixture; workflow JSON and structure stay untouched. */

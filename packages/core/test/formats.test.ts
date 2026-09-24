@@ -56,8 +56,10 @@ test('redaction keeps types, lengths and joins, drops emails and names', () => {
   };
   const out = r.redactFixture(fixture);
   const body = (out.trigger.items[0]?.json as { body: Record<string, unknown> }).body;
-  assert.equal(body.email, 'user1@example.com');
-  assert.equal((out.nodes.Lookup?.runs[0]?.outputs[0]?.[0]?.json as { email: string }).email, 'user1@example.com');
+  assert.notEqual(body.email, 'anna.kowalska@firma.pl');
+  assert.equal(String(body.email).length, 'anna.kowalska@firma.pl'.length);
+  assert.match(String(body.email), /^[a-z]{4}\.[a-z]{8}@[a-z]{5}\.pl$/);
+  assert.equal((out.nodes.Lookup?.runs[0]?.outputs[0]?.[0]?.json as { email: string }).email, body.email);
   assert.notEqual(body.name, 'Anna Kowalska');
   assert.equal(String(body.name).length, 'Anna Kowalska'.length);
   assert.match(String(body.name), /^[A-Z][a-z]+ [A-Z][a-z]+$/);

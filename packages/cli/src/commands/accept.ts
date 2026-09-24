@@ -51,5 +51,6 @@ export function runAccept(options: AcceptOptions): string[] {
     written.push(path);
     options.log(`case ${c.caseId}: baseline with ${baseline.calls.length} call${baseline.calls.length === 1 ? '' : 's'} from run ${run}`);
   }
+  if (written.length > 0) options.log('note: baselines hold the request bodies of this run; commit them only where the customer data in them may live (see Privacy in the README)');
   return written;
 }

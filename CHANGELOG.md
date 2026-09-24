@@ -22,6 +22,16 @@ All notable changes to this project are documented here. The format follows Keep
 - `{{seq}}` in proxy rules counts calls per endpoint (method, host, path) and per version instead of one counter shared by both versions, so the n-th call to an endpoint gets the same id in the old and the new version; one response renders one value.
 - The `X-FlowRetest-Node` header percent-encodes the node name; names with Polish letters no longer fail the request. A line break in a node name can no longer inject code into the replay node.
 - Schemas: `pathValue`, multi-value query parameters and `multipart[].contentType` in reports and baselines.
+- `run`: a case whose workflow cannot be prepared (the recorded trigger was renamed) is ERROR on its own instead of aborting the whole run.
+- `run` removes the sandbox temp dirs (rewritten workflows with fixture data, captured requests) on Ctrl+C and on SIGTERM from a cancelled CI job, before exiting.
+- Linux hosts: the proxy container runs as the host user and the directories n8n writes to are opened up inside the private temp dir, so GitHub runners (uid 1001) can write the CA, captures and snapshots. Not yet tried on a Linux runner.
+- `init` updates an existing `config.yml` (instance, engine tag, timezone when given, a managed proxy image) and keeps `normalize`, `run`, `engine.env` and a custom proxy image; `--force` replaces it. The Action runs `init` on every job and no longer wipes the committed settings.
+- GitHub Action: inputs reach the shell only through environment variables; the pull request comment and the uploaded report are the redacted plan unless `values: 'true'`.
+- `redact --report` also writes `plan.redacted.md`; shapes use an HMAC with a random key per report, only the normaliser's placeholders pass unchanged, and error texts have emails, quoted strings and digit runs replaced.
+- `redact` (fixtures) catches phones, PESEL and card numbers written as bare digits, birth dates, letters outside ASCII, numbers under personal field names and tokens in URLs; emails keep their length; binary data is dropped.
+- A disabled trigger that did not start the recording is removed like any other trigger; n8n's CLI would otherwise start from a disabled Execute Workflow Trigger.
+- An AI sub-node shared with a root that still runs (no recording) stays in the workflow; only its link to the replayed root is dropped.
+- `accept` notes that baselines hold request bodies; the README explains where to commit them.
 - `release.yml` refuses a tag that differs from the package versions, picks the npm dist-tag from the version (a prerelease never goes to `latest`), writes the proxy digest into `proxy.lock.json` before publishing and stops when the package is private or the digest is missing.
 
 ## [0.3.0-next.1] - 2026-09-24

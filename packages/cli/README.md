@@ -49,6 +49,8 @@ The runner contains no n8n code. It pulls the official `n8nio/n8n` image of your
 
 Nothing leaves your machine. The runner talks to two places: your n8n instance (read only, through the public API) and the image registries (to pull `n8nio/n8n` and the proxy image). There is no telemetry. Fixtures contain your customers' data and are excluded from git by `init`; `redact` writes copies safe to share, and `redact --report` turns a run report into shapes (type, length, hash) instead of values.
 
+Baselines (`.flowretest/<workflow>/baseline/`) are meant to be committed so CI can diff against them, and they hold the request bodies of the accepted run: real customer values. Commit them only to a repository that may hold that data; otherwise add `.flowretest/*/baseline/` to `.gitignore`. The GitHub Action posts the redacted plan as a pull request comment unless `values: 'true'` is set.
+
 ## Licensing
 
 FlowRetest is MIT. It contains no n8n code: it pulls the official image you already run, imports the rewritten workflow with n8n's own CLI inside a container on your machine and reads the result. n8n's Sustainable Use License applies to that image and to your use of it, exactly as it does to your production instance.
@@ -74,7 +76,7 @@ It does not judge new prompts or models (AI nodes are replayed from recordings),
 
 ## CI
 
-`run --format terminal,junit,md` writes `junit.xml` and `plan.md` into the run directory. The composite action in `action/` wraps init, pull and run, uploads the report and keeps one comment per workflow on the pull request up to date:
+`run --format terminal,junit,md` writes `junit.xml` and `plan.md` into the run directory. The composite action in `action/` wraps init, pull and run, uploads the report and keeps one comment per workflow on the pull request up to date. By default the comment and the uploaded report are the redacted plan (shapes instead of values); set `values: 'true'` to post the values. `init` updates a committed `.flowretest/config.yml` in place, so `normalize.ignore` and run settings survive every job:
 
 ```yaml
 - uses: skynappse/flowretest/action@main

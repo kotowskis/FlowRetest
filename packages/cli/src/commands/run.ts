@@ -54,6 +54,8 @@ interface Prepared {
   id: string;
   writeNodes: string[];
   skipped?: string;
+  /** The workflow could not be prepared for this case (e.g. the recorded trigger was renamed); the case is ERROR. */
+  failed?: string;
 }
 
 function loadFixtures(dir: string, only?: string[]): Fixture[] {
@@ -200,11 +202,23 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
   };
   const sessions: Record<Side, SandboxSession> = imageOld === imageNew ? (() => { const s = sessionFor('old'); return { old: s, new: s }; })() : { old: sessionFor('old'), new: sessionFor('new') };
   const distinctSessions = [...new Set(Object.values(sessions))];
-  const onSigint = () => {
-    options.log('interrupted, removing the sandbox');
-    void Promise.all(distinctSessions.map((s) => s.stop())).finally(() => process.exit(130));
+  // The temp dirs hold rewritten workflows with fixture data and the captured requests: they go on every exit path,
+  // including Ctrl+C and a cancelled CI job (SIGTERM), before the process ends.
+  let cleaning: Promise<void> | undefined;
+  const cleanup = (): Promise<void> =>
+    (cleaning ??= (async () => {
+      process.off('SIGINT', onSignal);
+      process.off('SIGTERM', onSignal);
+      for (const s of distinctSessions) await s.stop().catch((e: unknown) => options.log(`warning: sandbox cleanup failed: ${e instanceof Error ? e.message : String(e)}`));
+      if (options.keep) options.log(`sandbox files kept in ${sandboxDirs.join(', ')}`);
+      else for (const d of sandboxDirs) rmSync(d, { recursive: true, force: true });
+    })());
+  const onSignal = (signal: NodeJS.Signals) => {
+    options.log(`${signal === 'SIGINT' ? 'interrupted' : 'terminated'}, removing the sandbox`);
+    void cleanup().finally(() => process.exit(signal === 'SIGINT' ? 130 : 143));
   };
-  process.once('SIGINT', onSigint);
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
 
   const diffs: CaseDiff[] = [];
   const callsByCase: Record<string, { old: NormalizedCall[]; new: NormalizedCall[]; volatile: string[]; stable?: boolean }> = {};
@@ -227,7 +241,16 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
           for (const u of cls.unsupportedOnPath) unsupported.add(u);
           continue;
         }
-        const r = rewriteWorkflow(workflow, fixture, cls.roles, { version: side, caseId, replayVariant: 'code', executionTimeoutSeconds: config.run.timeoutSeconds });
+        let r: ReturnType<typeof rewriteWorkflow>;
+        try {
+          r = rewriteWorkflow(workflow, fixture, cls.roles, { version: side, caseId, replayVariant: 'code', executionTimeoutSeconds: config.run.timeoutSeconds });
+        } catch (e) {
+          // One case that cannot be prepared (a renamed trigger, a broken recording) must not abort the others.
+          const message = e instanceof Error ? e.message : String(e);
+          prepared.push({ caseId, side, id: '', writeNodes, failed: `${side} version: ${message}` });
+          options.log(`  case ${caseId} [${side}]: cannot prepare the workflow: ${message}`);
+          continue;
+        }
         mkdirSync(join(sessions[side].dirs.work, `cases-${side}`), { recursive: true });
         sessions[side].writeWork(`cases-${side}/${caseId}.json`, JSON.stringify(r.workflow));
         uses[side].push(...r.credentials);
@@ -251,14 +274,14 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
         if (imported.code !== 0) throw new Error(`import:credentials failed: ${(await s.n8nErrors(3)).join(' | ')}`);
       }
       for (const side of sides) {
-        if (!prepared.some((p) => p.side === side && !p.skipped)) continue;
+        if (!prepared.some((p) => p.side === side && !p.skipped && !p.failed)) continue;
         const wfImport = await s.n8n(['import:workflow', '--separate', `--input=/work/cases-${side}/`]);
         if (wfImport.code !== 0) throw new Error(`import:workflow (${side}) failed: ${(await s.n8nErrors(3)).join(' | ')}`);
       }
     }
 
     const runners: Record<Side, SideRunner> = { old: new SideRunner(sessions.old, config, options.log), new: new SideRunner(sessions.new, config, options.log) };
-    const runnable = (side: Side) => prepared.filter((p) => p.side === side && !p.skipped);
+    const runnable = (side: Side) => prepared.filter((p) => p.side === side && !p.skipped && !p.failed);
     const results = new Map<string, VersionRun>();
     const labels: Array<[Label, Side]> = stabilize ? [['old', 'old'], ['new', 'new'], ['old2', 'old'], ['new2', 'new']] : [['old', 'old'], ['new', 'new']];
     for (const [label, side] of labels) for (const [id, run] of await runners[side].run(runnable(side), label)) results.set(`${label}|${id}`, run);
@@ -270,6 +293,11 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
       if (oldP.skipped || newP.skipped) {
         diffs.push({ caseId, status: 'SKIPPED', entries: [], summary: { oldCalls: 0, newCalls: 0, unchanged: 0, changed: 0, added: 0, removed: 0, blocked: 0 }, error: newP.skipped ?? oldP.skipped });
         options.log(`case ${caseId} skipped: ${newP.skipped ?? oldP.skipped}`);
+        continue;
+      }
+      if (oldP.failed || newP.failed) {
+        const error = [oldP.failed, newP.failed].filter(Boolean).join('; ');
+        diffs.push({ caseId, status: 'ERROR', entries: [], summary: { oldCalls: 0, newCalls: 0, unchanged: 0, changed: 0, added: 0, removed: 0, blocked: 0 }, error });
         continue;
       }
       const oldRun = results.get(`old|${oldP.id}`) as VersionRun;
@@ -311,10 +339,7 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
       }
     }
   } finally {
-    process.off('SIGINT', onSigint);
-    for (const s of distinctSessions) await s.stop();
-    if (options.keep) options.log(`sandbox files kept in ${sandboxDirs.join(', ')}`);
-    else for (const d of sandboxDirs) rmSync(d, { recursive: true, force: true });
+    await cleanup();
   }
 
   const digestOld = await imageDigest(imageOld);

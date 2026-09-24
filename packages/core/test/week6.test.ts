@@ -74,7 +74,7 @@ test('report redaction keeps paths, counts and flags but replaces values by shap
   const e = red.cases[0]?.entries[0];
   assert.equal(e?.fieldDiffs[0]?.path, 'email');
   assert.match(String(e?.fieldDiffs[0]?.old), /^<string 13 #[0-9a-f]{8}>$/);
-  assert.equal(e?.fieldDiffs[0]?.new, '<string 0 #e3b0c442>');
+  assert.match(String(e?.fieldDiffs[0]?.new), /^<string 0 #[0-9a-f]{8}>$/);
   assert.ok(e?.flags.includes('empty-value'));
   assert.equal((e?.new?.body as { n: number }).n, 2);
   assert.match(String((e?.new?.query as { token: string }).token), /^<string 3/);

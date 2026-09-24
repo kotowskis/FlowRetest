@@ -160,6 +160,13 @@ export function classify(workflow: N8nWorkflow, options: ClassifyOptions): Class
   const notes: Record<string, string> = {};
   const subNodes = aiSubNodes(workflow);
   for (const node of workflow.nodes) {
+    // A disabled trigger is still a trigger: n8n's CLI picks the first Execute Workflow Trigger as the start node even
+    // when it is disabled, so it must be removed like any trigger that did not start the recording.
+    if (node.disabled && node.name !== options.triggerNode && isTriggerType(node.type)) {
+      roles[node.name] = 'trigger';
+      notes[node.name] = 'disabled trigger, removed';
+      continue;
+    }
     if (node.disabled) {
       roles[node.name] = 'logic';
       notes[node.name] = 'disabled, passes data through';

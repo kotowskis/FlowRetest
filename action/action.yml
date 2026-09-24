@@ -25,7 +25,7 @@ inputs:
     description: Number of recent successful executions to replay
     default: '10'
   stabilize:
-    description: Run the old version twice and mask volatile fields
+    description: Run both versions twice and mask volatile fields
     default: 'true'
   version:
     description: flowretest version to run
@@ -33,6 +33,9 @@ inputs:
   comment:
     description: Post the Markdown plan as a pull request comment (needs pull-requests write permission)
     default: 'true'
+  values:
+    description: Show request values in the pull request comment and the uploaded report. The default 'false' posts and uploads the redacted plan (type, length and hash instead of values), because the fixtures are production data.
+    default: 'false'
 
 outputs:
   status:
@@ -42,37 +45,63 @@ outputs:
     description: flowretest exit code
     value: ${{ steps.run.outputs.exit-code }}
 
+# Inputs reach the shell only through environment variables, never through ${{ }} inside a script, so a workflow id
+# or file name cannot inject commands.
 runs:
   using: composite
   steps:
     - name: Init
       shell: bash
-      run: npx --yes flowretest@${{ inputs.version }} init --url "${{ inputs.instance-url }}" --engine "${{ inputs.engine }}"
+      run: npx --yes "flowretest@$FRT_VERSION" init --url "$FRT_URL" --engine "$FRT_ENGINE"
       env:
         FLOWRETEST_API_KEY: ${{ inputs.api-key }}
+        FRT_VERSION: ${{ inputs.version }}
+        FRT_URL: ${{ inputs.instance-url }}
+        FRT_ENGINE: ${{ inputs.engine }}
     - name: Pull fixtures
       shell: bash
-      run: npx --yes flowretest@${{ inputs.version }} pull --workflow "${{ inputs.workflow-id }}" --last "${{ inputs.last }}"
+      run: npx --yes "flowretest@$FRT_VERSION" pull --workflow "$FRT_WORKFLOW" --last "$FRT_LAST"
       env:
         FLOWRETEST_API_KEY: ${{ inputs.api-key }}
+        FRT_VERSION: ${{ inputs.version }}
+        FRT_WORKFLOW: ${{ inputs.workflow-id }}
+        FRT_LAST: ${{ inputs.last }}
     - name: Replay
       id: run
       shell: bash
       run: |
         set +e
-        npx --yes flowretest@${{ inputs.version }} run --workflow "${{ inputs.workflow-id }}" --new "${{ inputs.new-file }}" --old "${{ inputs.old }}" ${{ inputs.stabilize == 'true' && '--stabilize' || '' }} --format terminal,junit,md
+        args=(run --workflow "$FRT_WORKFLOW" --new "$FRT_NEW" --old "$FRT_OLD" --format terminal,junit,md)
+        if [ "$FRT_STABILIZE" = "true" ]; then args+=(--stabilize); fi
+        npx --yes "flowretest@$FRT_VERSION" "${args[@]}"
         code=$?
-        set -e
-        run_dir=$(ls -d .flowretest/${{ inputs.workflow-id }}/runs/*/ 2>/dev/null | sort | tail -1 || true)
+        run_dir=$(ls -d ".flowretest/$FRT_WORKFLOW/runs/"*/ 2>/dev/null | sort | tail -1)
+        if [ -n "$run_dir" ] && [ "$FRT_VALUES" != "true" ]; then
+          npx --yes "flowretest@$FRT_VERSION" redact --workflow "$FRT_WORKFLOW" --report "$(basename "$run_dir")"
+        fi
         echo "run-dir=$run_dir" >> "$GITHUB_OUTPUT"
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
         case $code in 0) s=PASS;; 1) s=DIFF;; 2) s=ERROR;; 3) s=BLOCKED;; 4) s=ENVIRONMENT;; *) s=FAILED;; esac
         echo "status=$s" >> "$GITHUB_OUTPUT"
-        cp "$run_dir/junit.xml" flowretest-junit.xml 2>/dev/null || true
-        cp "$run_dir/plan.md" flowretest-plan.md 2>/dev/null || true
+        if [ -n "$run_dir" ]; then
+          cp "$run_dir/junit.xml" flowretest-junit.xml 2>/dev/null
+          if [ "$FRT_VALUES" = "true" ]; then
+            cp "$run_dir/plan.md" flowretest-plan.md 2>/dev/null
+            cp "$run_dir/report.json" flowretest-report.json 2>/dev/null
+          else
+            cp "$run_dir/plan.redacted.md" flowretest-plan.md 2>/dev/null
+            cp "$run_dir/report.redacted.json" flowretest-report.json 2>/dev/null
+          fi
+        fi
         exit 0
       env:
         FLOWRETEST_API_KEY: ${{ inputs.api-key }}
+        FRT_VERSION: ${{ inputs.version }}
+        FRT_WORKFLOW: ${{ inputs.workflow-id }}
+        FRT_NEW: ${{ inputs.new-file }}
+        FRT_OLD: ${{ inputs.old }}
+        FRT_STABILIZE: ${{ inputs.stabilize }}
+        FRT_VALUES: ${{ inputs.values }}
     - name: Upload report
       uses: actions/upload-artifact@v4
       with:
@@ -80,17 +109,19 @@ runs:
         path: |
           flowretest-junit.xml
           flowretest-plan.md
-          ${{ steps.run.outputs.run-dir }}report.json
+          flowretest-report.json
         if-no-files-found: ignore
     - name: Comment on the pull request
       if: ${{ inputs.comment == 'true' && github.event_name == 'pull_request' }}
       uses: actions/github-script@v7
+      env:
+        FRT_WORKFLOW: ${{ inputs.workflow-id }}
       with:
         script: |
           const fs = require('fs');
           if (!fs.existsSync('flowretest-plan.md')) return;
           const body = fs.readFileSync('flowretest-plan.md', 'utf8');
-          const marker = '<!-- flowretest:${{ inputs.workflow-id }} -->';
+          const marker = `<!-- flowretest:${process.env.FRT_WORKFLOW} -->`;
           const { data: comments } = await github.rest.issues.listComments({ ...context.repo, issue_number: context.issue.number, per_page: 100 });
           const mine = comments.find((c) => c.body && c.body.includes(marker));
           const payload = { ...context.repo, body: `${marker}\n${body}` };
@@ -99,4 +130,6 @@ runs:
     - name: Fail the job on ERROR, BLOCKED or a failed run
       shell: bash
       run: |
-        case "${{ steps.run.outputs.status }}" in PASS|DIFF) ;; *) echo "flowretest: ${{ steps.run.outputs.status }}"; exit 1;; esac
+        case "$FRT_STATUS" in PASS|DIFF) ;; *) echo "flowretest: $FRT_STATUS"; exit 1;; esac
+      env:
+        FRT_STATUS: ${{ steps.run.outputs.status }}

@@ -1,6 +1,6 @@
 import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { Redactor, redactPlanReport, type Fixture, type PlanReport } from '@flowretest/core';
+import { Redactor, redactPlanReport, renderFormat, type Fixture, type PlanReport } from '@flowretest/core';
 import { loadConfig, workflowDir } from '../config.ts';
 import { loadReport } from './report-files.ts';
 
@@ -18,9 +18,12 @@ export function runRedactReport(options: { cwd: string; workflowId: string; run?
   const { run, report } = loadReport(options.cwd, options.workflowId, options.run);
   const plan: PlanReport = { runner: report.runner, workflowName: report.workflowName ?? report.workflowId, workflowId: report.workflowId, engine: report.engine, oldLabel: report.old, newLabel: report.new, cases: report.cases, coverage: report.coverage, sealed: true };
   const redacted = redactPlanReport(plan);
-  const path = join(workflowDir(options.cwd, options.workflowId), 'runs', run, 'report.redacted.json');
+  const runPath = join(workflowDir(options.cwd, options.workflowId), 'runs', run);
+  const path = join(runPath, 'report.redacted.json');
   writeFileSync(path, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), redacted: true, ...redacted }, null, 2));
-  options.log(`redacted report for run ${run}: ${path} (values replaced by type, length and hash; paths, counts and flags kept)`);
+  // The Markdown plan of the redacted report is what the GitHub Action posts on a pull request by default.
+  writeFileSync(join(runPath, 'plan.redacted.md'), renderFormat(redacted, 'md') + '\n');
+  options.log(`redacted report for run ${run}: ${path} and plan.redacted.md (values replaced by type, length and hash; paths, counts and flags kept)`);
   return path;
 }
 

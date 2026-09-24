@@ -19,11 +19,12 @@ program
   .description('Write .flowretest/config.yml and the API key for this project.')
   .requiredOption('--url <url>', 'n8n instance URL')
   .option('--api-key <key>', 'n8n public API key (or FLOWRETEST_API_KEY)')
-  .option('--engine <tag>', 'n8n image tag; detected from the instance when omitted')
-  .option('--timezone <tz>', 'sandbox timezone', 'UTC')
-  .action(async (opts: { url: string; apiKey?: string; engine?: string; timezone: string }) => {
+  .option('--engine <tag>', 'n8n image tag your instance runs; needed unless the instance reports its version anonymously')
+  .option('--timezone <tz>', 'sandbox timezone (default: UTC, or the one already in config.yml)')
+  .option('--force', 'replace an existing config.yml instead of updating instance, engine and proxy image in it', false)
+  .action(async (opts: { url: string; apiKey?: string; engine?: string; timezone?: string; force: boolean }) => {
     const { runInit } = await import('./commands/init.ts');
-    await runInit({ cwd: process.cwd(), url: opts.url, apiKey: opts.apiKey, engine: opts.engine, timezone: opts.timezone, log: (l) => console.log(l) });
+    await runInit({ cwd: process.cwd(), url: opts.url, apiKey: opts.apiKey, engine: opts.engine, timezone: opts.timezone, force: opts.force, log: (l) => console.log(l) });
   });
 
 program

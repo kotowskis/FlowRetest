@@ -1,6 +1,6 @@
 # Formaty plików
 
-Każdy format ma schemat zod w `packages/schemas/src/index.ts` i wygenerowany z niego JSON Schema w tym katalogu (`npm run build`, potem `node scripts/export-schemas.mjs`). Kod, który czyta plik, waliduje go tym schematem; dokumentacja i kod nie mogą się rozjechać.
+Każdy format ma schemat zod w `packages/schemas/src/index.ts` i wygenerowany z niego JSON Schema w tym katalogu (`npm run build`, potem `node scripts/export-schemas.mjs`). Dziś CLI waliduje schematem tylko `config.yml` przy wczytaniu; pozostałe schematy opisują pliki, które CLI pisze, i służą integracjom. Po zmianie schematu trzeba uruchomić `npm run schemas`, inaczej pliki w tym katalogu się zestarzeją.
 
 | Format | Plik | Kto pisze | Kto czyta |
 |---|---|---|---|
@@ -33,7 +33,7 @@ Jedna linia JSON na żądanie. `version` i `case` pochodzą z `current.json` zap
 
 `cases[]` to wynik diffu per przypadek: `status`, `entries[]` (`op` jako `=`, `~`, `+`, `-`, `!`, węzeł, metoda, host, szablon ścieżki, `fieldDiffs[]`, `flags[]`), `summary`, `error`, `warnings[]`. `calls` to znormalizowane rejestry obu stron, pola zmienne i znacznik `stable` per przypadek, z których korzystają `accept` i `diff --against baseline`. Ścieżki w `fieldDiffs[].path` to pola ciała (`a.b[2].c`, klucz z kropką jako `["a.b"]`) oraz trzy pola spoza ciała: `@path` (konkretna ścieżka URL, więc wywołanie do innego rekordu jest zmianą), `@contentType` (typ mediów bez parametrów) i `?nazwa` (parametr zapytania, powtórzony jako `?nazwa[1]`). Pola zmienne w `calls[].volatile` mają postać `<klucz wywołania> :: <ścieżka pola>` i maskują pole tylko w wywołaniach o tym kluczu. `coverage` liczy węzły piszące przechwycone i odtworzone oraz nieobsługiwane. `engine` i `engines` opisują obrazy z digestami. Flagi: `empty-value`, `missing-field`, `type-changed`, `expression-residue`, `duplicate-bodies`, `count-changed`, `count-per-item-changed`, `node-not-executed`, `blocked`.
 
-Wersja po `redact --report` ma ten sam kształt, ale wartości pól są zastąpione przez `<string 13 #a1b2c3d4>` (typ, długość, skrót), a ścieżki żądań przez szablony.
+Wersja po `redact --report` (`report.redacted.json` i `plan.redacted.md`) ma kształt planu, a nie pełnego raportu: `cases`, `coverage`, etykiety wersji i silnika, bez rejestrów `calls`. Nie przechodzi więc `report.schema.json`. Wartości pól są zastąpione przez `<string 13 #a1b2c3d4>` (typ, długość, skrót HMAC z losowym kluczem na raport, więc równe skróty znaczą równe wartości tylko w obrębie jednego raportu). Ścieżki żądań są zastąpione szablonami. W tekście błędu e-maile, fragmenty w cudzysłowie i ciągi co najmniej czterech cyfr są zastąpione kształtem. Zostają tylko znane placeholdery normalizacji (`<ts>`, `<uuid>`, `<epoch>`, `<token>`, `<volatile>`, `<ignored>`).
 
 ## Baseline (`baseline.schema.json`)
 

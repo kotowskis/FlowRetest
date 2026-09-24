@@ -1,5 +1,5 @@
 import { randomBytes } from 'node:crypto';
-import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { docker, dockerOk, type DockerResult } from './docker.ts';
@@ -21,6 +21,12 @@ export interface SandboxOptions {
 
 export const CA_CERT_FILE = 'flowretest-ca.pem';
 export const PROXY_PORT = 8080;
+
+/** `--user uid:gid` of the host user on Linux, where bind mounts keep host ownership; Docker Desktop maps it already. */
+export function hostUserArgs(platform: NodeJS.Platform = process.platform, uid = process.getuid?.(), gid = process.getgid?.()): string[] {
+  if (platform !== 'linux' || uid === undefined || gid === undefined || uid === 0) return [];
+  return ['--user', `${uid}:${gid}`];
+}
 
 /** One sealed sandbox: internal network, proxy container, n8n volume. Every n8n command is its own `docker run --rm`. */
 export class SandboxSession {
@@ -59,6 +65,10 @@ export class SandboxSession {
   async start(rules: unknown): Promise<void> {
     for (const dir of Object.values(this.dirs)) mkdirSync(dir, { recursive: true });
     mkdirSync(this.caDir, { recursive: true });
+    // On a Linux host the bind mounts keep the host user's ownership, while n8n runs as uid 1000 (a GitHub runner is
+    // uid 1001). n8n writes snapshots to /out and the entrypoint runs c_rehash in the certificate directory. Both live
+    // inside a 0700 temp directory, so opening them up does not expose them to other users of the host.
+    if (process.platform === 'linux') for (const dir of [this.dirs.out, this.dirs.certs]) chmodSync(dir, 0o777);
     writeFileSync(join(this.dirs.rules, 'rules.json'), JSON.stringify(rules, null, 2));
     writeFileSync(join(this.dirs.capture, 'current.json'), JSON.stringify({ version: '?', case: '?' }));
     writeFileSync(join(this.dirs.capture, 'requests.jsonl'), '');
@@ -83,6 +93,8 @@ export class SandboxSession {
     await dockerOk(
       [
         'run', '-d', '--name', this.proxyName, '--network', this.network,
+        // The proxy writes the CA and the capture log into host directories; on Linux it runs as the host user.
+        ...hostUserArgs(),
         '-v', `${this.dirs.rules}:/rules:ro`,
         '-v', `${this.dirs.capture}:/capture`,
         '-v', `${this.caDir}:/ca`,

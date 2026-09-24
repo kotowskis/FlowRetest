@@ -207,8 +207,13 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
     }
     replaceWithReplay(workflow, node, outputs, options.replayVariant, true);
     replaced.push({ node: node.name, kind: 'read', variant: options.replayVariant, runs: outputs.length });
-    // An AI root replayed from its recording no longer needs its model, memory, tools or parsers.
-    for (const sub of aiFeeders(workflow, node.name)) {
+    // An AI root replayed from its recording no longer needs its model, memory, tools or parsers. A sub-node that
+    // also feeds a root that still runs (an agent on another branch without a recording) stays; only its link to
+    // the replayed root goes.
+    const feeders = aiFeeders(workflow, node.name);
+    const removable = removableFeeders(workflow, feeders, new Set(replaced.map((x) => x.node)));
+    detachAiInputs(workflow, node.name);
+    for (const sub of removable) {
       removeNode(workflow, sub);
       removedSubNodes.push(sub);
     }
@@ -244,6 +249,42 @@ export function rewriteWorkflow(source: N8nWorkflow, fixture: Fixture, roles: Re
   };
 
   return { workflow: importable, id, name, replaced, removedTriggers, removedSubNodes, warnings, unreplayed, credentials: collectCredentials(importable) };
+}
+
+/** Targets a node feeds through non-main (`ai_*`) connections. */
+function aiTargets(workflow: N8nWorkflow, from: string): string[] {
+  return Object.entries(workflow.connections[from] ?? {})
+    .filter(([type]) => type !== 'main')
+    .flatMap(([, byIndex]) => byIndex.flatMap((targets) => (targets ?? []).map((t) => t.node)));
+}
+
+/**
+ * Feeders that only serve replayed roots or other feeders being removed. Computed to a fixpoint, so a tool's own
+ * model goes with the tool, while a model shared with a root that still runs stays.
+ */
+function removableFeeders(workflow: N8nWorkflow, candidates: string[], replayed: Set<string>): string[] {
+  const remove = new Set<string>();
+  for (let changed = true; changed; ) {
+    changed = false;
+    for (const c of candidates) {
+      if (remove.has(c)) continue;
+      if (aiTargets(workflow, c).every((t) => replayed.has(t) || remove.has(t))) {
+        remove.add(c);
+        changed = true;
+      }
+    }
+  }
+  return candidates.filter((c) => remove.has(c));
+}
+
+/** Drops the `ai_*` links into a replayed root; the Code node that replaces it has no such inputs. */
+function detachAiInputs(workflow: N8nWorkflow, root: string): void {
+  for (const outputs of Object.values(workflow.connections)) {
+    for (const [type, byIndex] of Object.entries(outputs)) {
+      if (type === 'main') continue;
+      outputs[type] = byIndex.map((targets) => (targets ?? []).filter((t) => t.node !== root));
+    }
+  }
 }
 
 /** Nodes feeding `root` through non-main connections, recursively (a tool may have its own model). */
