@@ -191,6 +191,15 @@ export const RedactedReportSchema = z.object({
   run: z.string().optional(),
   /** Per case: true when `run --stabilize` found the new version identical across two runs. Absent: not checked. */
   stability: z.record(z.string(), z.boolean()).optional(),
+  /** Added by `upload` in CI: the commit the run tested, so the hosted layer can post a GitHub check on it. */
+  git: z
+    .object({
+      repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
+      sha: z.string().regex(/^[0-9a-f]{40}$/),
+      pullRequest: z.number().int().positive().optional(),
+      ref: z.string().max(255).optional(),
+    })
+    .optional(),
 });
 export type RedactedReport = z.infer<typeof RedactedReportSchema>;
 

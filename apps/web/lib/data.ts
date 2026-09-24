@@ -74,9 +74,23 @@ export async function getWorkspace(workspaceId: string) {
     db.from('workspace_tokens').select('id, name, token_prefix, created_at, last_used_at, revoked_at').eq('workspace_id', workspaceId).order('created_at', { ascending: false }),
     db.from('workflows').select('*').eq('workspace_id', workspaceId).order('last_run_at', { ascending: false, nullsFirst: false }),
   ]);
-  const subscription = await db.from('notification_subscriptions').select('statuses').eq('workspace_id', workspaceId).eq('user_id', user.id).maybeSingle();
+  const [subscription, installations, slack, owner] = await Promise.all([
+    db.from('notification_subscriptions').select('statuses').eq('workspace_id', workspaceId).eq('user_id', user.id).maybeSingle(),
+    db.from('github_installations').select('installation_id, account_login, account_type, suspended_at, created_at').eq('workspace_id', workspaceId).order('created_at'),
+    db.from('slack_webhooks').select('id, url_hint, statuses, created_at').eq('workspace_id', workspaceId).order('created_at'),
+    db.rpc('is_owner', { org: workspace.organization_id }),
+  ]);
   if (subscription.error) throw new Error(`subscription: ${subscription.error.message}`);
-  return { workspace, org: orFail(org, 'organization'), tokens: orFail(tokens, 'tokens') as TokenRow[], workflows: orFail(workflows, 'workflows'), statuses: subscription.data?.statuses ?? [] };
+  return {
+    workspace,
+    org: orFail(org, 'organization'),
+    tokens: orFail(tokens, 'tokens') as TokenRow[],
+    workflows: orFail(workflows, 'workflows'),
+    statuses: subscription.data?.statuses ?? [],
+    installations: orFail(installations, 'installations'),
+    slackHooks: orFail(slack, 'slack webhooks'),
+    isOwner: owner.data === true,
+  };
 }
 
 /** Run list columns: everything but the report itself, which can be megabytes. */
@@ -108,7 +122,8 @@ export async function getRun(runId: string) {
     db.from('runs').select('id, status, created_at').eq('workflow_id', run.workflow_id).lt('created_at', run.created_at).order('created_at', { ascending: false }).limit(1),
     db.from('acceptances').select('*').eq('run_id', run.id).order('created_at', { ascending: false }),
   ]);
+  const checks = await db.from('github_checks').select('ok, html_url, conclusion, detail, created_at').eq('run_id', run.id).order('created_at', { ascending: false }).limit(1);
   const ws = orFail(workspace, 'workspace');
   const org = orFail(await db.from('organizations').select('*').eq('id', ws.organization_id).single(), 'organization');
-  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances') };
+  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances'), check: checks.data?.[0] };
 }

@@ -88,3 +88,19 @@ test('the token can live in secrets.env next to the API key, and init keeps it',
     rmSync(cwd, { recursive: true, force: true });
   }
 });
+
+test('in GitHub Actions the upload names the pull request head commit, not the merge commit', async () => {
+  const { gitContext } = await import('../src/git-context.ts');
+  const dir = mkdtempSync(join(tmpdir(), 'frt-git-'));
+  try {
+    const event = join(dir, 'event.json');
+    writeFileSync(event, JSON.stringify({ pull_request: { number: 12, head: { sha: 'a'.repeat(40) } } }));
+    assert.deepEqual(gitContext({ GITHUB_REPOSITORY: 'acme/flows', GITHUB_SHA: 'b'.repeat(40), GITHUB_EVENT_PATH: event, GITHUB_HEAD_REF: 'fix-crm' }), { repository: 'acme/flows', sha: 'a'.repeat(40), pullRequest: 12, ref: 'fix-crm' });
+    assert.deepEqual(gitContext({ GITHUB_REPOSITORY: 'acme/flows', GITHUB_SHA: 'b'.repeat(40) }), { repository: 'acme/flows', sha: 'b'.repeat(40) });
+    assert.equal(gitContext({ FLOWRETEST_GIT_REPOSITORY: 'acme/flows', FLOWRETEST_GIT_SHA: 'b'.repeat(40), GITHUB_SHA: 'c'.repeat(40) })?.sha, 'b'.repeat(40));
+    assert.equal(gitContext({}), undefined);
+    assert.equal(gitContext({ GITHUB_REPOSITORY: 'not a repo', GITHUB_SHA: 'b'.repeat(40) }), undefined);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

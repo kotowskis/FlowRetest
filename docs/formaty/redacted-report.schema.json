@@ -591,6 +591,33 @@
       "additionalProperties": {
         "type": "boolean"
       }
+    },
+    "git": {
+      "type": "object",
+      "properties": {
+        "repository": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_.-]+\\/[A-Za-z0-9_.-]+$"
+        },
+        "sha": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "pullRequest": {
+          "type": "integer",
+          "exclusiveMinimum": 0,
+          "maximum": 9007199254740991
+        },
+        "ref": {
+          "type": "string",
+          "maxLength": 255
+        }
+      },
+      "required": [
+        "repository",
+        "sha"
+      ],
+      "additionalProperties": false
     }
   },
   "required": [

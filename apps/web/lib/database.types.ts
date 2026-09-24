@@ -89,6 +89,98 @@ export type Database = {
           },
         ]
       }
+      github_checks: {
+        Row: {
+          check_run_id: number | null
+          conclusion: string | null
+          created_at: string
+          detail: string | null
+          html_url: string | null
+          id: number
+          installation_id: number | null
+          ok: boolean
+          run_id: string
+          workspace_id: string
+        }
+        Insert: {
+          check_run_id?: number | null
+          conclusion?: string | null
+          created_at?: string
+          detail?: string | null
+          html_url?: string | null
+          id?: never
+          installation_id?: number | null
+          ok: boolean
+          run_id: string
+          workspace_id: string
+        }
+        Update: {
+          check_run_id?: number | null
+          conclusion?: string | null
+          created_at?: string
+          detail?: string | null
+          html_url?: string | null
+          id?: never
+          installation_id?: number | null
+          ok?: boolean
+          run_id?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_checks_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "github_checks_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      github_installations: {
+        Row: {
+          account_login: string
+          account_type: string
+          created_at: string
+          created_by: string | null
+          installation_id: number
+          suspended_at: string | null
+          workspace_id: string
+        }
+        Insert: {
+          account_login: string
+          account_type: string
+          created_at?: string
+          created_by?: string | null
+          installation_id: number
+          suspended_at?: string | null
+          workspace_id: string
+        }
+        Update: {
+          account_login?: string
+          account_type?: string
+          created_at?: string
+          created_by?: string | null
+          installation_id?: number
+          suspended_at?: string | null
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "github_installations_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invitations: {
         Row: {
           created_at: string
@@ -249,11 +341,14 @@ export type Database = {
           created_at: string
           engine_image: string
           generated_at: string
+          git_repository: string | null
+          git_sha: string | null
           id: string
           local_run: string | null
           mode: string
           new_label: string
           old_label: string
+          pull_request: number | null
           report: Json
           report_bytes: number
           runner: string
@@ -268,11 +363,14 @@ export type Database = {
           created_at?: string
           engine_image: string
           generated_at: string
+          git_repository?: string | null
+          git_sha?: string | null
           id?: string
           local_run?: string | null
           mode: string
           new_label: string
           old_label: string
+          pull_request?: number | null
           report: Json
           report_bytes: number
           runner: string
@@ -287,11 +385,14 @@ export type Database = {
           created_at?: string
           engine_image?: string
           generated_at?: string
+          git_repository?: string | null
+          git_sha?: string | null
           id?: string
           local_run?: string | null
           mode?: string
           new_label?: string
           old_label?: string
+          pull_request?: number | null
           report?: Json
           report_bytes?: number
           runner?: string
@@ -319,6 +420,44 @@ export type Database = {
           },
           {
             foreignKeyName: "runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      slack_webhooks: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          statuses: string[]
+          url: string
+          url_hint: string
+          workspace_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          statuses?: string[]
+          url: string
+          url_hint: string
+          workspace_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          statuses?: string[]
+          url?: string
+          url_hint?: string
+          workspace_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "slack_webhooks_workspace_id_fkey"
             columns: ["workspace_id"]
             isOneToOne: false
             referencedRelation: "workspaces"

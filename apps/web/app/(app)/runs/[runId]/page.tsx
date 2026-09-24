@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Run' };
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
-  const { run, workflow, workspace, org, previous, acceptances } = await getRun(runId);
+  const { run, workflow, workspace, org, previous, acceptances, check } = await getRun(runId);
   // Stored as uploaded after RedactedReportSchema validation; it has every field the plan renderer reads.
   const report = run.report as unknown as PlanReport & { stability?: Record<string, boolean> };
   // The same rule as `flowretest accept` without --force; accept_run checks it again on the server.
@@ -55,6 +55,22 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
         </dd>
         <dt className="text-muted">Uploaded</dt>
         <dd><Time value={run.created_at} /></dd>
+        {run.git_repository && run.git_sha ? (
+          <>
+            <dt className="text-muted">Commit</dt>
+            <dd className="font-mono break-all">
+              {run.git_repository}@{run.git_sha.slice(0, 7)}
+              {run.pull_request ? <span className="text-muted"> · pull request #{run.pull_request}</span> : null}
+              {check ? (
+                check.ok && check.html_url ? (
+                  <> · <a href={check.html_url} className="text-accent hover:underline">GitHub check ({check.conclusion})</a></>
+                ) : (
+                  <span className="font-sans text-diff"> · no GitHub check: {check.detail}</span>
+                )
+              ) : null}
+            </dd>
+          </>
+        ) : null}
       </dl>
       <ReportView report={report} />
       <div className="mt-10">

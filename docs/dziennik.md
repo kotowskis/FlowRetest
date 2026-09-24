@@ -185,3 +185,21 @@ Błąd znaleziony w trakcie, który tłumaczy też "pięć tokenów" z tygodnia 
 CI po tygodniu 9: job `web` padł na pierwszym przebiegu, bo skrypt typów bazy uruchamiał `supabase` z katalogu głównego repozytorium; po poprawce zielone wszystkie joby `ci`.
 
 E2E commita tygodnia 9 na 2.40.5 wisiało ponad 20 minut (zwykle 7 do 9) i zostało anulowane; przy sprzątaniu runner zabił wiszący proces `docker`. Ten sam kod w następnym commicie przeszedł e2e w 8 minut, więc to raczej zawieszenie po stronie runnera niż regresja. Logów nie ma, bo `node --test` wypisuje wynik pliku dopiero na końcu. Zabezpieczenia: klient `docker`, który po limicie czasu nie zakończy się po SIGTERM, dostaje po 10 s SIGKILL; job e2e ma `timeout-minutes: 30`; e2e i wydanie budują tylko CLI i proxy (`turbo build --filter=flowretest --filter=@flowretest/proxy`), bo pełny build z `apps/web` wydłużał każdy job o 4,5 minuty. Pierwsza wersja filtra pomijała proxy i obraz `flowretest-proxy:dev` nie powstał (brak `dist`), więc e2e padło na wszystkich trzech wersjach n8n w 25 sekund.
+
+## Tydzień 11: GitHub App z Checkiem, webhook Slack (2026-09-24)
+
+Zakres z planu (sekcja 11, tydzień 11). Decyzje w ADR 0009. GitHub App nie jest zarejestrowana (domena i konto zostają otwarte), więc całość działa na ustawieniach ze środowiska i jest sprawdzona na atrapie `apps/web/scripts/fake-services.mjs`.
+
+Zrobione:
+
+- CLI: `upload` dopisuje repozytorium, SHA i numer PR (w PR SHA głowy gałęzi, nie commit scalenia); `packages/cli/src/git-context.ts`;
+- migracja `20261207000000_github_slack.sql`: kolumny git w `runs` generowane z raportu, `github_installations`, `github_checks`, `slack_webhooks`, kanał `slack` w `notification_log`;
+- `lib/github.ts`: JWT RS256 bez zależności, token instalacji, Check Run, wymiana kodu OAuth, lista instalacji użytkownika, podpisany `state`, podpis webhooka; `/api/github/install`, `/api/github/setup`, `/api/github/webhook`;
+- po uploadzie: maile, wiadomości Slack i Check (`action_required` dla DIFF) w jednym kroku po odpowiedzi;
+- UI: sekcje GitHub i Slack na stronie workspace'u, commit i link do Checka na stronie przebiegu;
+- GitHub Action: wejścia `upload-url` i `upload-token`, wyjście `run-url`;
+- CI: job `web` uruchamia atrapę przed aplikacją.
+
+Sprawdzone na żywo: "Connect GitHub" w przeglądarce przeszedł całą drogę przez stronę instalacji oraz OAuth i wrócił z komunikatem o podpięciu `acme-agency`; formularz Slacka odrzucił `https://169.254.169.254/...` i przyjął adres atrapy; `run --upload` przypadku katalogu 01 z `FLOWRETEST_GIT_REPOSITORY=acme-agency/n8n-flows` dał w atrapie wiadomość Slack oraz Check `action_required` (po pobraniu tokenu instalacji), a strona przebiegu pokazuje commit i link do Checka. Testy: 15 jednostkowych i 14 integracyjnych w `apps/web` oraz test kontekstu git w CLI. Integracyjne sprawdzają odmowę dla cudzej instalacji, `state` użyty w innej sesji albo sfałszowany, Check dla repozytorium bez instalacji. Sprawdzają też webhook ze złym podpisem oraz zawieszenie instalacji, po którym przychodzi jej usunięcie.
+
+Lista dla założyciela na dzień rejestracji aplikacji: uprawnienia `checks: write` i `metadata: read`, zdarzenia `installation` i `installation_target`, setup URL `<domena>/api/github/setup` z zaznaczonym "Request user authorization (OAuth) during installation", callback URL ten sam, webhook `<domena>/api/github/webhook` z sekretem, zmienne `GITHUB_APP_ID`, `GITHUB_APP_SLUG`, `GITHUB_APP_PRIVATE_KEY`, `GITHUB_APP_CLIENT_ID`, `GITHUB_APP_CLIENT_SECRET`, `GITHUB_APP_WEBHOOK_SECRET`.

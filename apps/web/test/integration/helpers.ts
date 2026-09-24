@@ -5,6 +5,7 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { randomUUID } from 'node:crypto';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
+import { createServerClient } from '@supabase/ssr';
 import type { Database } from '../../lib/database.types.ts';
 
 const envFile = new URL('../../.env.local', import.meta.url);
@@ -50,7 +51,7 @@ export function anon(): Db {
 }
 
 /** A confirmed user signed in with a password; tests use passwords, people use email codes. */
-export async function user(label: string): Promise<{ db: Db; id: string; email: string }> {
+export async function user(label: string): Promise<{ db: Db; id: string; email: string; cookie: string }> {
   const email = `${label}-${randomUUID().slice(0, 8)}@it.flowretest.test`;
   const password = randomUUID();
   const created = await admin().auth.admin.createUser({ email, password, email_confirm: true });
@@ -58,5 +59,19 @@ export async function user(label: string): Promise<{ db: Db; id: string; email: 
   const db = anon();
   const signed = await db.auth.signInWithPassword({ email, password });
   if (signed.error) throw signed.error;
-  return { db, id: created.data.user.id, email };
+  return { db, id: created.data.user.id, email, cookie: await sessionCookie(email, password) };
+}
+
+/** The Cookie header a browser would send after signing in, written by @supabase/ssr itself. */
+async function sessionCookie(email: string, password: string): Promise<string> {
+  const jar = new Map<string, string>();
+  const ssr = createServerClient(url, anonKey, {
+    cookies: {
+      getAll: () => [...jar].map(([name, value]) => ({ name, value })),
+      setAll: (list) => list.forEach(({ name, value }) => (value ? jar.set(name, value) : jar.delete(name))),
+    },
+  });
+  const signed = await ssr.auth.signInWithPassword({ email, password });
+  if (signed.error) throw signed.error;
+  return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
 }

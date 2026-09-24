@@ -96,7 +96,7 @@ It does not judge new prompts or models (AI nodes are replayed from recordings),
 | `upgrade-check` | replay the same workflow on two n8n images; the plan opens with "Engine differences" (nodes that ran on one engine only, item counts, output keys, new errors) |
 | `redact` | redacted fixture copies for bug reports and shared catalogues |
 | `sync` | write baselines for acceptances made in the hosted report viewer, from the full local report of the accepted run; `pull` does it too unless `--no-sync` |
-| `upload` | send the redacted report of a run to the hosted report viewer (`FLOWRETEST_TOKEN`, `--url` or `cloud.url`); `run --upload` and `upgrade-check --upload` do it after the plan |
+| `upload` | send the redacted report of a run to the hosted report viewer (`FLOWRETEST_TOKEN`, `--url` or `cloud.url`); `run --upload` and `upgrade-check --upload` do it after the plan; in GitHub Actions it adds the repository and the tested commit, so the viewer can post a check |
 | `doctor` | check Docker, images and the sandbox seal |
 | `sandbox prune` | remove leftover sandbox containers |
 | `sandbox export --compose <dir>` | turn a sandbox kept with `run --keep` into a docker-compose file that opens its workflows and executions in the n8n editor on 127.0.0.1:5678, still without a route out |

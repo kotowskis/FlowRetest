@@ -38,6 +38,8 @@ npm run test:integration -w @flowretest/web   # RLS i POST /api/runs; wymaga db:
 
 Logowanie jest bez hasła: mail z sześciocyfrowym kodem i linkiem. Lokalnie maile trafiają do Mailpita pod `http://127.0.0.1:55324`. Po każdej nowej migracji w `apps/web/supabase/migrations/` trzeba uruchomić `npm run db:reset -w @flowretest/web` i `npm run db:types -w @flowretest/web`, a potem zacommitować `lib/database.types.ts`; job `web` w CI sprawdza zgodność (`db-types.mjs --check`).
 
+GitHub App i Slack lokalnie działają na atrapie: `node scripts/fake-services.mjs init` (w `apps/web`; klucz w `.fake-services/`, ustawienia dopisane do `.env.local`, po każdym `db:env` trzeba to powtórzyć), potem `node scripts/fake-services.mjs serve` i dopiero wtedy `npm run dev`. Atrapa zapisuje każde żądanie, `GET http://127.0.0.1:55390/__calls` je pokazuje.
+
 Powiadomienia e-mail wychodzą lokalnie do Mailpita (`MAILPIT_URL` w `.env.local`, zapisuje go `db:env`). Akceptacja z aplikacji trafia na dysk przez `flowretest sync` albo `pull` w katalogu projektu z zaakceptowanym przebiegiem.
 
 Upload z CLI do lokalnej aplikacji: token z ekranu workspace'u, potem `FLOWRETEST_TOKEN=frt_... node packages/cli/dist/bin.js upload --workflow <id> --url http://127.0.0.1:3100` w katalogu projektu po `run`.

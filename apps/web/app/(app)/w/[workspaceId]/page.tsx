@@ -2,15 +2,29 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getWorkspace } from '@/lib/data.ts';
 import { env } from '@/lib/env.ts';
-import { TokenForm } from '@/components/forms.tsx';
+import { githubConfig } from '@/lib/github.ts';
+import { ActionForm, TokenForm } from '@/components/forms.tsx';
 import { Empty, PageHeader, Section, StatusBadge, Time, buttonClass, quietButtonClass } from '@/components/ui.tsx';
-import { createToken, revokeToken, setSubscription } from '../../actions.ts';
+import { addSlackWebhook, createToken, removeSlackWebhook, revokeToken, setSubscription, unlinkGitHub } from '../../actions.ts';
 
 export const metadata: Metadata = { title: 'Workspace' };
 
-export default async function WorkspacePage({ params }: { params: Promise<{ workspaceId: string }> }) {
+/** Result of the GitHub install round trip, passed back as ?github=. */
+const GITHUB_MESSAGES: Record<string, { text: string; ok?: boolean }> = {
+  linked: { text: 'GitHub installation linked. Uploads from its repositories now get a check on the tested commit.', ok: true },
+  requested: { text: 'GitHub asked an organization owner to approve the installation. Connect again once it is approved.' },
+  'not-yours': { text: 'GitHub did not list that installation for your account, so it was not linked.' },
+  'owner-only': { text: 'Only owners of this organization can connect GitHub.' },
+  'no-installation': { text: 'GitHub did not return an installation. Try connecting again.' },
+  error: { text: 'Linking failed. Try again; if it keeps failing, check the GitHub App settings of this server.' },
+};
+
+export default async function WorkspacePage({ params, searchParams }: { params: Promise<{ workspaceId: string }>; searchParams: Promise<{ github?: string }> }) {
   const { workspaceId } = await params;
-  const { workspace, org, tokens, workflows, statuses } = await getWorkspace(workspaceId);
+  const { github } = await searchParams;
+  const { workspace, org, tokens, workflows, statuses, installations, slackHooks, isOwner } = await getWorkspace(workspaceId);
+  const githubReady = githubConfig() !== undefined;
+  const githubMessage = github ? GITHUB_MESSAGES[github] : undefined;
   const subtitle = [workspace.instance_host, workspace.engine_tag && `n8n ${workspace.engine_tag}`].filter(Boolean).join(' · ');
   return (
     <>
@@ -66,6 +80,85 @@ export default async function WorkspacePage({ params }: { params: Promise<{ work
           </form>
         </Section>
       </div>
+
+      <div id="github">
+        <Section title="GitHub" description="A check with the result and a link to the plan on the commit a CI run tested. To block merging on DIFF, make the check required in the branch protection rules.">
+          {githubMessage ? <p role="status" className={`mb-4 text-sm ${githubMessage.ok ? 'text-pass' : 'text-diff'}`}>{githubMessage.text}</p> : null}
+          {!githubReady ? (
+            <Empty>This server has no GitHub App configured.</Empty>
+          ) : (
+            <>
+              {installations.length > 0 ? (
+                <ul className="mb-4 divide-y divide-line rounded-md border border-line bg-panel">
+                  {installations.map((i) => (
+                    <li key={i.installation_id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                      <span>
+                        <span className="font-medium">{i.account_login}</span> <span className="text-xs text-muted">{i.account_type.toLowerCase()}</span>
+                        {i.suspended_at ? <span className="ml-2 text-xs text-diff">suspended on GitHub</span> : null}
+                      </span>
+                      {isOwner ? (
+                        <form action={unlinkGitHub}>
+                          <input type="hidden" name="workspaceId" value={workspace.id} />
+                          <input type="hidden" name="installationId" value={i.installation_id} />
+                          <button className={quietButtonClass}>Unlink</button>
+                        </form>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+              {isOwner ? (
+                <a href={`/api/github/install?workspace=${workspace.id}`} className={`${buttonClass} inline-block`}>
+                  {installations.length ? 'Connect another GitHub account' : 'Connect GitHub'}
+                </a>
+              ) : installations.length === 0 ? (
+                <Empty>No GitHub account linked. An owner of this organization can connect one.</Empty>
+              ) : null}
+            </>
+          )}
+        </Section>
+      </div>
+
+      <Section title="Slack" description="An incoming webhook gets the status, counts and a link for runs with the chosen statuses.">
+        {slackHooks.length > 0 ? (
+          <ul className="mb-4 divide-y divide-line rounded-md border border-line bg-panel">
+            {slackHooks.map((h) => (
+              <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
+                <code className="font-mono text-xs break-all">{h.url_hint}</code>
+                <span className="flex items-center gap-3 font-mono text-xs text-muted">
+                  {h.statuses.join(', ')}
+                  {isOwner ? (
+                    <form action={removeSlackWebhook}>
+                      <input type="hidden" name="workspaceId" value={workspace.id} />
+                      <input type="hidden" name="webhookId" value={h.id} />
+                      <button className={quietButtonClass}>Remove</button>
+                    </form>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+        {isOwner ? (
+          <ActionForm action={addSlackWebhook} submit="Add webhook" pending="Adding…">
+            <input type="hidden" name="workspaceId" value={workspace.id} />
+            <label className="flex min-w-72 flex-1 flex-col gap-1 text-sm">
+              Webhook URL
+              <input name="url" type="url" required placeholder="https://hooks.slack.com/services/…" className="rounded-md border border-line px-3 py-2 text-sm" />
+            </label>
+            <fieldset className="flex items-center gap-3 pb-2">
+              {(['DIFF', 'ERROR', 'BLOCKED', 'PASS'] as const).map((s) => (
+                <label key={s} className="flex items-center gap-1 font-mono text-xs">
+                  <input type="checkbox" name="status" value={s} defaultChecked={s === 'DIFF' || s === 'ERROR'} />
+                  {s}
+                </label>
+              ))}
+            </fieldset>
+          </ActionForm>
+        ) : slackHooks.length === 0 ? (
+          <Empty>No Slack webhook. An owner of this organization can add one.</Empty>
+        ) : null}
+      </Section>
 
       <Section title="Tokens" description="FLOWRETEST_TOKEN for this workspace. The CLI sends only the redacted report; fixtures and the full report stay on the machine that ran it.">
         <TokenForm action={createToken} workspaceId={workspace.id} appUrl={env.appUrl()} />

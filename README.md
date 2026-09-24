@@ -13,7 +13,7 @@ Status: `0.3.0-next.1`, not yet on npm. Usage, requirements and exit codes are i
 | `packages/proxy` | the intercepting proxy image the sandbox runs next to n8n |
 | `packages/services` | role tables, sink templates and credential stubs for app nodes |
 | `packages/schemas` | zod schemas of every file format, exported to JSON Schema in `docs/formaty` |
-| `apps/web` | hosted report viewer (paid layer, in progress): Next.js 16 and Supabase; organizations, workspaces, tokens, `POST /api/runs` |
+| `apps/web` | hosted report viewer (paid layer, in progress): Next.js 16 and Supabase; organizations, workspaces, tokens, `POST /api/runs`, acceptances, email and Slack notifications, GitHub checks |
 | `action/` | composite GitHub Action |
 | `docs/` | decision memo, plan, spike and weekly logs, ADRs, formats, audit (in Polish) |
 

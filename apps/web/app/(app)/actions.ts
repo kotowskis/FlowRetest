@@ -5,6 +5,7 @@ import { redirect } from 'next/navigation';
 import { z } from 'zod';
 import { session } from '@/lib/data.ts';
 import { generateToken } from '@/lib/tokens.ts';
+import { validateSlackWebhook } from '@/lib/slack.ts';
 
 export interface FormState {
   error?: string;
@@ -128,5 +129,31 @@ export async function setSubscription(form: FormData): Promise<void> {
   // Delete and insert instead of upsert: members may update only `statuses`, and an upsert writes every column.
   await db.from('notification_subscriptions').delete().eq('workspace_id', input.workspaceId).eq('user_id', user.id);
   if (input.statuses.length > 0) await db.from('notification_subscriptions').insert({ workspace_id: input.workspaceId, user_id: user.id, statuses: input.statuses });
+  revalidatePath(`/w/${input.workspaceId}`);
+}
+
+export async function unlinkGitHub(form: FormData): Promise<void> {
+  const input = z.object({ workspaceId: Id, installationId: z.coerce.number().int().positive() }).parse({ workspaceId: form.get('workspaceId'), installationId: form.get('installationId') });
+  const { db } = await session();
+  await db.from('github_installations').delete().eq('workspace_id', input.workspaceId).eq('installation_id', input.installationId);
+  revalidatePath(`/w/${input.workspaceId}`);
+}
+
+export async function addSlackWebhook(_prev: FormState, form: FormData): Promise<FormState> {
+  const input = z.object({ workspaceId: Id, url: z.string().min(1, 'Paste the webhook URL.'), statuses: z.array(z.enum(STATUSES)).min(1, 'Choose at least one status.') }).safeParse({ workspaceId: form.get('workspaceId'), url: form.get('url'), statuses: form.getAll('status') });
+  if (!input.success) return { error: firstIssue(input.error) };
+  const checked = validateSlackWebhook(input.data.url);
+  if (!checked.ok) return { error: checked.error };
+  const { db, user } = await session();
+  const { error } = await db.from('slack_webhooks').insert({ workspace_id: input.data.workspaceId, url: checked.url, url_hint: checked.hint, statuses: input.data.statuses, created_by: user.id });
+  if (error) return { error: 'Only owners can add Slack webhooks.' };
+  revalidatePath(`/w/${input.data.workspaceId}`);
+  return { done: Date.now(), ok: 'Slack webhook added.' };
+}
+
+export async function removeSlackWebhook(form: FormData): Promise<void> {
+  const input = z.object({ workspaceId: Id, webhookId: Id }).parse({ workspaceId: form.get('workspaceId'), webhookId: form.get('webhookId') });
+  const { db } = await session();
+  await db.from('slack_webhooks').delete().eq('id', input.webhookId);
   revalidatePath(`/w/${input.workspaceId}`);
 }

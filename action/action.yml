@@ -36,6 +36,12 @@ inputs:
   values:
     description: Show request values in the pull request comment and the uploaded report. The default 'false' posts and uploads the redacted plan (type, length and hash instead of values), because the fixtures are production data.
     default: 'false'
+  upload-url:
+    description: Hosted FlowRetest URL. With upload-token, the redacted report is uploaded and the hosted layer posts a check on the tested commit (GitHub App linked to the workspace).
+    default: ''
+  upload-token:
+    description: Workspace token (FLOWRETEST_TOKEN) from the hosted layer; pass it from a secret
+    default: ''
 
 outputs:
   status:
@@ -44,6 +50,9 @@ outputs:
   exit-code:
     description: flowretest exit code
     value: ${{ steps.run.outputs.exit-code }}
+  run-url:
+    description: URL of the run in the hosted layer, when it was uploaded
+    value: ${{ steps.upload.outputs.run-url }}
 
 # Inputs reach the shell only through environment variables, never through ${{ }} inside a script, so a workflow id
 # or file name cannot inject commands.
@@ -102,6 +111,23 @@ runs:
         FRT_OLD: ${{ inputs.old }}
         FRT_STABILIZE: ${{ inputs.stabilize }}
         FRT_VALUES: ${{ inputs.values }}
+    - name: Upload the redacted report to the hosted layer
+      id: upload
+      if: ${{ inputs.upload-url != '' && inputs.upload-token != '' && steps.run.outputs.run-dir != '' }}
+      shell: bash
+      # The CLI adds the repository and the pull request head commit from the GitHub Actions environment. A failed
+      # upload is reported but does not fail the job; the plan's own result decides that below.
+      run: |
+        set +e
+        url=$(npx --yes "flowretest@$FRT_VERSION" --json upload --workflow "$FRT_WORKFLOW" --run "$(basename "$FRT_RUN_DIR")" --url "$FRT_UPLOAD_URL" | node -e "let s='';process.stdin.on('data',d=>s+=d).on('end',()=>{try{console.log(JSON.parse(s).url)}catch{}})")
+        if [ -n "$url" ]; then echo "run-url=$url" >> "$GITHUB_OUTPUT"; echo "FlowRetest plan: $url" >> "$GITHUB_STEP_SUMMARY"; else echo "::warning::flowretest upload failed"; fi
+        exit 0
+      env:
+        FLOWRETEST_TOKEN: ${{ inputs.upload-token }}
+        FRT_VERSION: ${{ inputs.version }}
+        FRT_WORKFLOW: ${{ inputs.workflow-id }}
+        FRT_RUN_DIR: ${{ steps.run.outputs.run-dir }}
+        FRT_UPLOAD_URL: ${{ inputs.upload-url }}
     - name: Upload report
       uses: actions/upload-artifact@v4
       with:

@@ -3,6 +3,7 @@ import { redactionProblems } from '@flowretest/core';
 import { parseOrThrow, RedactedReportSchema } from '@flowretest/schemas';
 import { cloudRequest, cloudToken, cloudUrl } from '../cloud.ts';
 import { runRedactReport } from './redact.ts';
+import { gitContext } from '../git-context.ts';
 
 export interface UploadOptions {
   cwd: string;
@@ -32,7 +33,9 @@ export async function runUpload(options: UploadOptions): Promise<UploadResult> {
   const base = cloudUrl(options.cwd, options.url);
   const token = cloudToken(options.cwd);
   const file = runRedactReport({ cwd: options.cwd, workflowId: options.workflowId, run: options.run, log: options.log });
-  const body = readFileSync(file, 'utf8');
+  // The commit is upload metadata, not part of the report file: the same run may be uploaded from CI or by hand.
+  const git = gitContext();
+  const body = git ? JSON.stringify({ ...JSON.parse(readFileSync(file, 'utf8')), git }) : readFileSync(file, 'utf8');
   if (Buffer.byteLength(body) > MAX_UPLOAD_BYTES) throw new Error(`redacted report is ${Math.round(Buffer.byteLength(body) / 1024)} KB, over the ${MAX_UPLOAD_BYTES / 1024 / 1024} MB upload limit; upload fewer cases with \`run --cases\``);
   const report = parseOrThrow(RedactedReportSchema, JSON.parse(body), 'redacted report');
   const problems = redactionProblems(report);
@@ -40,6 +43,6 @@ export async function runUpload(options: UploadOptions): Promise<UploadResult> {
 
   const json = await cloudRequest<{ id: string; url: string; status: string }>(base, token, '/api/runs', { method: 'POST', body });
   const result = { id: String(json.id), url: String(json.url), status: String(json.status), file };
-  options.log(`uploaded run ${result.id} (${result.status}): ${result.url}`);
+  options.log(`uploaded run ${result.id} (${result.status})${git ? ` for ${git.repository}@${git.sha.slice(0, 7)}` : ''}: ${result.url}`);
   return result;
 }

@@ -39,11 +39,14 @@ jobs:
       - run: npm ci
       - run: npm run db:start -w @flowretest/web
       - run: npm run db:env -w @flowretest/web
+      # Fake GitHub App and Slack (scripts/fake-services.mjs): settings go into .env.local before the build.
+      - run: node apps/web/scripts/fake-services.mjs init
       - run: node apps/web/scripts/db-types.mjs --check
       - run: npx turbo build --filter=@flowretest/web
-      - name: start the app
+      - name: start the fake services and the app
         working-directory: apps/web
         run: |
+          node scripts/fake-services.mjs serve > fake.log 2>&1 &
           npx next start --port 3100 > next.log 2>&1 &
           for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:3100/login && exit 0; sleep 1; done
           cat next.log; exit 1
