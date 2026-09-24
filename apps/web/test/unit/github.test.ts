@@ -19,7 +19,7 @@ before(async () => {
     GITHUB_APP_ID: FAKE.appId, GITHUB_APP_SLUG: FAKE.slug, GITHUB_APP_CLIENT_ID: FAKE.clientId, GITHUB_APP_CLIENT_SECRET: FAKE.clientSecret, GITHUB_APP_WEBHOOK_SECRET: FAKE.webhookSecret,
     // As a hosting dashboard stores it: one line with literal \n.
     GITHUB_APP_PRIVATE_KEY: pem.trim().replace(/\n/g, '\\n'),
-    GITHUB_API_URL: `${fake.base}/api/`, GITHUB_URL: fake.base,
+    GITHUB_APP_API_URL: `${fake.base}/api/`, GITHUB_APP_WEB_URL: fake.base,
   }) as GitHubConfig;
 });
 after(() => fake.close());

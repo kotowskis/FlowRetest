@@ -1,6 +1,6 @@
 // Stand-ins for GitHub (API, OAuth, app install page) and Slack incoming webhooks, for local development and the
-// integration tests. Never used in production: the app talks to them only when .env.local points GITHUB_API_URL,
-// GITHUB_URL and SLACK_WEBHOOK_HOSTS here.
+// integration tests. Never used in production: the app talks to them only when .env.local points GITHUB_APP_API_URL,
+// GITHUB_APP_WEB_URL and SLACK_WEBHOOK_HOSTS here.
 //
 //   node scripts/fake-services.mjs init    # key pair in .fake-services/, GitHub App settings appended to .env.local
 //   node scripts/fake-services.mjs serve   # listen on 127.0.0.1:55390 (FAKE_SERVICES_PORT)
@@ -133,8 +133,8 @@ if (command === 'init' || command === 'serve') {
       `GITHUB_APP_CLIENT_SECRET=${FAKE.clientSecret}`,
       `GITHUB_APP_WEBHOOK_SECRET=${FAKE.webhookSecret}`,
       `GITHUB_APP_PRIVATE_KEY=${keys.privateKey.trim().replace(/\n/g, '\\n')}`,
-      `GITHUB_API_URL=${base}/api`,
-      `GITHUB_URL=${base}`,
+      `GITHUB_APP_API_URL=${base}/api`,
+      `GITHUB_APP_WEB_URL=${base}`,
       `SLACK_WEBHOOK_HOSTS=127.0.0.1:${port}`,
     ];
     writeFileSync(envFile, [...existing, ...lines, ''].join('\n'));

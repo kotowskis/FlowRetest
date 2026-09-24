@@ -10,7 +10,7 @@ import { diffCase, normalizeCall, redactPlanReport, type CaptureRecord, type Pla
 import { generateToken } from '../../lib/tokens.ts';
 import { admin, appMissing, appUrl, supabaseMissing, user, type Db } from './helpers.ts';
 
-const fakeUrl = process.env.GITHUB_URL ?? '';
+const fakeUrl = process.env.GITHUB_APP_WEB_URL ?? '';
 async function fakeMissing(): Promise<string | undefined> {
   if (!fakeUrl || !process.env.GITHUB_APP_WEBHOOK_SECRET) return 'no fake GitHub App in .env.local (node scripts/fake-services.mjs init)';
   try {

@@ -16,6 +16,10 @@ export interface GitHubConfig {
   webUrl: string;
 }
 
+/**
+ * Base URLs use GITHUB_APP_* names: GitHub Actions sets GITHUB_API_URL on every runner, and process variables win over
+ * .env files, so that name would silently point a test or a self-hosted runner at the real API.
+ */
 export interface GitHubEnv {
   GITHUB_APP_ID?: string;
   GITHUB_APP_SLUG?: string;
@@ -23,8 +27,8 @@ export interface GitHubEnv {
   GITHUB_APP_CLIENT_ID?: string;
   GITHUB_APP_CLIENT_SECRET?: string;
   GITHUB_APP_WEBHOOK_SECRET?: string;
-  GITHUB_API_URL?: string;
-  GITHUB_URL?: string;
+  GITHUB_APP_API_URL?: string;
+  GITHUB_APP_WEB_URL?: string;
 }
 
 /** The app's settings, or undefined when this server has no GitHub App (the workspace page says so). */
@@ -39,8 +43,8 @@ export function githubConfig(env: GitHubEnv = process.env as GitHubEnv): GitHubC
     clientId,
     clientSecret,
     webhookSecret,
-    apiUrl: (env.GITHUB_API_URL || 'https://api.github.com').replace(/\/+$/, ''),
-    webUrl: (env.GITHUB_URL || 'https://github.com').replace(/\/+$/, ''),
+    apiUrl: (env.GITHUB_APP_API_URL || 'https://api.github.com').replace(/\/+$/, ''),
+    webUrl: (env.GITHUB_APP_WEB_URL || 'https://github.com').replace(/\/+$/, ''),
   };
 }
 

@@ -51,5 +51,9 @@ jobs:
           for i in $(seq 1 30); do curl -sf -o /dev/null http://127.0.0.1:3100/login && exit 0; sleep 1; done
           cat next.log; exit 1
       - run: npm run test:integration -w @flowretest/web
+      - name: app and fake service logs
+        if: failure()
+        working-directory: apps/web
+        run: tail -n 100 next.log fake.log
       - if: always()
         run: npm run db:stop -w @flowretest/web
