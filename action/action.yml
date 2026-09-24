@@ -36,7 +36,7 @@ inputs:
 
 outputs:
   status:
-    description: PASS, DIFF, ERROR or BLOCKED
+    description: PASS, DIFF, ERROR, BLOCKED, ENVIRONMENT (Docker, API or config problem) or FAILED (internal error)
     value: ${{ steps.run.outputs.status }}
   exit-code:
     description: flowretest exit code
@@ -63,10 +63,10 @@ runs:
         npx --yes flowretest@${{ inputs.version }} run --workflow "${{ inputs.workflow-id }}" --new "${{ inputs.new-file }}" --old "${{ inputs.old }}" ${{ inputs.stabilize == 'true' && '--stabilize' || '' }} --format terminal,junit,md
         code=$?
         set -e
-        run_dir=$(ls -d .flowretest/${{ inputs.workflow-id }}/runs/*/ | sort | tail -1)
+        run_dir=$(ls -d .flowretest/${{ inputs.workflow-id }}/runs/*/ 2>/dev/null | sort | tail -1 || true)
         echo "run-dir=$run_dir" >> "$GITHUB_OUTPUT"
         echo "exit-code=$code" >> "$GITHUB_OUTPUT"
-        case $code in 0) s=PASS;; 1) s=DIFF;; 2) s=ERROR;; 3) s=BLOCKED;; *) s=FAILED;; esac
+        case $code in 0) s=PASS;; 1) s=DIFF;; 2) s=ERROR;; 3) s=BLOCKED;; 4) s=ENVIRONMENT;; *) s=FAILED;; esac
         echo "status=$s" >> "$GITHUB_OUTPUT"
         cp "$run_dir/junit.xml" flowretest-junit.xml 2>/dev/null || true
         cp "$run_dir/plan.md" flowretest-plan.md 2>/dev/null || true
@@ -96,7 +96,7 @@ runs:
           const payload = { ...context.repo, body: `${marker}\n${body}` };
           if (mine) await github.rest.issues.updateComment({ ...payload, comment_id: mine.id });
           else await github.rest.issues.createComment({ ...payload, issue_number: context.issue.number });
-    - name: Fail the job on ERROR or BLOCKED
+    - name: Fail the job on ERROR, BLOCKED or a failed run
       shell: bash
       run: |
-        case "${{ steps.run.outputs.status }}" in ERROR|BLOCKED|FAILED) echo "flowretest: ${{ steps.run.outputs.status }}"; exit 1;; esac
+        case "${{ steps.run.outputs.status }}" in PASS|DIFF) ;; *) echo "flowretest: ${{ steps.run.outputs.status }}"; exit 1;; esac

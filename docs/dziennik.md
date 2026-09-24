@@ -84,7 +84,27 @@ Poza sesją: publikacja wyników `upgrade-check` dla 3.0 na forum, makieta warst
 Zrobione:
 
 - wersja `0.3.0-next.1` we wszystkich pakietach, CHANGELOG z sekcją wydania;
-- `packages/cli/proxy.lock.json`: obraz proxy i digest z wydania; `init` używa obrazu z digestem, gdy lock go ma, a w rozwoju `flowretest-proxy:dev`; `release.yml` po pierwszym pushu do GHCR wypełnia digest;
+- `packages/cli/proxy.lock.json`: obraz proxy i digest z wydania; `init` używa obrazu z digestem, gdy lock go ma, a w rozwoju `flowretest-proxy:dev`; digest wpisuje dopiero `release.yml` od poprawek po audycie (wcześniej tylko go wypisywał);
 - `docs/bramka-5.md`: trzy warunki bramki ze stanem (wszystkie czekają na sesje z agencjami i mail licencyjny), lista gotowych elementów, braki do publikacji, liczby do zebrania w sesjach, rekomendacja publikacji `0.3.0` jako OSS niezależnie od decyzji o SaaS.
 
 Lista wydania dla założyciela: `npm login`, `docker login ghcr.io`, tag `v0.3.0` na `main` (uruchamia `release.yml`: verify, build, obraz proxy do GHCR, `npm publish --provenance` na kanał `latest`; tagi z `-next` idą na kanał `next`). Po wydaniu: wpisać digest obrazu do `proxy.lock.json`, uzupełnić README o `npx flowretest@latest`, wysłać PR do n8n-as-code według `docs/integracje.md`.
+
+## Po audycie (2026-09-24), poprawki P0
+
+Audyt tygodni 1 do 8 jest w `docs/audyt-2026-09-24.md`. Poprawione punkty P0:
+
+- kody wyjścia: wyjątek z komendy albo błąd użycia kończy się kodem 4, błąd programu kodem 5; kod 1 znaczy już tylko DIFF;
+- Action nazywa kod 4 ENVIRONMENT i oblewa zadanie przy każdym wyniku poza PASS oraz DIFF;
+- SKIPPED (węzeł nieobsługiwany na ścieżce) daje wynik BLOCKED i kod 3;
+- pakiet `flowretest` jest publikowalny: esbuild wkleja trzy pakiety robocze `@flowretest/*` do `dist/bin.js` (te pakiety zostają prywatne i nie idą na npm), `bin` to `dist/bin.js`, `proxy.lock.json` jest w paczce; sprawdzone instalacją tarballa w pustym katalogu (`npx flowretest --version`, import biblioteki);
+- `release.yml` przez `scripts/release-check.mjs`: tag musi być równy wersji wszystkich pakietów i `CLI_VERSION`, dist-tag wynika z wersji (`-next` idzie na `next`), digest obrazu proxy trafia do `proxy.lock.json` przed `npm publish`, publikacja staje, gdy pakiet jest prywatny albo digestu brak; lock z digestem zostaje jako artefakt `proxy-lock`.
+
+Lista wydania dla założyciela, poprawiona:
+
+1. Zająć scope `@flowretest` na npm (organizacja), żeby nikt nie wystawił paczek pod nazwami pakietów roboczych.
+2. Sekret `NPM_TOKEN` w repozytorium; `GITHUB_TOKEN` wystarcza do GHCR.
+3. Tag równy wersji z `package.json`: dziś `v0.3.0-next.1` (kanał `next`). Dla `v0.3.0` najpierw podnieść wersję we wszystkich pakietach i w `packages/cli/src/index.ts`.
+4. Po pierwszym pushu ustawić pakiet `flowretest-proxy` w GHCR jako publiczny (nowe pakiety są prywatne).
+5. Pobrać artefakt `proxy-lock` z przebiegu i zacommitować `packages/cli/proxy.lock.json` na `main`.
+
+Przed publikacją warto jeszcze naprawić punkty 6 do 16 z audytu (diff przepuszcza zmianę ID w ścieżce, duże ciała, zapisy HTTP Request v1, polskie nazwy węzłów w nagłówku), bo bez nich pilotaż pokaże PASS tam, gdzie jest regresja.

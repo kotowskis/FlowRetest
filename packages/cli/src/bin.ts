@@ -1,10 +1,14 @@
 #!/usr/bin/env node
-import { Command } from 'commander';
+import { Command, CommanderError } from 'commander';
 import { CLI_VERSION } from './index.ts';
 import { runDoctor } from './commands/doctor.ts';
 import { pruneSandboxes } from './sandbox/session.ts';
+import { defaultProxyImage } from './config.ts';
+import { describeError, exitCodeForError } from './errors.ts';
 
 const program = new Command();
+// Commander exits with 1 on usage errors, and 1 means DIFF; errors are mapped to exit codes at the end of this file.
+program.exitOverride();
 program
   .name('flowretest')
   .description('Replay real n8n executions against a changed workflow in a sealed sandbox and diff the calls it would send.')
@@ -132,7 +136,7 @@ program
   .description('Check Docker, pull images and run a sealed-sandbox round trip (proxy capture and leak test).')
   .option('--engine <tag>', 'n8n image tag', '2.40.5')
   .option('--n8n-image <image>', 'n8n image name', 'n8nio/n8n')
-  .option('--proxy-image <image>', 'proxy image', 'flowretest-proxy:dev')
+  .option('--proxy-image <image>', 'proxy image, the one pinned in proxy.lock.json by default', defaultProxyImage())
   .option('--timezone <tz>', 'sandbox timezone', 'UTC')
   .option('--keep', 'keep the sandbox and the run directory for inspection', false)
   .option('--no-sandbox', 'only check Docker and images')
@@ -218,4 +222,11 @@ program
     console.log('prune done');
   });
 
-await program.parseAsync(process.argv);
+try {
+  await program.parseAsync(process.argv);
+} catch (e) {
+  const code = exitCodeForError(e);
+  // Commander has already printed its own message for usage errors, help and version.
+  if (!(e instanceof CommanderError)) console.error(describeError(e, code));
+  process.exit(code);
+}

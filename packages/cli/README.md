@@ -34,14 +34,14 @@ Coverage: 3 of 3 write nodes captured (100%) · nodes replayed from recordings: 
 Result: DIFF (exit code 1)
 ```
 
-Exit codes: 0 PASS, 1 DIFF, 2 ERROR (the new version failed), 3 BLOCKED or unsupported node on the path, 4 environment problem.
+Exit codes: 0 PASS, 1 DIFF, 2 ERROR (the new version failed), 3 BLOCKED (a blocked call, or a case skipped for an unsupported node on its path), 4 usage or environment problem (Docker, API, config, files), 5 internal error. A run that crashes never exits with 1.
 
 ## How it works
 
 - Read nodes (GET requests, lookups) are replayed from the recorded execution, so the run does not depend on live services.
 - Write nodes (POST, PUT, app nodes such as HubSpot, Slack, Google Sheets, Airtable, Notion) run for real against a proxy that answers with plausible responses and records what was sent.
-- Nodes that talk to databases, mail or files never reach the network; the case is reported as BLOCKED, never as PASS.
-- `--stabilize` runs the old version twice and masks fields that differ between the runs (random ids, nonces).
+- Nodes that write to databases, mail or files never reach the network; the case is reported as SKIPPED and the run ends as BLOCKED (exit code 3), never as PASS.
+- `--stabilize` runs both versions twice and masks fields that differ between the runs (random ids, nonces).
 
 The runner contains no n8n code. It pulls the official `n8nio/n8n` image of your version, imports the rewritten workflow with `n8n import:workflow`, runs it with the n8n CLI and reads the result. Your instance is only read through the public API.
 

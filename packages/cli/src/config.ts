@@ -23,7 +23,10 @@ interface ProxyLock {
   digest: string | null;
 }
 
-/** The proxy image this CLI version was released with; a null digest (development) falls back to the local dev image. */
+/**
+ * The proxy image this CLI version was released with. release.yml writes the digest before npm publish and refuses
+ * to publish without one, so a null digest only happens in a source checkout and falls back to the local dev image.
+ */
 export function proxyLock(): ProxyLock {
   try {
     const path = fileURLToPath(new URL('../proxy.lock.json', import.meta.url));

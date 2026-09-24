@@ -43,22 +43,23 @@ function entryLines(caseId: string, e: PlanEntry): string[] {
   return lines;
 }
 
+/** A case is SKIPPED only for an unsupported node on its path, so it counts as BLOCKED: never PASS. */
 export function overallStatus(cases: CaseDiff[]): CaseStatus {
-  const order: CaseStatus[] = ['ERROR', 'BLOCKED', 'DIFF', 'SKIPPED', 'PASS'];
-  for (const s of order) if (cases.some((c) => c.status === s)) return s === 'SKIPPED' ? 'PASS' : s;
+  const order: CaseStatus[] = ['ERROR', 'BLOCKED', 'SKIPPED', 'DIFF', 'PASS'];
+  for (const s of order) if (cases.some((c) => c.status === s)) return s === 'SKIPPED' ? 'BLOCKED' : s;
   return 'PASS';
 }
 
 export function exitCodeFor(status: CaseStatus): number {
   switch (status) {
     case 'PASS':
-    case 'SKIPPED':
       return EXIT_CODES.PASS;
     case 'DIFF':
       return EXIT_CODES.DIFF;
     case 'ERROR':
       return EXIT_CODES.ERROR;
     case 'BLOCKED':
+    case 'SKIPPED':
       return EXIT_CODES.BLOCKED;
   }
 }

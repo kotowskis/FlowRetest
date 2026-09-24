@@ -89,3 +89,17 @@ test('renderPlan prints the header line and a changed entry', () => {
   assert.match(text, /empty value in an id field/);
   assert.match(text, /Result: DIFF \(exit code 1\)/);
 });
+
+test('a skipped case (unsupported node on the path) makes the run BLOCKED with exit code 3', async () => {
+  const { exitCodeFor, overallStatus } = await import('../src/render.ts');
+  const summary = { oldCalls: 0, newCalls: 0, unchanged: 0, changed: 0, added: 0, removed: 0, blocked: 0 };
+  const skipped = { caseId: '14', status: 'SKIPPED' as const, entries: [], summary };
+  const pass = { caseId: '01', status: 'PASS' as const, entries: [], summary };
+  const diff = { caseId: '02', status: 'DIFF' as const, entries: [], summary };
+  assert.equal(overallStatus([pass, skipped]), 'BLOCKED');
+  assert.equal(overallStatus([skipped]), 'BLOCKED');
+  assert.equal(overallStatus([diff, skipped]), 'BLOCKED');
+  assert.equal(overallStatus([pass, diff]), 'DIFF');
+  assert.equal(exitCodeFor('SKIPPED'), 3);
+  assert.equal(exitCodeFor(overallStatus([pass, skipped])), 3);
+});

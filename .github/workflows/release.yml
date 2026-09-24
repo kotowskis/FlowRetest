@@ -19,21 +19,32 @@ jobs:
           node-version: 24
           cache: npm
           registry-url: https://registry.npmjs.org
+      - name: Check the tag against the package versions
+        id: version
+        run: node scripts/release-check.mjs version "$GITHUB_REF_NAME"
       - run: npm ci
       - run: npm run verify
       - run: npm run build
-      - name: Proxy image to GHCR
+      - name: Proxy image to GHCR and proxy.lock.json
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "${{ secrets.GITHUB_TOKEN }}" | docker login ghcr.io -u "${{ github.actor }}" --password-stdin
-          docker build -t "ghcr.io/${{ github.repository_owner }}/flowretest-proxy:${VERSION}" packages/proxy
-          docker push "ghcr.io/${{ github.repository_owner }}/flowretest-proxy:${VERSION}"
-          docker image inspect --format '{{index .RepoDigests 0}}' "ghcr.io/${{ github.repository_owner }}/flowretest-proxy:${VERSION}" > proxy-digest.txt
-          cat proxy-digest.txt
+          IMAGE="ghcr.io/${GITHUB_REPOSITORY_OWNER,,}/flowretest-proxy"
+          echo "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          docker build -t "$IMAGE:$VERSION" packages/proxy
+          docker push "$IMAGE:$VERSION"
+          DIGEST=$(docker image inspect --format '{{index .RepoDigests 0}}' "$IMAGE:$VERSION")
+          node scripts/release-check.mjs lock "$IMAGE" "$VERSION" "${DIGEST##*@}"
+      - name: Keep proxy.lock.json for the commit back to main
+        uses: actions/upload-artifact@v4
+        with:
+          name: proxy-lock
+          path: packages/cli/proxy.lock.json
       - name: Publish CLI to npm
-        run: |
-          TAG="latest"
-          case "${GITHUB_REF_NAME}" in *-next*|*-rc*|*-beta*) TAG="next";; esac
-          npm publish -w packages/cli --provenance --access public --tag "$TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+          DIST_TAG: ${{ steps.version.outputs.dist-tag }}
+        run: |
+          node scripts/release-check.mjs package
+          npm publish -w packages/cli --provenance --access public --tag "$DIST_TAG"

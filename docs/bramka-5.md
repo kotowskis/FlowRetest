@@ -23,8 +23,9 @@ Wniosek: bramka 5 nie może być zamknięta bez rozmów z agencjami. Technicznie
 
 ## Czego brakuje do wersji 0.3.0 na npm
 
-- publikacja pakietu i obrazu proxy (logowanie założyciela do npm i GHCR, tag `v0.3.0`); `release.yml` jest gotowy;
-- przypięcie digestu obrazu proxy w `proxy.lock.json` po pierwszym pushu do GHCR (dziś CLI używa `flowretest-proxy:dev` z konfiguracji);
+- publikacja pakietu i obrazu proxy według listy wydania w `docs/dziennik.md` (sekcja po audycie); do audytu pakiet był prywatny i nie dało się go opublikować;
+- commit `proxy.lock.json` z digestem po pierwszym wydaniu (`release.yml` wpisuje digest przed publikacją i zostawia plik jako artefakt);
+- poprawki diffu z `docs/audyt-2026-09-24.md` (punkty 6 do 16), zanim pilotaż zacznie liczyć PASS;
 - test na eksporcie choć jednej agencji.
 
 ## Liczby, które trzeba zebrać w sesjach

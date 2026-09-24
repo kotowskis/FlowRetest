@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows Keep
 
 ## [Unreleased]
 
+### Fixed
+
+- Errors that escape a command exit with 4 (usage or environment) or 5 (internal) instead of 1, which means DIFF; the GitHub Action no longer reports a crashed run as DIFF with a green job.
+- A case skipped for an unsupported node on its path makes the run BLOCKED (exit code 3) instead of PASS.
+- The npm package is publishable: the workspace packages are bundled into `dist/bin.js` with esbuild, `private` is gone, `bin` is `dist/bin.js`, `proxy.lock.json` ships with the package, `engines` is `>=22.12` (commander 15).
+- `doctor` defaults to the proxy image from `proxy.lock.json` instead of `flowretest-proxy:dev`.
+- `release.yml` refuses a tag that differs from the package versions, picks the npm dist-tag from the version (a prerelease never goes to `latest`), writes the proxy digest into `proxy.lock.json` before publishing and stops when the package is private or the digest is missing.
+
 ## [0.3.0-next.1] - 2026-09-24
 
 ### Added
