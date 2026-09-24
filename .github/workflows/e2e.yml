@@ -25,8 +25,8 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
-      # Only the CLI and what it bundles; the hosted layer (apps/web) is built in ci.yml.
-      - run: npx turbo build --filter=flowretest
+      # The CLI with what it bundles, and the proxy image sources; the hosted layer (apps/web) is built in ci.yml.
+      - run: npx turbo build --filter=flowretest --filter=@flowretest/proxy
       - run: docker build -t flowretest-proxy:dev packages/proxy
       - run: docker pull n8nio/n8n:${{ matrix.engine }}
       - run: node packages/cli/dist/bin.js doctor --engine ${{ matrix.engine }}
