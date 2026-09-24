@@ -5,7 +5,8 @@ import { readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 
 const out = fileURLToPath(new URL('../lib/database.types.ts', import.meta.url));
-const res = spawnSync('npx supabase gen types typescript --local --schema public', { encoding: 'utf8', shell: true });
+// cwd: the supabase project lives in apps/web, and CI calls this script from the repository root.
+const res = spawnSync('npx supabase gen types typescript --local --schema public', { encoding: 'utf8', shell: true, cwd: fileURLToPath(new URL('..', import.meta.url)) });
 if (res.status !== 0) {
   console.error(res.stderr);
   process.exit(res.status ?? 1);
