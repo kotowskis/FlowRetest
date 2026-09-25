@@ -71,6 +71,8 @@ export function prepareIngest(body: string): IngestResult {
     return { ok: false, status: 400, error: 'body is not a redacted FlowRetest report (run `flowretest upload`, not a raw report.json)', details };
   }
   const report = parsed.data;
+  // No cases means nothing was tested; stored, it would read as PASS and post a green check.
+  if (report.cases.length === 0) return { ok: false, status: 422, error: 'report has no cases; nothing was tested' };
   const problems = redactionProblems(report as Parameters<typeof redactionProblems>[0]);
   if (problems.length > 0) return { ok: false, status: 422, error: 'report still carries values; only reports written by `flowretest redact --report` are accepted', details: problems };
   const generatedAt = Number.isNaN(Date.parse(report.generatedAt)) ? new Date().toISOString() : new Date(report.generatedAt).toISOString();

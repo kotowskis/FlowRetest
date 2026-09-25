@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { DriftCell } from '@/lib/data.ts';
-import { compareEngineTags, engineTag } from '@/lib/plans.ts';
+import { compareEngineTags, engineTag, latestPerTag } from '@/lib/plans.ts';
 import { Empty, StatusBadge, Time } from './ui.tsx';
 
 const WORST: Record<string, number> = { ERROR: 0, BLOCKED: 1, DIFF: 2, PASS: 3 };
@@ -30,7 +30,8 @@ export function DriftHowTo() {
 }
 
 /** Rows are workflows of one workspace; a cell is the latest upgrade-check to that version, linked to its run. */
-export function WorkflowDriftTable({ cells, workflows }: { cells: DriftCell[]; workflows: Array<{ id: string; name: string; n8n_workflow_id: string }> }) {
+export function WorkflowDriftTable({ cells: all, workflows }: { cells: DriftCell[]; workflows: Array<{ id: string; name: string; n8n_workflow_id: string }> }) {
+  const cells = latestPerTag(all);
   const tags = targetTags(cells);
   const byKey = new Map(cells.map((c) => [`${c.workflow_id} ${engineTag(c.engine_to)}`, c]));
   const rows = workflows.filter((w) => cells.some((c) => c.workflow_id === w.id)).sort((a, b) => a.name.localeCompare(b.name));
@@ -74,7 +75,8 @@ export function WorkflowDriftTable({ cells, workflows }: { cells: DriftCell[]; w
 }
 
 /** Rows are workspaces; a cell counts the latest checks of their workflows by status, coloured by the worst one. */
-export function WorkspaceDriftTable({ cells, workspaces }: { cells: DriftCell[]; workspaces: Array<{ id: string; name: string; engine_tag: string | null }> }) {
+export function WorkspaceDriftTable({ cells: all, workspaces }: { cells: DriftCell[]; workspaces: Array<{ id: string; name: string; engine_tag: string | null }> }) {
+  const cells = latestPerTag(all);
   const tags = targetTags(cells);
   const rows = workspaces.filter((w) => cells.some((c) => c.workspace_id === w.id));
   return (

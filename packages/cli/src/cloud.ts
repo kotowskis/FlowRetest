@@ -12,11 +12,24 @@ export class CloudError extends Error {
   }
 }
 
-/** Hosted layer URL: `--url`, then FLOWRETEST_URL, then `cloud.url` in config.yml. */
+/**
+ * Hosted layer URL: `--url`, then FLOWRETEST_URL, then `cloud.url` in config.yml. The token travels with every
+ * request, so plain http is refused except on this machine, and so is a user name or password in the URL (it would
+ * end up in error messages and CI logs).
+ */
 export function cloudUrl(cwd: string, explicit?: string): string {
-  const url = explicit ?? process.env.FLOWRETEST_URL ?? loadConfig(cwd).cloud?.url;
-  if (!url) throw new Error('no hosted layer URL: pass --url, set FLOWRETEST_URL or add `cloud: { url: ... }` to .flowretest/config.yml');
-  return url.replace(/\/+$/, '');
+  const raw = explicit ?? process.env.FLOWRETEST_URL ?? loadConfig(cwd).cloud?.url;
+  if (!raw) throw new Error('no hosted layer URL: pass --url, set FLOWRETEST_URL or add `cloud: { url: ... }` to .flowretest/config.yml');
+  let url: URL;
+  try {
+    url = new URL(raw);
+  } catch {
+    throw new Error('the hosted layer URL is not a URL; use https://<host>');
+  }
+  if (url.username || url.password) throw new Error('the hosted layer URL must not carry a user name or password; the workspace token goes in FLOWRETEST_TOKEN');
+  const local = ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && local)) throw new Error(`the hosted layer URL must use https (http only for localhost): ${url.origin}`);
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 }
 
 export function cloudToken(cwd: string): string {
@@ -49,12 +62,15 @@ export async function cloudRequest<T>(base: string, token: string, path: string,
     throw new Error(`request to ${base} failed`, { cause: e });
   }
   const text = await res.text();
-  let json: Record<string, unknown> = {};
+  let json: Record<string, unknown> | undefined;
   try {
     json = JSON.parse(text) as Record<string, unknown>;
   } catch {
-    // An HTML error page from a proxy; the status says enough.
+    // An HTML page from a proxy or a login wall; handled below.
   }
+  // A 200 with a login page is not a success: without this, upload printed "uploaded run undefined" and exited 0.
+  if (res.ok && (json === null || typeof json !== 'object')) throw new CloudError(res.status, `${init.method ?? 'GET'} ${path} answered ${res.status} without JSON; is ${base} the FlowRetest hosted layer?`);
+  json ??= {};
   if (!res.ok) {
     const reason = typeof json.error === 'string' ? json.error : text.slice(0, 200);
     const hint = res.status === 401 ? ' (the token is wrong or revoked)' : '';

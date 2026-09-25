@@ -63,5 +63,9 @@ test('tokens: 32 random bytes, stored as SHA-256, parsed only from a well-formed
 
 test('the post-login target is always a local path', () => {
   assert.equal(safeNext('/w/1'), '/w/1');
-  for (const bad of ['//evil.example', '/\\evil.example', 'https://evil.example', '', null, 42]) assert.equal(safeNext(bad), '/orgs');
+  assert.equal(safeNext('/runs/1?tab=plan#case-2'), '/runs/1?tab=plan#case-2');
+  // Browsers drop tabs and newlines in URLs and read a backslash as a slash, so these lead to evil.example.
+  for (const bad of ['//evil.example', '/\\evil.example', '/\t/evil.example', '/\n/evil.example', '/\t\\evil.example', 'https://evil.example', '', null, 42]) {
+    assert.equal(safeNext(bad), '/orgs', JSON.stringify(bad));
+  }
 });

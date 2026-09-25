@@ -18,6 +18,6 @@ export async function GET(request: NextRequest) {
     return fail(500, 'could not read acceptances');
   }
   return NextResponse.json({
-    acceptances: (data ?? []).map((a) => ({ id: a.id, localRun: a.local_run, caseIds: a.case_ids, message: a.message, acceptedBy: a.accepted_by_email, createdAt: a.created_at })),
+    acceptances: (data ?? []).map((a) => ({ id: a.id, localRun: a.local_run, workflowVersionId: a.workflow_version_id, caseIds: a.case_ids, message: a.message, acceptedBy: a.accepted_by_email, createdAt: a.created_at })),
   });
 }

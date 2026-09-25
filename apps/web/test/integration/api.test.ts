@@ -3,9 +3,9 @@ import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { diffCase, normalizeCall, redactPlanReport, type CaptureRecord, type PlanReport } from '@flowretest/core';
 import { generateToken } from '../../lib/tokens.ts';
-import { appMissing, appUrl, supabaseMissing, user, type Db } from './helpers.ts';
+import { appMissing, appUrl, supabaseMissing, user, type Db, mustRun } from './helpers.ts';
 
-const skip = (await supabaseMissing()) ?? (await appMissing());
+const skip = mustRun((await supabaseMissing()) ?? (await appMissing()));
 
 let owner: { db: Db; id: string };
 let outsider: { db: Db };

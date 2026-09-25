@@ -6,15 +6,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
-import { redactPlanReport, type PlanReport } from '@flowretest/core';
+import { diffCase, redactPlanReport, type PlanReport } from '@flowretest/core';
 import { generateToken } from '../../lib/tokens.ts';
 import { signStripePayload } from '../../lib/stripe.ts';
-import { admin, appMissing, appUrl, insertableRun, setPlan, supabaseMissing, user, type Db } from './helpers.ts';
+import { admin, appMissing, appUrl, insertableRun, setPlan, supabaseMissing, user, type Db, mustRun } from './helpers.ts';
 
-const skip = await supabaseMissing();
+const skip = mustRun(await supabaseMissing());
 const stripeUrl = process.env.STRIPE_API_URL ?? '';
 async function stripeMissing(): Promise<string | undefined> {
-  const missing = skip ?? (await appMissing());
+  const missing = mustRun(skip ?? (await appMissing()));
   if (missing) return missing;
   if (!stripeUrl || !process.env.STRIPE_WEBHOOK_SECRET) return 'no fake Stripe in .env.local (node scripts/fake-services.mjs init)';
   const fakeBase = stripeUrl.replace(/\/stripe$/, '');
@@ -26,7 +26,7 @@ async function stripeMissing(): Promise<string | undefined> {
   const res = await fetch(`${appUrl}/api/stripe/webhook`, { method: 'POST', body: '{}' });
   return res.status === 404 ? 'the app runs without Stripe settings; restart it after fake-services init' : undefined;
 }
-const skipStripe = await stripeMissing();
+const skipStripe = mustRun(await stripeMissing());
 
 type U = Awaited<ReturnType<typeof user>>;
 
@@ -251,7 +251,7 @@ test('Free sends no Slack message and posts no GitHub check, and logs why', { sk
   const orgId = await organization(owner);
   const ws = (await workspace(owner.db, orgId, 'Customer')).data!.id;
   assert.ifError((await admin().from('slack_webhooks').insert({ workspace_id: ws, url: `${stripeUrl.replace(/\/stripe$/, '')}/slack/services/T/B/x`, url_hint: 'hooks…/x', statuses: ['PASS', 'DIFF'] })).error);
-  const report: PlanReport = { runner: '0.3.0', workflowName: 'Free', workflowId: 'free-wf', engine: { image: 'n8nio/n8n:2.40.5' }, oldLabel: 'recorded', newLabel: 'draft.json', cases: [], coverage: { writeNodesTotal: 0, writeNodesCaptured: 0, replayedNodes: 0, unsupported: [] }, sealed: true };
+  const report: PlanReport = { runner: '0.3.0', workflowName: 'Free', workflowId: 'free-wf', engine: { image: 'n8nio/n8n:2.40.5' }, oldLabel: 'recorded', newLabel: 'draft.json', cases: [diffCase('1', [], [])], coverage: { writeNodesTotal: 0, writeNodesCaptured: 0, replayedNodes: 0, unsupported: [] }, sealed: true };
   const body = JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), redacted: true, ...redactPlanReport(report), git: { repository: 'acme-agency/flows', sha: 'd'.repeat(40) } });
   const res = await fetch(`${appUrl}/api/runs`, { method: 'POST', headers: { authorization: `Bearer ${(await token(owner, ws)).token}`, 'content-type': 'application/json' }, body });
   assert.equal(res.status, 201, await res.clone().text());
@@ -274,7 +274,7 @@ test('the upload API answers 402 for a workspace beyond the plan and 429 when up
   const older = (await workspace(owner.db, orgId, 'Older')).data!.id;
   const newer = (await workspace(owner.db, orgId, 'Newer')).data!.id;
   await setPlan(orgId, 'team', 'canceled');
-  const report: PlanReport = { runner: '0.3.0', workflowName: 'Limits', workflowId: 'limits-wf', engine: { image: 'n8nio/n8n:2.40.5' }, oldLabel: 'recorded', newLabel: 'draft.json', cases: [], coverage: { writeNodesTotal: 0, writeNodesCaptured: 0, replayedNodes: 0, unsupported: [] }, sealed: true };
+  const report: PlanReport = { runner: '0.3.0', workflowName: 'Limits', workflowId: 'limits-wf', engine: { image: 'n8nio/n8n:2.40.5' }, oldLabel: 'recorded', newLabel: 'draft.json', cases: [diffCase('1', [], [])], coverage: { writeNodesTotal: 0, writeNodesCaptured: 0, replayedNodes: 0, unsupported: [] }, sealed: true };
   const body = JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), redacted: true, ...redactPlanReport(report) });
   const upload = async (ws: string) => fetch(`${appUrl}/api/runs`, { method: 'POST', headers: { authorization: `Bearer ${(await token(owner, ws)).token}`, 'content-type': 'application/json' }, body });
 

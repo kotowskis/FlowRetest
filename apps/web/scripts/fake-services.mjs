@@ -36,8 +36,11 @@ const PRICES = [
  * Stripe: customers, prices by lookup key, Checkout (GET /stripe/pay/<session> plays the payment page: it creates the
  * subscription and a paid invoice, delivers signed webhooks to the app and redirects to success_url; ?outcome=cancel
  * goes to cancel_url, ?deliver=0 skips the webhooks), subscriptions, invoices, the customer portal. Control endpoints:
- * POST /__stripe/subscriptions/<id> {status, cancel_at_period_end} changes a subscription as Stripe would after a
- * failed card or a cancellation and delivers the event; GET /__stripe dumps the state.
+ * POST /__stripe/subscriptions/<id> {status, cancel_at_period_end, cancel_at} changes a subscription as Stripe would
+ * after a failed card or a cancellation (classic mode sets cancel_at_period_end, flexible mode cancel_at) and delivers
+ * the event; POST /__stripe/customers/<id> {fail_payments} makes the customer's next charges fail, so a plan change
+ * with payment_behavior=pending_if_incomplete stays pending; GET /__stripe dumps the state. As in Stripe, an
+ * idempotency key reused with other parameters is refused.
  */
 function fakeStripe({ appUrl, baseOf }) {
   const state = { customers: new Map(), sessions: new Map(), subscriptions: new Map(), invoices: new Map(), idempotency: new Map(), deliveries: [] };
@@ -60,12 +63,13 @@ function fakeStripe({ appUrl, baseOf }) {
     state.deliveries.push({ type, id: object.id, status });
   }
 
-  function invoice(sub, amount) {
+  function invoice(sub, amount, status = 'paid') {
     const id = `in_${n++}`;
     const item = sub.items.data[0];
+    const paid = status === 'paid';
     const inv = {
-      id, object: 'invoice', customer: sub.customer, number: `FAKE-${String(state.invoices.size + 1).padStart(4, '0')}`, status: 'paid', currency: 'eur',
-      total: amount, amount_paid: amount, amount_due: 0, hosted_invoice_url: `${baseOf()}/stripe/invoices/${id}`, invoice_pdf: `${baseOf()}/stripe/invoices/${id}.pdf`,
+      id, object: 'invoice', customer: sub.customer, number: `FAKE-${String(state.invoices.size + 1).padStart(4, '0')}`, status, currency: 'eur',
+      total: amount, amount_paid: paid ? amount : 0, amount_due: paid ? 0 : amount, hosted_invoice_url: `${baseOf()}/stripe/invoices/${id}`, invoice_pdf: `${baseOf()}/stripe/invoices/${id}.pdf`,
       period_start: now(), period_end: item.current_period_end, created: now(), parent: { type: 'subscription_details', subscription_details: { subscription: sub.id } },
     };
     state.invoices.set(id, inv);
@@ -89,9 +93,16 @@ function fakeStripe({ appUrl, baseOf }) {
       const change = raw ? JSON.parse(raw) : {};
       if (change.status) sub.status = change.status;
       if (change.cancel_at_period_end !== undefined) sub.cancel_at_period_end = change.cancel_at_period_end;
+      if (change.cancel_at !== undefined) sub.cancel_at = change.cancel_at;
       if (sub.status === 'canceled') sub.ended_at = sub.canceled_at = now();
       await deliver(sub.status === 'canceled' ? 'customer.subscription.deleted' : 'customer.subscription.updated', sub);
       return json(res, 200, { subscription: sub, deliveries: state.deliveries });
+    }
+    if (req.method === 'POST' && (m = /^\/__stripe\/customers\/([\w]+)$/.exec(path))) {
+      const customer = state.customers.get(m[1]);
+      if (!customer) return err(res, 404, 'No such customer');
+      customer.fail_payments = (raw ? JSON.parse(raw) : {}).fail_payments === true;
+      return json(res, 200, customer);
     }
     if ((m = /^\/stripe\/pay\/([\w]+)$/.exec(path)) && req.method === 'GET') {
       const session = state.sessions.get(m[1]);
@@ -127,15 +138,24 @@ function fakeStripe({ appUrl, baseOf }) {
     const api = path.slice('/stripe'.length);
     if (req.method === 'POST' && api === '/v1/customers') {
       const key = req.headers['idempotency-key'];
-      if (key && state.idempotency.has(key)) return json(res, 200, state.customers.get(state.idempotency.get(key)));
+      const seen = key ? state.idempotency.get(key) : undefined;
+      if (seen && seen.params !== raw) return err(res, 400, 'Keys for idempotent requests can only be used with the same parameters they were first used with.');
+      if (seen) return json(res, 200, state.customers.get(seen.id));
       const customer = { id: `cus_${n++}`, object: 'customer', name: form.name, email: form.email, metadata: { organization_id: form['metadata[organization_id]'] } };
       state.customers.set(customer.id, customer);
-      if (key) state.idempotency.set(key, customer.id);
+      if (key) state.idempotency.set(key, { id: customer.id, params: raw });
       return json(res, 200, customer);
     }
     if (req.method === 'GET' && api === '/v1/prices') {
       const keys = [...url.searchParams.entries()].filter(([k]) => k.startsWith('lookup_keys')).map(([, v]) => v);
-      return json(res, 200, { object: 'list', data: PRICES.filter((p) => keys.includes(p.lookup_key)), has_more: false });
+      const active = url.searchParams.get('active');
+      return json(res, 200, { object: 'list', data: PRICES.filter((p) => keys.includes(p.lookup_key) && (active === null || String(p.active) === active)), has_more: false });
+    }
+    if (req.method === 'GET' && api === '/v1/subscriptions') {
+      const customer = url.searchParams.get('customer');
+      const status = url.searchParams.get('status') ?? 'active';
+      const data = [...state.subscriptions.values()].filter((s) => s.customer === customer && (status === 'all' || s.status === status)).reverse();
+      return json(res, 200, { object: 'list', data, has_more: false });
     }
     if (req.method === 'POST' && api === '/v1/checkout/sessions') {
       if (form.mode !== 'subscription') return err(res, 400, 'mode must be subscription');
@@ -161,13 +181,22 @@ function fakeStripe({ appUrl, baseOf }) {
       if (req.method === 'POST') {
         const price = PRICES.find((p) => p.id === form['items[0][price]']);
         if (form['items[0][price]'] && !price) return err(res, 400, 'No such price');
-        if (price) {
-          if (form['items[0][id]'] !== sub.items.data[0].id) return err(res, 400, 'items[0][id] does not belong to this subscription');
-          sub.items.data[0] = { ...sub.items.data[0], price, current_period_end: periodEnd(price) };
+        if (price && form['items[0][id]'] !== sub.items.data[0].id) return err(res, 400, 'items[0][id] does not belong to this subscription');
+        // The prorated difference is billed at once (always_invoice); the fake charges the full new price for it.
+        const failed = price && state.customers.get(sub.customer)?.fail_payments === true;
+        if (failed && form.payment_behavior === 'pending_if_incomplete') {
+          // Stripe keeps the old price and records what waits for payment.
+          sub.pending_update = { expires_at: now() + 23 * 3600, subscription_items: [{ id: sub.items.data[0].id, price: price.id }] };
+          const inv = invoice(sub, price.unit_amount, 'open');
+          await deliver('customer.subscription.updated', sub);
+          await deliver('invoice.payment_failed', inv);
+          return json(res, 200, sub);
         }
+        if (price) sub.items.data[0] = { ...sub.items.data[0], price, current_period_end: periodEnd(price) };
+        sub.pending_update = null;
         if (form.cancel_at_period_end !== undefined) sub.cancel_at_period_end = form.cancel_at_period_end === 'true';
         await deliver('customer.subscription.updated', sub);
-        if (price) await deliver('invoice.paid', invoice(sub, price.unit_amount));
+        if (price) await deliver(failed ? 'invoice.payment_failed' : 'invoice.paid', invoice(sub, price.unit_amount, failed ? 'open' : 'paid'));
       }
       return json(res, 200, sub);
     }

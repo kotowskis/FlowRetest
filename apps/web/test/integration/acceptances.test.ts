@@ -3,9 +3,9 @@ import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { diffCase, normalizeCall, redactPlanReport, type CaptureRecord, type PlanReport } from '@flowretest/core';
 import { generateToken } from '../../lib/tokens.ts';
-import { admin, appMissing, appUrl, supabaseMissing, user, type Db } from './helpers.ts';
+import { admin, appMissing, appUrl, supabaseMissing, user, type Db, mustRun } from './helpers.ts';
 
-const skip = (await supabaseMissing()) ?? (await appMissing());
+const skip = mustRun((await supabaseMissing()) ?? (await appMissing()));
 
 let owner: { db: Db; id: string; email: string };
 let outsider: { db: Db; id: string };
@@ -21,7 +21,7 @@ function report(): PlanReport {
 }
 
 async function upload(tok: string): Promise<string> {
-  const body = { schemaVersion: 1, generatedAt: new Date().toISOString(), redacted: true, run: '2026-09-24T10-00-00', stability: { '9': true, '10': false }, ...redactPlanReport(report()) };
+  const body = { schemaVersion: 1, generatedAt: new Date().toISOString(), redacted: true, run: '2026-09-24T10-00-00', workflowVersionId: 'dddd0000-0000-4000-8000-000000000004', stability: { '9': true, '10': false }, ...redactPlanReport(report()) };
   const res = await fetch(`${appUrl}/api/runs`, { method: 'POST', headers: { authorization: `Bearer ${tok}`, 'content-type': 'application/json' }, body: JSON.stringify(body) });
   assert.equal(res.status, 201, await res.clone().text());
   return ((await res.json()) as { id: string }).id;
@@ -64,8 +64,9 @@ test('only stable PASS or DIFF cases can be accepted, by members only; the runne
   assert.deepEqual(history.data, { case_ids: ['9'], message: 'field moved to the new CRM property', accepted_by_email: owner.email, local_run: '2026-09-24T10-00-00', applied_at: null });
   assert.equal((await owner.db.from('acceptances').insert({} as never)).error !== null, true, 'people cannot write acceptances directly');
 
-  const pending = (await (await api(`/api/acceptances?workflow=${WORKFLOW}`, token)).json()) as { acceptances: Array<{ id: string; caseIds: string[]; acceptedBy: string; localRun: string }> };
-  assert.deepEqual(pending.acceptances.map((a) => [a.id, a.caseIds, a.acceptedBy, a.localRun]), [[accepted.data, ['9'], owner.email, '2026-09-24T10-00-00']]);
+  const pending = (await (await api(`/api/acceptances?workflow=${WORKFLOW}`, token)).json()) as { acceptances: Array<{ id: string; caseIds: string[]; acceptedBy: string; localRun: string; workflowVersionId: string }> };
+  // The acceptance records the workflow version the run tested (plan section 11).
+  assert.deepEqual(pending.acceptances.map((a) => [a.id, a.caseIds, a.acceptedBy, a.localRun, a.workflowVersionId]), [[accepted.data, ['9'], owner.email, '2026-09-24T10-00-00', 'dddd0000-0000-4000-8000-000000000004']]);
   const otherView = (await (await api(`/api/acceptances?workflow=${WORKFLOW}`, otherToken)).json()) as { acceptances: unknown[] };
   assert.equal(otherView.acceptances.length, 0, 'another workspace sees the acceptance');
   assert.equal((await api(`/api/acceptances/${accepted.data}/applied`, otherToken, { method: 'POST', body: { appliedCases: ['9'] } })).status, 409);

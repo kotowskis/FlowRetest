@@ -2,9 +2,9 @@
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateToken } from '../../lib/tokens.ts';
-import { admin, anon, supabaseMissing, user, type Db } from './helpers.ts';
+import { admin, anon, supabaseMissing, user, type Db, mustRun } from './helpers.ts';
 
-const skip = await supabaseMissing();
+const skip = mustRun(await supabaseMissing());
 
 interface World {
   a: { db: Db; id: string; email: string };

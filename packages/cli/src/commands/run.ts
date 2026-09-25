@@ -393,7 +393,7 @@ export async function runRun(options: RunOptions): Promise<RunResult> {
   };
   const status = overallStatus(diffs);
   const reportPath = join(runDir, 'report.json');
-  writeFileSync(reportPath, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), runner: CLI_VERSION, mode: upgrade ? 'upgrade' : 'change', workflowId: options.workflowId, workflowName: newWorkflow.name, engine: report.engine, engines: { old: imageOld, new: imageNew, digestOld, digestNew }, old: report.oldLabel, new: report.newLabel, status, cases: diffs, calls: callsByCase, coverage: report.coverage, sandbox: sandboxSection(seals), static: staticScan }, null, 2));
+  writeFileSync(reportPath, JSON.stringify({ schemaVersion: 1, generatedAt: new Date().toISOString(), runner: CLI_VERSION, mode: upgrade ? 'upgrade' : 'change', workflowId: options.workflowId, workflowName: newWorkflow.name, engine: report.engine, engines: { old: imageOld, new: imageNew, digestOld, digestNew }, versions: { old: oldSide.workflow.versionId, new: newWorkflow.versionId }, old: report.oldLabel, new: report.newLabel, status, cases: diffs, calls: callsByCase, coverage: report.coverage, sandbox: sandboxSection(seals), static: staticScan }, null, 2));
   const plan = renderFormat(report, 'terminal');
   writeFileSync(join(runDir, 'plan.txt'), plan + '\n');
   if (formats.includes('junit')) writeFileSync(join(runDir, 'junit.xml'), renderFormat(report, 'junit'));

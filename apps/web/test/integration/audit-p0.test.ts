@@ -1,14 +1,14 @@
 /**
  * The database side of the P0 fixes in docs/audyt-2026-09-25.md: revocation is final, only the server stores Slack
- * webhooks, a password set before an address was confirmed stops working, plan changes keep retention and plans.
+ * webhooks, a password never opens a session, plan changes keep retention and plans.
  */
 import { before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { generateToken } from '../../lib/tokens.ts';
-import { admin, anon, setPlan, supabaseMissing, user, type Db } from './helpers.ts';
+import { admin, anon, setPlan, supabaseMissing, user, type Db, mustRun } from './helpers.ts';
 
-const skip = await supabaseMissing();
+const skip = mustRun(await supabaseMissing());
 
 let owner: { db: Db; id: string; email: string };
 let member: { db: Db; id: string; email: string };

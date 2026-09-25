@@ -23,6 +23,12 @@ export async function GET(request: NextRequest) {
   if (!who) return NextResponse.redirect(`${env.appUrl()}/login`);
   if (who.userId !== state.u || !who.owner) return back('owner-only');
 
+  // Checks come with the paid plans; linking on Free would look done and post nothing.
+  const admin = createAdminClient();
+  const { data: ws } = await admin.from('workspaces').select('organization_id').eq('id', state.w).single();
+  const { data: plan } = ws ? await admin.rpc('org_plan', { org: ws.organization_id }) : { data: null };
+  if (plan?.[0]?.integrations !== true) return back('plan');
+
   const installationId = Number(params.get('installation_id') ?? state.i ?? NaN);
   if (params.get('setup_action') === 'request') return back('requested');
   if (!Number.isSafeInteger(installationId) || installationId <= 0) return back('no-installation');
@@ -40,7 +46,7 @@ export async function GET(request: NextRequest) {
     // repository that gets them. Linking again refreshes the list after the app was added to more repositories.
     const repositories = await adminRepositories(config, token, installation.id);
     if (repositories.length === 0) return back('not-admin');
-    const { error } = await createAdminClient()
+    const { error } = await admin
       .from('github_installations')
       .upsert(
         {

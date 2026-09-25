@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
-import { fail, isTokenError, tokenHashOf } from '@/lib/api-auth.ts';
+import { fail, isTokenError, readLimited, tokenHashOf } from '@/lib/api-auth.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -18,7 +18,9 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
   if (!z.string().uuid().safeParse(id).success) return fail(404, 'no such acceptance');
   let body: z.infer<typeof Body>;
   try {
-    body = Body.parse(await request.json());
+    const raw = await readLimited(request, 64 * 1024);
+    if ('tooLarge' in raw) return fail(413, 'body is over 64 KB');
+    body = Body.parse(JSON.parse(raw.text));
   } catch {
     return fail(400, 'body must be {"appliedCases": [...], "note"?: "..."}');
   }

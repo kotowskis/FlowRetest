@@ -151,6 +151,8 @@ export const RunReportSchema = z.object({
   workflowName: z.string().optional(),
   engine: z.object({ image: z.string(), digest: z.string().optional() }),
   engines: z.object({ old: z.string(), new: z.string(), digestOld: z.string().optional(), digestNew: z.string().optional() }).optional(),
+  /** n8n versionId of the workflow on each side (the new one from --new, when the file has one). */
+  versions: z.object({ old: z.string().optional(), new: z.string().optional() }).optional(),
   old: z.string(),
   new: z.string(),
   status: z.string(),
@@ -187,8 +189,19 @@ export const RedactedReportSchema = z.object({
   sealed: z.boolean(),
   static: z.object({ findings: z.array(ScanFindingSchema), diff: z.array(ScanFindingSchema) }).optional(),
   upgrade: z.object({ engineOld: z.string(), engineNew: z.string() }).optional(),
+  /** n8n versionId of the tested (new) workflow; an acceptance records it, `sync` checks the local run against it. */
+  workflowVersionId: z
+    .string()
+    .max(64)
+    .regex(/^[A-Za-z0-9-]+$/)
+    .optional(),
   /** Run directory name on the runner's machine, to find the full local report from the hosted one. */
-  run: z.string().optional(),
+  run: z
+    .string()
+    .max(100)
+    .regex(/^[A-Za-z0-9][A-Za-z0-9._-]*$/)
+    .refine((v) => !v.includes('..'), 'a run directory name, not a path')
+    .optional(),
   /** Per case: true when `run --stabilize` found the new version identical across two runs. Absent: not checked. */
   stability: z.record(z.string(), z.boolean()).optional(),
   /** Added by `upload` in CI: the commit the run tested, so the hosted layer can post a GitHub check on it. */
@@ -196,7 +209,8 @@ export const RedactedReportSchema = z.object({
     .object({
       repository: z.string().regex(/^[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/),
       sha: z.string().regex(/^[0-9a-f]{40}$/),
-      pullRequest: z.number().int().positive().optional(),
+      // The database keeps it as integer.
+      pullRequest: z.number().int().positive().max(2147483647).optional(),
       ref: z.string().max(255).optional(),
     })
     .optional(),

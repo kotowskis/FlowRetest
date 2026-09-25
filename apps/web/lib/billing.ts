@@ -1,6 +1,5 @@
-import 'server-only';
 import type { createAdminClient } from './supabase/admin.ts';
-import { getCheckoutSession, getInvoice, getSubscription, subscriptionState, type StripeConfig, type StripeEvent, type StripeInvoice } from './stripe.ts';
+import { getCheckoutSession, getInvoice, getSubscription, listSubscriptions, subscriptionState, type StripeConfig, type StripeEvent, type StripeInvoice } from './stripe.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -21,17 +20,19 @@ async function organizationOf(admin: Admin, customer: string): Promise<{ organiz
   return data ?? undefined;
 }
 
+const live = (s: string | null | undefined) => s === 'active' || s === 'trialing' || s === 'past_due';
+
 /**
  * Copies a subscription from Stripe into billing_accounts. Always re-reads it from the API, so events arriving out of
  * order or twice leave the latest state. The organization comes from the customer we created for it; a second live
- * subscription for the same organization (two Checkout tabs) is not taken over and is reported instead.
+ * subscription for the same organization (two Checkout tabs) is not taken over and is reported instead, until the
+ * tracked one stops.
  */
 export async function syncSubscription(admin: Admin, config: StripeConfig, subscriptionId: string): Promise<string> {
   const sub = await getSubscription(config, subscriptionId);
   const account = await organizationOf(admin, sub.customer);
   if (!account) return `subscription ${sub.id}: customer ${sub.customer} belongs to no organization`;
   const state = subscriptionState(sub);
-  const live = (s: string | null) => s === 'active' || s === 'trialing' || s === 'past_due';
   if (account.stripe_subscription_id && account.stripe_subscription_id !== sub.id && live(account.status)) {
     return live(state.status)
       ? `subscription ${sub.id}: organization ${account.organization_id} already has live subscription ${account.stripe_subscription_id}; cancel and refund one of them in Stripe`
@@ -46,12 +47,32 @@ export async function syncSubscription(admin: Admin, config: StripeConfig, subsc
       billing_interval: state.interval,
       current_period_end: state.currentPeriodEnd,
       cancel_at_period_end: state.cancelAtPeriodEnd,
+      cancel_at: state.cancelAt,
       ended_at: state.endedAt,
       updated_at: new Date().toISOString(),
     })
     .eq('organization_id', account.organization_id);
   if (error) throw new Error(`billing_accounts update: ${error.message}`);
-  return `subscription ${sub.id}: ${state.plan ?? 'unknown plan'} ${state.status}`;
+  const line = `subscription ${sub.id}: ${state.plan ?? 'unknown plan'} ${state.status}`;
+  if (live(state.status)) return line;
+  // The tracked subscription stopped while another one of the same customer still charges (two Checkouts, or the
+  // older one cancelled as the log above advises): the organization gets the plan it still pays for.
+  const other = (await listSubscriptions(config, sub.customer)).find((s) => s.id !== sub.id && live(s.status));
+  return other ? `${line}; ${await syncSubscription(admin, config, other.id)}` : line;
+}
+
+/**
+ * The organization of a completed Checkout whose customer has no billing account yet (saving it failed before the
+ * redirect). The session is read back from Stripe and carries the organization id we set as client_reference_id;
+ * an organization that already has another customer is left alone.
+ */
+async function adoptCheckoutCustomer(admin: Admin, config: StripeConfig, sessionId: string): Promise<void> {
+  const session = await getCheckoutSession(config, sessionId);
+  const org = session.client_reference_id;
+  if (!session.customer || !org || !/^[0-9a-f-]{36}$/i.test(org) || (await organizationOf(admin, session.customer))) return;
+  const { data: exists } = await admin.from('organizations').select('id').eq('id', org).maybeSingle();
+  if (!exists) return;
+  await admin.from('billing_accounts').upsert({ organization_id: org, stripe_customer_id: session.customer }, { onConflict: 'organization_id', ignoreDuplicates: true });
 }
 
 export function invoiceRow(organizationId: string, inv: StripeInvoice) {
@@ -88,7 +109,9 @@ export async function syncInvoice(admin: Admin, config: StripeConfig, invoiceId:
 export async function handleStripeEvent(admin: Admin, config: StripeConfig, event: StripeEvent): Promise<string> {
   const object = event.data.object;
   if (event.type === 'checkout.session.completed') {
-    return object.subscription ? syncSubscription(admin, config, object.subscription) : 'checkout without a subscription';
+    if (!object.subscription) return 'checkout without a subscription';
+    if (object.id) await adoptCheckoutCustomer(admin, config, object.id);
+    return syncSubscription(admin, config, object.subscription);
   }
   if (SUBSCRIPTION_EVENTS.has(event.type) && object.id) return syncSubscription(admin, config, object.id);
   if (INVOICE_EVENTS.has(event.type) && object.id) return syncInvoice(admin, config, object.id);

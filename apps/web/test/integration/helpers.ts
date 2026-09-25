@@ -36,6 +36,15 @@ export async function supabaseMissing(): Promise<string | undefined> {
   return (await reachable(`${url}/auth/v1/health`)) ? undefined : `Supabase not reachable at ${url}`;
 }
 
+/**
+ * The skip reason of a test file, or a failure in CI: there the job starts Supabase, the app and the fakes, so a
+ * missing one is a broken job, not a reason for a green run without integration tests.
+ */
+export function mustRun(reason: string | undefined): string | undefined {
+  if (reason && process.env.CI) throw new Error(`integration tests cannot run in CI: ${reason}`);
+  return reason;
+}
+
 export async function appMissing(): Promise<string | undefined> {
   return (await reachable(`${appUrl}/login`)) ? undefined : `app not reachable at ${appUrl} (npm run dev)`;
 }
@@ -62,7 +71,7 @@ export async function setPlan(orgId: string, plan: 'team' | 'agency', status = '
 
 /** A stored run as a row to insert again: without its id and the columns the database generates from the report. */
 export function insertableRun(run: Database['public']['Tables']['runs']['Row']): Database['public']['Tables']['runs']['Insert'] {
-  const { id: _id, git_repository: _r, git_sha: _s, pull_request: _p, engine_from: _f, engine_to: _t, ...row } = run;
+  const { id: _id, git_repository: _r, git_sha: _s, pull_request: _p, engine_from: _f, engine_to: _t, workflow_version_id: _v, ...row } = run;
   return row;
 }
 

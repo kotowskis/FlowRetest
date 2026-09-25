@@ -24,10 +24,13 @@ function Usage({ label, used, limit }: { label: string; used: number; limit: num
   );
 }
 
-function statusLine(account: { status: string | null; current_period_end: string | null; cancel_at_period_end: boolean; ended_at: string | null } | undefined, limits: PlanLimits) {
+function statusLine(account: { status: string | null; current_period_end: string | null; cancel_at_period_end: boolean; cancel_at: string | null; ended_at: string | null } | undefined, limits: PlanLimits) {
   if (!account?.status) return null;
   if (account.status === 'past_due') return <p className="text-sm text-diff">The last payment failed. Stripe retries the card; update it in the payment details to keep the plan.</p>;
-  if (account.cancel_at_period_end && account.current_period_end) return <p className="text-sm text-diff">Cancelled. The plan ends on <Time value={account.current_period_end} />, then the organization moves to Free.</p>;
+  if (account.status === 'unpaid' || account.status === 'paused' || account.status === 'incomplete') return <p className="text-sm text-diff">The subscription is {account.status}. Pay the open invoice or update the card in the payment details to get the plan back.</p>;
+  // In flexible billing mode the portal sets cancel_at only; in classic mode cancel_at_period_end.
+  const ends = account.cancel_at ?? (account.cancel_at_period_end ? account.current_period_end : null);
+  if (ends) return <p className="text-sm text-diff">Cancelled. The plan ends on <Time value={ends} />, then the organization moves to Free.</p>;
   if ((account.status === 'active' || account.status === 'trialing') && account.current_period_end) return <p className="text-sm text-muted">Renews on <Time value={account.current_period_end} />.</p>;
   if (account.ended_at && limits.plan === 'free') return <p className="text-sm text-muted">The paid plan ended on <Time value={account.ended_at} />. Runs are kept as long as that plan kept them for 30 days after it ended.</p>;
   return null;
@@ -39,18 +42,25 @@ const CHECKOUT_MESSAGES: Record<string, { text: string; ok?: boolean }> = {
   cancelled: { text: 'Checkout was cancelled; nothing was charged.' },
 };
 
-export default async function BillingPage({ params, searchParams }: { params: Promise<{ orgId: string }>; searchParams: Promise<{ checkout?: string; session_id?: string }> }) {
+const PORTAL_MESSAGES: Record<string, string> = {
+  unavailable: 'The Stripe portal did not open. Try again in a minute; invoices are also in your email.',
+};
+
+export default async function BillingPage({ params, searchParams }: { params: Promise<{ orgId: string }>; searchParams: Promise<{ checkout?: string; session_id?: string; portal?: string }> }) {
   const { orgId } = await params;
-  const { checkout, session_id: sessionId } = await searchParams;
+  const { checkout, session_id: sessionId, portal } = await searchParams;
   const config = stripeConfig();
+  // Membership first (getBilling reads through RLS and 404s for others): nobody else makes this server call Stripe.
+  let billing = await getBilling(orgId);
   let checkoutState = checkout;
   if (checkout === 'success' && sessionId && config) {
     // Do not wait for the webhook: read the session and apply the subscription now.
     const applied = await syncCheckout(createAdminClient(), config, orgId, sessionId).catch(() => false);
-    if (!applied) checkoutState = 'pending';
+    if (applied) billing = await getBilling(orgId);
+    else checkoutState = 'pending';
   }
-  const { org, plans, account, invoices, isOwner, limits } = await getBilling(orgId);
-  const message = checkoutState ? CHECKOUT_MESSAGES[checkoutState] : undefined;
+  const { org, plans, account, invoices, isOwner, limits } = billing;
+  const message = checkoutState ? CHECKOUT_MESSAGES[checkoutState] : portal && PORTAL_MESSAGES[portal] ? { text: PORTAL_MESSAGES[portal] } : undefined;
   const current = plans.find((p) => p.id === limits.plan);
   const livePaid = limits.plan !== 'free' && account?.billing_interval;
 

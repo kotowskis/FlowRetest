@@ -46,6 +46,7 @@ export function runAccept(options: AcceptOptions): string[] {
       acceptedBy: options.acceptedBy ?? process.env.USERNAME ?? process.env.USER,
       message: options.message,
       engineDigest: report.engine.digest,
+      workflowVersionId: report.versions?.new,
       runnerVersion: CLI_VERSION,
       volatilePaths: calls.volatile,
     });

@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { githubConfig, installUrl, signState } from '@/lib/github.ts';
 import { ownerOfWorkspace } from '@/lib/github-link.ts';
 import { env } from '@/lib/env.ts';
+import { createAdminClient } from '@/lib/supabase/admin.ts';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +15,10 @@ export async function GET(request: NextRequest) {
   const who = await ownerOfWorkspace(workspaceId);
   if (!who) return NextResponse.redirect(`${env.appUrl()}/login`);
   if (!who.owner) return NextResponse.redirect(`${env.appUrl()}/w/${workspaceId}?github=owner-only`);
+  const admin = createAdminClient();
+  const { data: ws } = await admin.from('workspaces').select('organization_id').eq('id', workspaceId).single();
+  const { data: plan } = ws ? await admin.rpc('org_plan', { org: ws.organization_id }) : { data: null };
+  if (plan?.[0]?.integrations !== true) return NextResponse.redirect(`${env.appUrl()}/w/${workspaceId}?github=plan#github`);
   const state = signState(config.clientSecret, { w: workspaceId, u: who.userId, e: Math.floor(Date.now() / 1000) + 900 });
   return NextResponse.redirect(installUrl(config, state));
 }

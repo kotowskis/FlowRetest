@@ -17,6 +17,8 @@ export interface RunReport {
   cases: CaseDiff[];
   mode?: 'change' | 'upgrade';
   engines?: { old: string; new: string; digestOld?: string; digestNew?: string };
+  /** n8n versionId of the workflow on each side; runs before 0.3.0-next.2 have none. */
+  versions?: { old?: string; new?: string };
   calls: Record<string, { old: NormalizedCall[]; new: NormalizedCall[]; volatile: string[]; stable?: boolean }>;
   coverage: { writeNodesTotal: number; writeNodesCaptured: number; replayedNodes: number; unsupported: string[]; stubbed?: string[] };
   /** Scanner findings for the new version and the structural diff (plan 5.4). */

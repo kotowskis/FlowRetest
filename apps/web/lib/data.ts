@@ -60,7 +60,7 @@ export interface PlanLimits {
   drift_matrix: boolean;
 }
 
-export type BillingAccount = Pick<Tables<'billing_accounts'>, 'plan' | 'status' | 'billing_interval' | 'current_period_end' | 'cancel_at_period_end' | 'ended_at'>;
+export type BillingAccount = Pick<Tables<'billing_accounts'>, 'plan' | 'status' | 'billing_interval' | 'current_period_end' | 'cancel_at_period_end' | 'cancel_at' | 'ended_at'>;
 
 async function planLimits(db: Db, orgId: string): Promise<PlanLimits> {
   const { data, error } = await db.rpc('org_plan', { org: orgId });
@@ -98,7 +98,7 @@ export async function getBilling(orgId: string) {
   const org = orFail(await db.from('organizations').select('*').eq('id', orgId).maybeSingle(), 'organization');
   const [plans, account, invoices, owner, limits] = await Promise.all([
     db.from('plans').select('*').order('sort'),
-    db.from('billing_accounts').select('plan, status, billing_interval, current_period_end, cancel_at_period_end, ended_at').eq('organization_id', orgId).maybeSingle(),
+    db.from('billing_accounts').select('plan, status, billing_interval, current_period_end, cancel_at_period_end, cancel_at, ended_at').eq('organization_id', orgId).maybeSingle(),
     // RLS gives invoices to owners only; members get an empty list.
     db.from('invoices').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(50),
     db.rpc('is_owner', { org: orgId }),
@@ -148,8 +148,24 @@ export async function getWorkspace(workspaceId: string) {
 }
 
 /** Run list columns: everything but the report itself, which can be megabytes. */
-const RUN_COLUMNS = 'id, workspace_id, workflow_id, status, mode, runner, engine_image, old_label, new_label, sealed, local_run, summary, report_bytes, generated_at, created_at';
+const RUN_COLUMNS = 'id, workspace_id, workflow_id, status, mode, runner, engine_image, old_label, new_label, sealed, local_run, summary, report_bytes, generated_at, created_at, workflow_version_id';
 export type RunListItem = Omit<Run, 'report' | 'token_id'>;
+
+/**
+ * Two runs of one workflow for the comparison page, with their reports; either id missing, of another workflow or
+ * hidden by RLS is a 404. `runs` lists the latest runs for the pickers.
+ */
+export async function getRunPair(workflowId: string, beforeId: string, afterId: string) {
+  const { workflow, workspace, org, runs } = await getWorkflow(workflowId);
+  assertId(beforeId);
+  assertId(afterId);
+  const { data, error } = await (await session()).db.from('runs').select(`${RUN_COLUMNS}, report`).eq('workflow_id', workflowId).in('id', [beforeId, afterId]);
+  if (error) throw new Error(`runs: ${error.message}`);
+  const before = data?.find((r) => r.id === beforeId);
+  const after = data?.find((r) => r.id === afterId);
+  if (!before || !after) notFound();
+  return { workflow, workspace, org, runs, before, after };
+}
 
 export async function getWorkflow(workflowId: string, limit = 100) {
   const { db } = await session();

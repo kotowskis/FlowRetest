@@ -13,6 +13,30 @@ export function tokenHashOf(request: NextRequest): { hash: string } | { response
   return { hash: hashToken(token) };
 }
 
+/**
+ * The request body as text, read up to `limit` bytes. A chunked request has no Content-Length, so the stream is
+ * counted as it arrives and dropped past the limit instead of being buffered whole.
+ */
+export async function readLimited(request: Request, limit: number): Promise<{ text: string } | { tooLarge: number }> {
+  const declared = Number(request.headers.get('content-length') ?? '0');
+  if (declared > limit) return { tooLarge: declared };
+  if (!request.body) return { text: '' };
+  const reader = request.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.byteLength;
+    if (size > limit) {
+      await reader.cancel();
+      return { tooLarge: size };
+    }
+    chunks.push(value);
+  }
+  return { text: Buffer.concat(chunks).toString('utf8') };
+}
+
 /** 28000 is what the token-checking database functions raise for an unknown or revoked token. */
 export function isTokenError(error: { code?: string } | null): boolean {
   return error?.code === '28000';

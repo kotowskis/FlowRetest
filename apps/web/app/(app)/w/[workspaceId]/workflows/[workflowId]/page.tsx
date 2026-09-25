@@ -38,11 +38,14 @@ export default async function WorkflowPage({ params }: { params: Promise<{ works
                   <th className="px-4 py-2 font-medium">Calls</th>
                   <th className="px-4 py-2 font-medium">Compared</th>
                   <th className="px-4 py-2 font-medium">Engine</th>
+                  <th className="px-4 py-2 font-medium"><span className="sr-only">Compare</span></th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {runs.map((r) => {
+                {runs.map((r, i) => {
                   const summary = r.summary as unknown as RunSummary;
+                  // Runs are newest first, so the previous run is the next row.
+                  const previous = runs[i + 1];
                   return (
                     <tr key={r.id} className="hover:bg-bg">
                       <td className="px-4 py-2 whitespace-nowrap">
@@ -55,6 +58,9 @@ export default async function WorkflowPage({ params }: { params: Promise<{ works
                       <td className="px-4 py-2 text-muted">{changes(summary)}</td>
                       <td className="px-4 py-2 font-mono text-xs text-muted">{r.mode === 'upgrade' ? 'engine upgrade' : `${r.old_label} → ${r.new_label}`}</td>
                       <td className="px-4 py-2 font-mono text-xs text-muted">{r.engine_image}</td>
+                      <td className="px-4 py-2 text-xs whitespace-nowrap">
+                        {previous ? <Link href={`/w/${workspace.id}/workflows/${workflow.id}/compare?a=${previous.id}&b=${r.id}`} className="text-muted hover:underline">vs previous</Link> : null}
+                      </td>
                     </tr>
                   );
                 })}

@@ -15,6 +15,7 @@ const GITHUB_MESSAGES: Record<string, { text: string; ok?: boolean }> = {
   requested: { text: 'GitHub asked an organization owner to approve the installation. Connect again once it is approved.' },
   'not-yours': { text: 'GitHub did not list that installation for your account, so it was not linked.' },
   'owner-only': { text: 'Only owners of this organization can connect GitHub.' },
+  plan: { text: 'GitHub checks come with the Team and Agency plans. An owner can change the plan on the Billing page.' },
   'not-admin': { text: 'Your GitHub account is not an admin of any repository in that installation. Ask a repository admin to connect GitHub.' },
   'no-installation': { text: 'GitHub did not return an installation. Try connecting again.' },
   error: { text: 'Linking failed. Try again; if it keeps failing, check the GitHub App settings of this server.' },

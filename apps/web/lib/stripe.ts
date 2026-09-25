@@ -132,6 +132,8 @@ export interface StripeSubscription {
   customer: string;
   status: string;
   cancel_at_period_end: boolean;
+  /** Set when the subscription is scheduled to end; in flexible billing mode the portal sets this instead of cancel_at_period_end. */
+  cancel_at?: number | null;
   ended_at: number | null;
   canceled_at: number | null;
   metadata: Record<string, string>;
@@ -229,8 +231,13 @@ export function changeSubscriptionPrice(config: StripeConfig, subscription: Stri
     items: [{ id: item.id, price }],
     proration_behavior: 'always_invoice',
     payment_behavior: 'pending_if_incomplete',
-    cancel_at_period_end: false,
   });
+}
+
+/** The customer's subscriptions in any status, newest first; finds a live one when the tracked one ended. */
+export async function listSubscriptions(config: StripeConfig, customer: string): Promise<StripeSubscription[]> {
+  const list = await call<{ data: StripeSubscription[] }>(config, 'GET', '/v1/subscriptions', { customer, status: 'all', limit: 20 });
+  return list.data;
 }
 
 export function getInvoice(config: StripeConfig, id: string): Promise<StripeInvoice> {
@@ -247,6 +254,8 @@ export interface SubscriptionState {
   status: string;
   currentPeriodEnd: string | null;
   cancelAtPeriodEnd: boolean;
+  /** When a scheduled cancellation ends the subscription, whichever way it was scheduled. */
+  cancelAt: string | null;
   endedAt: string | null;
 }
 
@@ -262,6 +271,7 @@ export function subscriptionState(sub: StripeSubscription): SubscriptionState {
     status: sub.status,
     currentPeriodEnd: iso(item?.current_period_end),
     cancelAtPeriodEnd: sub.cancel_at_period_end,
+    cancelAt: iso(sub.cancel_at) ?? (sub.cancel_at_period_end ? iso(item?.current_period_end) : null),
     endedAt: givesPlan ? null : (iso(sub.ended_at) ?? iso(sub.canceled_at) ?? new Date().toISOString()),
   };
 }

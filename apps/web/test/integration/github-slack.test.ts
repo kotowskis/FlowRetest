@@ -8,7 +8,7 @@ import assert from 'node:assert/strict';
 import { createHmac } from 'node:crypto';
 import { diffCase, normalizeCall, redactPlanReport, type CaptureRecord, type PlanReport } from '@flowretest/core';
 import { generateToken } from '../../lib/tokens.ts';
-import { admin, appMissing, appUrl, setPlan, supabaseMissing, user, type Db } from './helpers.ts';
+import { admin, appMissing, appUrl, setPlan, supabaseMissing, user, type Db, mustRun } from './helpers.ts';
 
 const fakeUrl = process.env.GITHUB_APP_WEB_URL ?? '';
 async function fakeMissing(): Promise<string | undefined> {
@@ -22,7 +22,7 @@ async function fakeMissing(): Promise<string | undefined> {
   const res = await fetch(`${appUrl}/api/github/webhook`, { method: 'POST', body: '{}' });
   return res.status === 404 ? 'the app runs without the GitHub App settings; restart it after fake-services init' : undefined;
 }
-const skip = (await supabaseMissing()) ?? (await appMissing()) ?? (await fakeMissing());
+const skip = mustRun((await supabaseMissing()) ?? (await appMissing()) ?? (await fakeMissing()));
 
 let owner: { db: Db; id: string; email: string; cookie: string };
 let outsider: { db: Db; id: string; cookie: string };

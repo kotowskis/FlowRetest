@@ -15,12 +15,32 @@ export function planFeatures(p: Plan): string[] {
   ];
 }
 
-/** "n8nio/n8n:2.41.0" -> "2.41.0"; a registry port before the last slash is not a tag separator. */
+/**
+ * "n8nio/n8n:2.41.0" -> "2.41.0"; a registry port before the last slash is not a tag separator. An image without a tag
+ * is "latest", as Docker reads it; one pinned only by digest shows the digest's start.
+ */
 export function engineTag(image: string | null | undefined): string {
   if (!image) return '?';
   const name = image.slice(image.lastIndexOf('/') + 1);
-  const colon = name.indexOf(':');
-  return colon >= 0 ? name.slice(colon + 1) : name;
+  const [ref = '', digest] = name.split('@');
+  const colon = ref.indexOf(':');
+  if (colon >= 0) return ref.slice(colon + 1);
+  return digest ? `@${digest.replace(/^sha256:/, '').slice(0, 12)}` : 'latest';
+}
+
+/**
+ * One cell per workflow and target tag. The database keeps the latest run per exact image, so
+ * `n8nio/n8n:2.41.0` and `docker.n8n.io/n8nio/n8n:2.41.0` are two rows; the matrix shows the newer one.
+ */
+export function latestPerTag<T extends { workflow_id: string | null; engine_to: string | null; created_at: string | null; id: string | null }>(cells: T[]): T[] {
+  const best = new Map<string, T>();
+  for (const c of cells) {
+    const key = `${c.workflow_id} ${engineTag(c.engine_to)}`;
+    const seen = best.get(key);
+    const newer = !seen || (c.created_at ?? '') > (seen.created_at ?? '') || ((c.created_at ?? '') === (seen.created_at ?? '') && (c.id ?? '') > (seen.id ?? ''));
+    if (newer) best.set(key, c);
+  }
+  return [...best.values()];
 }
 
 /** Newest version first: numeric tags by their numbers, other tags (next, v3-nightly) after them by name. */

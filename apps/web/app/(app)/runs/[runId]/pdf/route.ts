@@ -7,6 +7,8 @@ import { renderRunRecord } from '@/lib/pdf/run-record-pdf.ts';
 import type { RunSummary } from '@/lib/ingest.ts';
 
 export const dynamic = 'force-dynamic';
+// recordCases keeps a record near 6 s of rendering; the limit is for hosts that would stop it sooner.
+export const maxDuration = 60;
 
 const utc = (value: string | null) => (value ? `${new Date(value).toISOString().slice(0, 16).replace('T', ' ')} UTC` : '');
 
@@ -33,6 +35,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ run
     oldLabel: run.old_label,
     newLabel: run.new_label,
     engineImage: run.engine_image,
+    engineDigest: report.engine?.digest,
     runner: run.runner,
     generatedAt: utc(run.generated_at),
     uploadedAt: utc(run.created_at),
@@ -41,7 +44,8 @@ export async function GET(_request: Request, { params }: { params: Promise<{ run
     commit: run.git_repository && run.git_sha ? { repository: run.git_repository, sha: run.git_sha, pullRequest: run.pull_request } : undefined,
     coverage: report.coverage,
     summary: run.summary as unknown as RunSummary & Record<string, number>,
-    acceptances: [...acceptances].reverse().map((a) => ({ acceptedBy: a.accepted_by_email || 'unknown', at: utc(a.created_at), cases: a.case_ids, message: a.message, appliedAt: a.applied_at ? utc(a.applied_at) : null })),
+    workflowVersionId: run.workflow_version_id,
+    acceptances: [...acceptances].reverse().map((a) => ({ acceptedBy: a.accepted_by_email || 'unknown', at: utc(a.created_at), cases: a.case_ids, message: a.message, appliedAt: a.applied_at ? utc(a.applied_at) : null, workflowVersionId: a.workflow_version_id })),
     cases: recordCases(report),
     printedAt: utc(new Date().toISOString()),
   });

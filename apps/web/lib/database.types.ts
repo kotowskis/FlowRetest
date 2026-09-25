@@ -24,6 +24,7 @@ export type Database = {
           message: string | null
           run_id: string | null
           workflow_id: string
+          workflow_version_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -40,6 +41,7 @@ export type Database = {
           message?: string | null
           run_id?: string | null
           workflow_id: string
+          workflow_version_id?: string | null
           workspace_id: string
         }
         Update: {
@@ -56,6 +58,7 @@ export type Database = {
           message?: string | null
           run_id?: string | null
           workflow_id?: string
+          workflow_version_id?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -99,6 +102,7 @@ export type Database = {
       billing_accounts: {
         Row: {
           billing_interval: string | null
+          cancel_at: string | null
           cancel_at_period_end: boolean
           current_period_end: string | null
           ended_at: string | null
@@ -113,6 +117,7 @@ export type Database = {
         }
         Insert: {
           billing_interval?: string | null
+          cancel_at?: string | null
           cancel_at_period_end?: boolean
           current_period_end?: string | null
           ended_at?: string | null
@@ -127,6 +132,7 @@ export type Database = {
         }
         Update: {
           billing_interval?: string | null
+          cancel_at?: string | null
           cancel_at_period_end?: boolean
           current_period_end?: string | null
           ended_at?: string | null
@@ -551,6 +557,7 @@ export type Database = {
           summary: Json
           token_id: string | null
           workflow_id: string
+          workflow_version_id: string | null
           workspace_id: string
         }
         Insert: {
@@ -575,6 +582,7 @@ export type Database = {
           summary: Json
           token_id?: string | null
           workflow_id: string
+          workflow_version_id?: string | null
           workspace_id: string
         }
         Update: {
@@ -599,6 +607,7 @@ export type Database = {
           summary?: Json
           token_id?: string | null
           workflow_id?: string
+          workflow_version_id?: string | null
           workspace_id?: string
         }
         Relationships: [
@@ -624,6 +633,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      sign_in_attempts: {
+        Row: {
+          at: string
+          email: string
+          id: number
+          ip: string
+          kind: string
+        }
+        Insert: {
+          at?: string
+          email: string
+          id?: never
+          ip: string
+          kind: string
+        }
+        Update: {
+          at?: string
+          email?: string
+          id?: never
+          ip?: string
+          kind?: string
+        }
+        Relationships: []
       }
       slack_webhooks: {
         Row: {
@@ -873,6 +906,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      note_sign_in_attempt: {
+        Args: { p_email: string; p_ip: string; p_kind: string }
+        Returns: boolean
+      }
       org_plan: {
         Args: { org: string }
         Returns: {
@@ -898,6 +935,7 @@ export type Database = {
           id: string
           local_run: string
           message: string
+          workflow_version_id: string
         }[]
       }
       purge_expired_runs: { Args: never; Returns: number }

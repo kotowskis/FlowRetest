@@ -64,6 +64,18 @@
       ],
       "additionalProperties": false
     },
+    "versions": {
+      "type": "object",
+      "properties": {
+        "old": {
+          "type": "string"
+        },
+        "new": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false
+    },
     "old": {
       "type": "string"
     },

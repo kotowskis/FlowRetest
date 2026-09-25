@@ -580,8 +580,15 @@
       ],
       "additionalProperties": false
     },
+    "workflowVersionId": {
+      "type": "string",
+      "maxLength": 64,
+      "pattern": "^[A-Za-z0-9-]+$"
+    },
     "run": {
-      "type": "string"
+      "type": "string",
+      "maxLength": 100,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$"
     },
     "stability": {
       "type": "object",
@@ -606,7 +613,7 @@
         "pullRequest": {
           "type": "integer",
           "exclusiveMinimum": 0,
-          "maximum": 9007199254740991
+          "maximum": 2147483647
         },
         "ref": {
           "type": "string",

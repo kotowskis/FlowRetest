@@ -56,6 +56,12 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
       <dl className="mb-8 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
         <dt className="text-muted">Compared</dt>
         <dd className="font-mono break-all">{run.mode === 'upgrade' ? `${run.old_label} → ${run.new_label}` : `old: ${run.old_label} → new: ${run.new_label}`}</dd>
+        {run.workflow_version_id ? (
+          <>
+            <dt className="text-muted">Workflow version</dt>
+            <dd className="font-mono break-all">{run.workflow_version_id}</dd>
+          </>
+        ) : null}
         <dt className="text-muted">Engine</dt>
         <dd className="font-mono break-all">{run.engine_image}</dd>
         <dt className="text-muted">Generated</dt>

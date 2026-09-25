@@ -27,6 +27,9 @@ All notable changes to this project are documented here. The format follows Keep
 
 ### Fixed
 
+- `sync` matches accepted cases by exact file name (case 1 was found in `11.json`), leaves an acceptance pending when no baseline could be written or when the local run tested another workflow version, takes a 409 as applied elsewhere and refuses a run name from the server that is not a directory name.
+- `upload` and `sync` refuse a hosted-layer URL over plain http (except localhost) or with a user name or password in it, and treat a 200 answer without JSON (a login page in front of the server) as an error instead of printing `uploaded run undefined`.
+- `report.json` records the n8n `versionId` of both workflows (`versions`), baselines written by `accept` carry the new one, and the redacted report sends it as `workflowVersionId`, so the hosted layer records which version an acceptance approved.
 - The redacted report no longer carries numbers from a million up (a PESEL or phone number sent as a JSON number becomes `<digits N>`), emails or long digit runs in object and query keys, path segments that hold a value (`/customers/Anna%20Kowalska` becomes a shape), and emails or long numbers in the workflow name, labels, node names, warnings, scanner messages and field paths. Error texts also lose phone numbers written in groups (`+48 600 100 200`). `upload` and the hosted layer refuse a report that still has any of these.
 - `redact --report` salts the body hash and multipart hashes with the report key: an unsalted SHA-256 of a small body (one phone number sent to a known endpoint) could be reversed by guessing. A version label that is a file path keeps only the file name, and `generatedAt` is the run's time instead of the redaction time.
 - `init --api-key` keeps other lines of `.flowretest/secrets.env`.

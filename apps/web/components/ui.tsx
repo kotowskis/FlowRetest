@@ -79,6 +79,7 @@ export interface AcceptanceRow {
   applied_note: string | null;
   local_run: string | null;
   run_id: string | null;
+  workflow_version_id?: string | null;
 }
 
 /** Acceptance history: who accepted which cases and why, and whether a runner has written the baselines yet. */
@@ -93,6 +94,7 @@ export function AcceptanceList({ rows, showRun }: { rows: AcceptanceRow[]; showR
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <span>
                 <span className="font-medium">{a.accepted_by_email || 'unknown'}</span> accepted <span className="font-mono text-xs">case {a.case_ids.join(', ')}</span>
+                {a.workflow_version_id ? <span className="text-xs text-muted"> of version <code className="font-mono">{a.workflow_version_id.slice(0, 8)}</code></span> : null}
                 {showRun && a.run_id ? (
                   <>
                     {' '}from <Link href={`/runs/${a.run_id}`} className="hover:underline">this run</Link>

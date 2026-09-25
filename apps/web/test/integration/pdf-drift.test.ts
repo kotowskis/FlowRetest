@@ -7,9 +7,9 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { diffCase, normalizeCall, redactPlanReport, type CaptureRecord, type PlanReport } from '@flowretest/core';
 import { generateToken } from '../../lib/tokens.ts';
-import { admin, appMissing, appUrl, setPlan, supabaseMissing, user } from './helpers.ts';
+import { admin, appMissing, appUrl, setPlan, supabaseMissing, user, mustRun } from './helpers.ts';
 
-const skip = (await supabaseMissing()) ?? (await appMissing());
+const skip = mustRun((await supabaseMissing()) ?? (await appMissing()));
 
 let owner: Awaited<ReturnType<typeof user>>;
 let outsider: Awaited<ReturnType<typeof user>>;

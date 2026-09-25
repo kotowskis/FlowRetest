@@ -31,6 +31,8 @@ export interface RecordCase {
   error?: string;
   notes: string[];
   calls: RecordCall[];
+  /** Calls left out after the document limit. */
+  moreCalls: number;
 }
 
 export const OP_LABEL: Record<string, string> = {
@@ -62,23 +64,53 @@ function callOf(entry: PlanEntry, maxFields: number): RecordCall {
   }
   for (const d of entry.fieldDiffs) if (!sent.has(d.path)) fields.push({ path: d.path, sent: shown(d.new), before: shown(d.old), changed: true });
   fields.sort((a, b) => rank(a.path) - rank(b.path));
-  return { ...base, note: entry.op === '+' ? 'New in this version.' : undefined, fields: fields.slice(0, maxFields), more: Math.max(0, fields.length - maxFields) };
+  // Changed fields are what the reader looks for: they are kept first, unchanged ones fill what is left of the limit,
+  // and the kept fields stay in request order.
+  const changed = fields.filter((f) => f.changed).slice(0, maxFields);
+  const room = maxFields - changed.length;
+  const keep = new Set([...changed, ...fields.filter((f) => !f.changed).slice(0, room)]);
+  return { ...base, note: entry.op === '+' ? 'New in this version.' : undefined, fields: fields.filter((f) => keep.has(f)), more: fields.length - keep.size };
 }
 
 const ORDER: Record<string, number> = { ERROR: 0, BLOCKED: 1, SKIPPED: 1, DIFF: 2, PASS: 3 };
 
-/** Cases needing attention first, as on the run page; every call of each case, unchanged ones included. */
-export function recordCases(report: Pick<PlanReport, 'cases'>, maxFields = 150): RecordCase[] {
+export interface RecordLimits {
+  /** Fields per call. */
+  fields: number;
+  /**
+   * Lines in the whole document (a call is one line, each field another). react-pdf needs about
+   * 15 ms per line (400 lines take about 6 s, a 5 MB upload could make minutes), so the record stops there.
+   */
+  rows: number;
+}
+
+/** Cases needing attention first, as on the run page; every call of each case, unchanged ones included, within the limits. */
+export function recordCases(report: Pick<PlanReport, 'cases'>, limits: RecordLimits = { fields: 150, rows: 400 }): RecordCase[] {
+  let budget = limits.rows;
   return [...report.cases]
     .sort((a, b) => (ORDER[a.status] ?? 9) - (ORDER[b.status] ?? 9))
-    .map((c: CaseDiff) => ({
-      caseId: c.caseId,
-      status: c.status,
-      counts: `${c.summary.oldCalls} call${c.summary.oldCalls === 1 ? '' : 's'} before, ${c.summary.newCalls} after`,
-      error: c.error,
-      notes: [...(c.expectationFailures ?? []).map((t) => `expectation: ${t}`), ...(c.warnings ?? []).map((t) => `warning: ${t}`), ...(c.engineDifferences ?? []).map((t) => `engine: ${t}`)],
-      calls: c.entries.map((e) => callOf(e, maxFields)),
-    }));
+    .map((c: CaseDiff) => {
+      const calls: RecordCall[] = [];
+      let moreCalls = 0;
+      for (const e of c.entries) {
+        if (budget <= 1) {
+          moreCalls += 1;
+          continue;
+        }
+        const call = callOf(e, Math.min(limits.fields, budget - 1));
+        budget -= 1 + call.fields.length;
+        calls.push(call);
+      }
+      return {
+        caseId: c.caseId,
+        status: c.status,
+        counts: `${c.summary.oldCalls} call${c.summary.oldCalls === 1 ? '' : 's'} before, ${c.summary.newCalls} after`,
+        error: c.error,
+        notes: [...(c.expectationFailures ?? []).map((t) => `expectation: ${t}`), ...(c.warnings ?? []).map((t) => `warning: ${t}`), ...(c.engineDifferences ?? []).map((t) => `engine: ${t}`)],
+        calls,
+        moreCalls,
+      };
+    });
 }
 
 /** flowretest-lead-intake-2026-09-25-diff.pdf: ASCII only, so every browser and mail client keeps the name. */

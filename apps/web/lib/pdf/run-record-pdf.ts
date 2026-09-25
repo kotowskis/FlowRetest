@@ -21,6 +21,8 @@ export interface RunRecordInput {
   oldLabel: string;
   newLabel: string;
   engineImage: string;
+  /** Digest of the engine image the runner resolved; an audit record names exactly what ran. */
+  engineDigest?: string;
   runner: string;
   generatedAt: string;
   uploadedAt: string;
@@ -29,7 +31,9 @@ export interface RunRecordInput {
   commit?: { repository: string; sha: string; pullRequest: number | null };
   coverage: { writeNodesTotal: number; writeNodesCaptured: number; replayedNodes: number; unsupported: string[]; stubbed?: string[] };
   summary: { cases: number; changed: number; added: number; removed: number; blocked: number } & Record<string, number>;
-  acceptances: Array<{ acceptedBy: string; at: string; cases: string[]; message: string | null; appliedAt: string | null }>;
+  acceptances: Array<{ acceptedBy: string; at: string; cases: string[]; message: string | null; appliedAt: string | null; workflowVersionId?: string | null }>;
+  /** n8n versionId of the tested workflow, when the runner sent it. */
+  workflowVersionId?: string | null;
   cases: RecordCase[];
   printedAt: string;
 }
@@ -93,7 +97,8 @@ function metaRows(input: RunRecordInput): Array<[string, string]> {
   return [
     ['Compared', input.mode === 'upgrade' ? `${input.oldLabel} -> ${input.newLabel} (engine upgrade)` : `old: ${input.oldLabel} -> new: ${input.newLabel}`],
     ['n8n workflow id', input.n8nWorkflowId],
-    ['Engine', input.engineImage],
+    ...(input.workflowVersionId ? [['Workflow version', input.workflowVersionId] as [string, string]] : []),
+    ['Engine', input.engineDigest ? `${input.engineImage} (${input.engineDigest})` : input.engineImage],
     ['Generated', `${input.generatedAt} by FlowRetest ${input.runner}`],
     ['Uploaded', input.uploadedAt],
     ...(input.commit ? [['Commit', `${input.commit.repository}@${input.commit.sha}${input.commit.pullRequest ? ` (pull request #${input.commit.pullRequest})` : ''}`] as [string, string]] : []),
@@ -138,8 +143,9 @@ function caseView(c: RecordCase): ReactElement {
     h(View, { style: s.caseHead, wrap: false, minPresenceAhead: 60 }, text({ fontWeight: 600 }, `Case ${c.caseId}`), text({ color: STATUS_COLOR[c.status] ?? INK, fontWeight: 600 }, `${c.status} · ${c.counts}`)),
     c.error ? text([s.mono, { color: STATUS_COLOR.ERROR, marginTop: 4 }], `execution failed: ${c.error}`) : null,
     ...c.notes.map((n, i) => text([s.small, { marginTop: 2 }], n, { key: `n${i}` })),
-    c.calls.length === 0 && !c.error ? text([s.small, { marginTop: 4 }], 'No outbound calls.') : null,
+    c.calls.length === 0 && !c.error && c.moreCalls === 0 ? text([s.small, { marginTop: 4 }], 'No outbound calls.') : null,
     ...c.calls.map(callView),
+    c.moreCalls > 0 ? text([s.small, { marginTop: 4 }], `and ${c.moreCalls} more call${c.moreCalls === 1 ? '' : 's'} past the size of this document; the run page and the local report have all of them`) : null,
   );
 }
 
@@ -167,7 +173,7 @@ export function RunRecordDocument(input: RunRecordInput): ReactElement {
             View,
             null,
             ...input.acceptances.map((a, i) =>
-              text(s.p, `${a.acceptedBy} accepted case ${a.cases.join(', ')} on ${a.at}${a.message ? `: "${a.message}"` : ''}${a.appliedAt ? `; baselines written ${a.appliedAt}` : '; baselines not yet written by a runner'}.`, { key: i }),
+              text(s.p, `${a.acceptedBy} accepted case ${a.cases.join(', ')}${a.workflowVersionId ? ` of workflow version ${a.workflowVersionId}` : ''} on ${a.at}${a.message ? `: "${a.message}"` : ''}${a.appliedAt ? `; baselines written ${a.appliedAt}` : '; baselines not yet written by a runner'}.`, { key: i }),
             ),
           ),
       text(s.h2, 'What the new version would send'),
