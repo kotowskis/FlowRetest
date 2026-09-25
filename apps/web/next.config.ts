@@ -31,6 +31,9 @@ const nextConfig: NextConfig = {
   // origin is listed; without HMR the page never hydrated, forms went out as native POSTs, and the HMR client's
   // periodic full reloads sent them again (seven tokens from one Enter).
   allowedDevOrigins: ['127.0.0.1'],
+  // react-pdf loads fonts and yoga at runtime; bundling it breaks both. The PDF route reads the fonts from assets/.
+  serverExternalPackages: ['@react-pdf/renderer'],
+  outputFileTracingIncludes: { '/runs/[runId]/pdf': ['./assets/fonts/*.ttf'] },
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

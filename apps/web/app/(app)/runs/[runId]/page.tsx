@@ -11,7 +11,7 @@ export const metadata: Metadata = { title: 'Run' };
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
-  const { run, workflow, workspace, org, previous, acceptances, check } = await getRun(runId);
+  const { run, workflow, workspace, org, previous, acceptances, check, pdfExport } = await getRun(runId);
   // Stored as uploaded after RedactedReportSchema validation; it has every field the plan renderer reads.
   const report = run.report as unknown as PlanReport & { stability?: Record<string, boolean> };
   // The same rule as `flowretest accept` without --force; accept_run checks it again on the server.
@@ -37,11 +37,21 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
           </span>
         }
       >
-        {previous ? (
-          <Link href={`/runs/${previous.id}`} className="text-sm text-muted hover:text-ink hover:underline">
-            ← previous run ({previous.status})
-          </Link>
-        ) : null}
+        <span className="flex flex-wrap items-center gap-4 text-sm">
+          {previous ? (
+            <Link href={`/runs/${previous.id}`} className="text-muted hover:text-ink hover:underline">
+              ← previous run ({previous.status})
+            </Link>
+          ) : null}
+          {pdfExport ? (
+            // A plain link: the route answers with a file, not a page.
+            <a href={`/runs/${run.id}/pdf`} className="rounded-md border border-line px-2 py-1 text-xs hover:text-ink">Download PDF record</a>
+          ) : (
+            <Link href={`/o/${org.id}/billing`} className="text-xs text-muted hover:text-ink hover:underline" title="The PDF record of what this run would send comes with the Agency plan">
+              PDF record comes with Agency
+            </Link>
+          )}
+        </span>
       </PageHeader>
       <dl className="mb-8 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
         <dt className="text-muted">Compared</dt>

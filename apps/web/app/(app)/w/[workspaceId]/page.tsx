@@ -35,7 +35,10 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
   return (
     <>
       <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name, href: `/o/${org.id}` }, { label: workspace.name }]} title={workspace.name}>
-        {subtitle ? <span className="font-mono text-sm text-muted">{subtitle}</span> : null}
+        <span className="flex flex-wrap items-center gap-4 text-sm text-muted">
+          {subtitle ? <span className="font-mono">{subtitle}</span> : null}
+          <Link href={`/w/${workspace.id}/drift`} className="hover:text-ink hover:underline">Engine drift</Link>
+        </span>
       </PageHeader>
 
       {overLimit ? (

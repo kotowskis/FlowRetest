@@ -60,6 +60,12 @@ export async function setPlan(orgId: string, plan: 'team' | 'agency', status = '
   if (error) throw error;
 }
 
+/** A stored run as a row to insert again: without its id and the columns the database generates from the report. */
+export function insertableRun(run: Database['public']['Tables']['runs']['Row']): Database['public']['Tables']['runs']['Insert'] {
+  const { id: _id, git_repository: _r, git_sha: _s, pull_request: _p, engine_from: _f, engine_to: _t, ...row } = run;
+  return row;
+}
+
 /** A confirmed user signed in with a password; tests use passwords, people use email codes. */
 export async function user(label: string): Promise<{ db: Db; id: string; email: string; cookie: string }> {
   const email = `${label}-${randomUUID().slice(0, 8)}@it.flowretest.test`;

@@ -226,3 +226,24 @@ Wnioski:
 - funkcja wyzwalacza musi być `security definer`: blokada wiersza organizacji przez `select ... for update` z uprawnieniami członka nie zadziałałaby, bo RLS aktualizacji przepuszcza tylko właścicieli; stąd blokada doradcza zamiast blokady wiersza.
 
 Do decyzji założyciela: konto Stripe i dane firmy na fakturach, okres próbny, Stripe Tax i OSS, czy plan Free w aplikacji ma dwa miejsca (ADR 0010 ma listę kroków na dzień założenia konta).
+
+## Tydzień 13: eksport PDF, macierz dryfu v0, strona cennika (2026-09-25)
+
+Zakres z planu (sekcja 11, tydzień 13). Decyzje są w ADR 0011.
+
+Zrobione:
+
+- migracja `20261221000000_pdf_drift.sql`: kolumny `pdf_export` i `drift_matrix` w `plans` (obie w Agency), `org_plan` je zwraca, kolumny `engine_from` i `engine_to` w `runs` generowane z raportu `upgrade-check`, widok `latest_upgrade_runs` z RLS wywołującego;
+- `lib/run-record.ts` buduje treść rekordu z raportu po redakcji, `lib/pdf/run-record-pdf.ts` renderuje PDF (A4, stopka z numerem strony, akceptacje, pola żądań z wartościami starej wersji przy zmianach), trasa `GET /runs/<id>/pdf` i przycisk na stronie przebiegu;
+- strony `/w/<id>/drift` (workflow i wersje docelowe) oraz `/o/<id>/drift` (workspace'y i wersje docelowe), linki z nagłówków organizacji i workspace'u;
+- publiczna strona `/pricing` z planami z bazy i pięcioma pytaniami, link z ekranu logowania;
+- poprawka z tygodnia 9: formularz logowania dostał klucze kroków, React przestał ostrzegać o polu `input` zmieniającym się z niekontrolowanego na kontrolowane.
+
+Sprawdzone na żywo: PDF z testu jednostkowego obejrzany jako obrazy stron (pięć stron, polskie znaki w nazwach węzłów, stopka z numerem strony); w przeglądarce macierz organizacji "1 DIFF · 1 PASS" dla dwóch wersji, macierz workspace'u z linkami do przebiegów, przycisk "Download PDF record" i odpowiedź trasy 200 z plikiem `flowretest-faktury-do-ksiegowosci-2026-09-25-diff.pdf`; cennik i macierz przy 375 px bez przewijania w poziomie. Testy: 4 nowe jednostkowe, 3 nowe integracyjne (PDF: 402 na Free, plik na Agency, 404 dla obcego, logowanie dla niezalogowanego; macierz: nowszy przebieg zastępuje starszy, obcy nie widzi komórek, zablokowana na Team; cennik publiczny z cenami). Razem w `apps/web`: 26 jednostkowych i 26 integracyjnych.
+
+Wnioski:
+
+- fontkit, na którym stoi react-pdf, pada na plikach TTF JetBrains Mono (ligatury `->`, `==`) i IBM Plex Mono z paczek `@expo-google-fonts` błędem "Offset is outside the bounds of the DataView"; Inter i Roboto Mono z tych samych paczek działają;
+- w react-pdf 4.9 tekst z `render` (numer strony) znika, gdy `lineHeight` jest ustawione na stronie, i nie pokazuje się bez szerokości; znalezione przez wyciąganie tekstu z PDF przez pdfjs, bo podgląd w panelu przeglądarki nie wyświetla PDF.
+
+Do decyzji założyciela: czy PDF i macierz dryfu zostają tylko w Agency (jedna instrukcja `update` na tabeli `plans`), domena i hosting strony cennika.

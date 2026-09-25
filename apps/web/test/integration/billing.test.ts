@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { redactPlanReport, type PlanReport } from '@flowretest/core';
 import { generateToken } from '../../lib/tokens.ts';
 import { signStripePayload } from '../../lib/stripe.ts';
-import { admin, appMissing, appUrl, setPlan, supabaseMissing, user, type Db } from './helpers.ts';
+import { admin, appMissing, appUrl, insertableRun, setPlan, supabaseMissing, user, type Db } from './helpers.ts';
 
 const skip = await supabaseMissing();
 const stripeUrl = process.env.STRIPE_API_URL ?? '';
@@ -103,7 +103,7 @@ test('uploads per 24 hours and workspaces beyond the limit after a downgrade are
 
   // Fill the Free plan's 50 uploads of the last 24 hours.
   const run = await admin().from('runs').select('*').eq('workspace_id', older).limit(1).single();
-  const { id: _id, git_repository: _r, git_sha: _s, pull_request: _p, ...row } = run.data!;
+  const row = insertableRun(run.data!);
   assert.ifError((await admin().from('runs').insert(Array.from({ length: 48 }, () => row))).error);
   const full = await admin().rpc('ingest_run', ingestArgs(olderToken.hash));
   assert.equal(full.error?.code, '53400');
@@ -119,7 +119,7 @@ test('retention: runs past the plan period are purged, with 30 days of grace aft
     const t = await token(owner, ws);
     assert.ifError((await admin().rpc('ingest_run', ingestArgs(t.hash))).error);
     const first = (await admin().from('runs').select('*').eq('workspace_id', ws).single()).data!;
-    const { id: _id, git_repository: _r, git_sha: _s, pull_request: _p, ...row } = first;
+    const row = insertableRun(first);
     await admin().from('runs').delete().eq('id', first.id);
     const inserted = await admin().from('runs').insert(ages.map((days) => ({ ...row, created_at: new Date(Date.now() - days * 86_400_000).toISOString() }))).select('id, created_at');
     assert.ifError(inserted.error);
@@ -284,7 +284,7 @@ test('the upload API answers 402 for a workspace beyond the plan and 429 when up
   const ok = await upload(older);
   assert.equal(ok.status, 201, await ok.clone().text());
   const run = (await admin().from('runs').select('*').eq('workspace_id', older).limit(1).single()).data!;
-  const { id: _id, git_repository: _r, git_sha: _s, pull_request: _p, ...row } = run;
+  const row = insertableRun(run);
   await admin().from('runs').insert(Array.from({ length: 49 }, () => row));
   const full = await upload(older);
   assert.equal(full.status, 429);

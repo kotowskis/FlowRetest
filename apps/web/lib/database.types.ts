@@ -70,6 +70,13 @@ export type Database = {
             foreignKeyName: "acceptances_run_id_fkey"
             columns: ["run_id"]
             isOneToOne: false
+            referencedRelation: "latest_upgrade_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "acceptances_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
             referencedRelation: "runs"
             referencedColumns: ["id"]
           },
@@ -181,6 +188,13 @@ export type Database = {
           workspace_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "github_checks_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
+            referencedRelation: "latest_upgrade_runs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "github_checks_run_id_fkey"
             columns: ["run_id"]
@@ -391,6 +405,13 @@ export type Database = {
             foreignKeyName: "notification_log_run_id_fkey"
             columns: ["run_id"]
             isOneToOne: false
+            referencedRelation: "latest_upgrade_runs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notification_log_run_id_fkey"
+            columns: ["run_id"]
+            isOneToOne: false
             referencedRelation: "runs"
             referencedColumns: ["id"]
           },
@@ -448,9 +469,11 @@ export type Database = {
       }
       plans: {
         Row: {
+          drift_matrix: boolean
           id: string
           integrations: boolean
           name: string
+          pdf_export: boolean
           price_month_cents: number
           price_year_cents: number
           retention_days: number
@@ -460,9 +483,11 @@ export type Database = {
           workspaces: number | null
         }
         Insert: {
+          drift_matrix?: boolean
           id: string
           integrations: boolean
           name: string
+          pdf_export?: boolean
           price_month_cents: number
           price_year_cents: number
           retention_days: number
@@ -472,9 +497,11 @@ export type Database = {
           workspaces?: number | null
         }
         Update: {
+          drift_matrix?: boolean
           id?: string
           integrations?: boolean
           name?: string
+          pdf_export?: boolean
           price_month_cents?: number
           price_year_cents?: number
           retention_days?: number
@@ -488,7 +515,9 @@ export type Database = {
       runs: {
         Row: {
           created_at: string
+          engine_from: string | null
           engine_image: string
+          engine_to: string | null
           generated_at: string
           git_repository: string | null
           git_sha: string | null
@@ -510,7 +539,9 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          engine_from?: string | null
           engine_image: string
+          engine_to?: string | null
           generated_at: string
           git_repository?: string | null
           git_sha?: string | null
@@ -532,7 +563,9 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          engine_from?: string | null
           engine_image?: string
+          engine_to?: string | null
           generated_at?: string
           git_repository?: string | null
           git_sha?: string | null
@@ -754,7 +787,34 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      latest_upgrade_runs: {
+        Row: {
+          created_at: string | null
+          engine_from: string | null
+          engine_to: string | null
+          id: string | null
+          status: string | null
+          summary: Json | null
+          workflow_id: string | null
+          workspace_id: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "runs_workflow_id_fkey"
+            columns: ["workflow_id"]
+            isOneToOne: false
+            referencedRelation: "workflows"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "runs_workspace_id_fkey"
+            columns: ["workspace_id"]
+            isOneToOne: false
+            referencedRelation: "workspaces"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       accept_run: {
@@ -800,7 +860,9 @@ export type Database = {
       org_plan: {
         Args: { org: string }
         Returns: {
+          drift_matrix: boolean
           integrations: boolean
+          pdf_export: boolean
           plan: string
           retention_days: number
           seats: number

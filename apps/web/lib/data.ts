@@ -56,9 +56,10 @@ export interface PlanLimits {
   workspaces_used: number;
   seats_used: number;
   uploads_last_day: number;
+  pdf_export: boolean;
+  drift_matrix: boolean;
 }
 
-export type Plan = Tables<'plans'>;
 export type BillingAccount = Pick<Tables<'billing_accounts'>, 'plan' | 'status' | 'billing_interval' | 'current_period_end' | 'cancel_at_period_end' | 'ended_at'>;
 
 async function planLimits(db: Db, orgId: string): Promise<PlanLimits> {
@@ -177,6 +178,34 @@ export async function getRun(runId: string) {
   ]);
   const checks = await db.from('github_checks').select('ok, html_url, conclusion, detail, created_at').eq('run_id', run.id).order('created_at', { ascending: false }).limit(1);
   const ws = orFail(workspace, 'workspace');
-  const org = orFail(await db.from('organizations').select('*').eq('id', ws.organization_id).single(), 'organization');
-  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances'), check: checks.data?.[0] };
+  const [orgRow, limits] = await Promise.all([db.from('organizations').select('*').eq('id', ws.organization_id).single(), planLimits(db, ws.organization_id)]);
+  const org = orFail(orgRow, 'organization');
+  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances'), check: checks.data?.[0], pdfExport: limits.pdf_export };
+}
+
+export type DriftCell = Tables<'latest_upgrade_runs'>;
+
+/** Drift matrix of one workspace: the latest upgrade-check of each workflow against each target engine. */
+export async function getWorkspaceDrift(workspaceId: string) {
+  const { db } = await session();
+  assertId(workspaceId);
+  const workspace = orFail(await db.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(), 'workspace');
+  const [org, cells, workflows, limits] = await Promise.all([
+    db.from('organizations').select('*').eq('id', workspace.organization_id).single(),
+    db.from('latest_upgrade_runs').select('*').eq('workspace_id', workspaceId),
+    db.from('workflows').select('id, name, n8n_workflow_id').eq('workspace_id', workspaceId),
+    planLimits(db, workspace.organization_id),
+  ]);
+  return { workspace, org: orFail(org, 'organization'), cells: orFail(cells, 'drift') as DriftCell[], workflows: orFail(workflows, 'workflows'), limits };
+}
+
+/** Drift matrix of an organization: the same cells for every workspace, summed per workspace and target engine. */
+export async function getOrganizationDrift(orgId: string) {
+  const { db } = await session();
+  assertId(orgId);
+  const org = orFail(await db.from('organizations').select('*').eq('id', orgId).maybeSingle(), 'organization');
+  const [workspaces, limits] = await Promise.all([db.from('workspaces').select('id, name, engine_tag').eq('organization_id', orgId).order('name'), planLimits(db, orgId)]);
+  const wsRows = orFail(workspaces, 'workspaces');
+  const cells = wsRows.length ? orFail(await db.from('latest_upgrade_runs').select('*').in('workspace_id', wsRows.map((w) => w.id)), 'drift') : [];
+  return { org, workspaces: wsRows, cells: cells as DriftCell[], limits };
 }

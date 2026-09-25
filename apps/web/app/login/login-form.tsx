@@ -15,13 +15,14 @@ export function LoginForm({ next, linkError }: { next?: string; linkError?: bool
   return (
     <div className="space-y-4">
       {step === 'email' ? (
-        <form action={send} className="space-y-3">
+        // Keys: without them React reuses the email input as the hidden one and warns about uncontrolled to controlled.
+        <form key="email" action={send} className="space-y-3">
           <label className="block text-sm font-medium" htmlFor="email">Work email</label>
           <input id="email" name="email" type="email" required autoComplete="email" defaultValue={email} className="w-full rounded-md border border-line px-3 py-2" />
           <button disabled={sending || !hydrated} className="w-full rounded-md bg-accent px-3 py-2 font-medium text-on-accent disabled:opacity-60">{sending ? 'Sending…' : 'Email me a sign-in code'}</button>
         </form>
       ) : (
-        <form action={verify} className="space-y-3">
+        <form key="code" action={verify} className="space-y-3">
           <p className="text-sm text-muted">We sent a 6-digit code to <strong className="text-ink">{email}</strong>. You can also open the link in that email.</p>
           <input type="hidden" name="email" value={email} />
           <input type="hidden" name="next" value={next ?? ''} />

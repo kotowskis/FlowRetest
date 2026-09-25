@@ -15,9 +15,12 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
   return (
     <>
       <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name }]} title={org.name}>
-        <Link href={`/o/${org.id}/billing`} className="text-sm text-muted hover:text-ink hover:underline">
-          {planName} plan · Billing
-        </Link>
+        <span className="flex flex-wrap items-center gap-4 text-sm text-muted">
+          <Link href={`/o/${org.id}/drift`} className="hover:text-ink hover:underline">Engine drift</Link>
+          <Link href={`/o/${org.id}/billing`} className="hover:text-ink hover:underline">
+            {planName} plan · Billing
+          </Link>
+        </span>
       </PageHeader>
 
       <Section

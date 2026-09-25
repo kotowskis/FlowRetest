@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
-import { getBilling, type Plan, type PlanLimits } from '@/lib/data.ts';
+import { getBilling, type PlanLimits } from '@/lib/data.ts';
+import { planFeatures } from '@/lib/plans.ts';
 import { syncCheckout } from '@/lib/billing.ts';
 import { stripeConfig } from '@/lib/stripe.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
@@ -8,16 +9,6 @@ import { Empty, PageHeader, Section, Time, money, quietButtonClass } from '@/com
 import { choosePlan, openBillingPortal } from './actions.ts';
 
 export const metadata: Metadata = { title: 'Billing' };
-
-function features(p: Plan): string[] {
-  return [
-    p.workspaces === null ? 'Unlimited workspaces' : `${p.workspaces} workspace${p.workspaces === 1 ? '' : 's'}`,
-    `${p.seats} seats`,
-    `Run history kept ${p.retention_days} days`,
-    `${p.uploads_per_day.toLocaleString('en-US')} uploads per 24 hours`,
-    p.integrations ? 'GitHub checks and Slack' : 'Email notifications only',
-  ];
-}
 
 function Usage({ label, used, limit }: { label: string; used: number; limit: number | null }) {
   const over = limit !== null && used > limit;
@@ -105,7 +96,7 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
                   {p.price_month_cents === 0 ? 'free' : <>{money(p.price_month_cents)} / month<span className="block text-xs text-muted">or {money(p.price_year_cents)} / year</span></>}
                 </p>
                 <ul className="mt-3 flex-1 space-y-1 text-sm text-muted">
-                  {features(p).map((f) => <li key={f}>{f}</li>)}
+                  {planFeatures(p).map((f) => <li key={f}>{f}</li>)}
                 </ul>
                 <div className="mt-4">
                   {p.id === 'free' ? (
