@@ -209,6 +209,13 @@ function fakeStripe({ appUrl, baseOf }) {
     if ((m = /^\/v1\/subscriptions\/([\w]+)$/.exec(api))) {
       const sub = state.subscriptions.get(m[1]);
       if (!sub) return err(res, 404, `No such subscription: '${m[1]}'`);
+      if (req.method === 'DELETE') {
+        // Cancel at once, as DELETE /v1/subscriptions/<id> does in Stripe.
+        sub.status = 'canceled';
+        sub.ended_at = sub.canceled_at = now();
+        await deliver('customer.subscription.deleted', sub);
+        return json(res, 200, sub);
+      }
       if (req.method === 'POST') {
         const price = PRICES.find((p) => p.id === form['items[0][price]']);
         if (form['items[0][price]'] && !price) return err(res, 400, 'No such price');

@@ -1,5 +1,5 @@
 import type { createAdminClient } from './supabase/admin.ts';
-import { getCheckoutSession, getInvoice, getSubscription, listSubscriptions, subscriptionState, type StripeConfig, type StripeEvent, type StripeInvoice } from './stripe.ts';
+import { cancelSubscription, getCheckoutSession, getInvoice, getSubscription, listSubscriptions, subscriptionState, type StripeConfig, type StripeEvent, type StripeInvoice } from './stripe.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -27,8 +27,9 @@ const live = (s: string | null | undefined) => s === 'active' || s === 'trialing
 /**
  * Copies a subscription from Stripe into billing_accounts. Always re-reads it from the API, so events arriving out of
  * order or twice leave the latest state. The organization comes from the customer we created for it; a second live
- * subscription for the same organization (two Checkout tabs) is not taken over and is reported instead, until the
- * tracked one stops.
+ * subscription for the same organization (two Checkout tabs) is not taken over. A second one still in its trial has
+ * charged nothing and is cancelled at once, so the two trials do not both turn into charges (audit of week 14,
+ * item 9); a paid one is reported, until the tracked one stops.
  */
 export async function syncSubscription(admin: Admin, config: StripeConfig, subscriptionId: string): Promise<string> {
   const sub = await getSubscription(config, subscriptionId);
@@ -36,6 +37,10 @@ export async function syncSubscription(admin: Admin, config: StripeConfig, subsc
   if (!account) return `subscription ${sub.id}: customer ${sub.customer} belongs to no organization`;
   const state = subscriptionState(sub);
   if (account.stripe_subscription_id && account.stripe_subscription_id !== sub.id && live(account.status)) {
+    if (state.status === 'trialing') {
+      await cancelSubscription(config, sub.id);
+      return `subscription ${sub.id}: second trial of organization ${account.organization_id} cancelled; it keeps ${account.stripe_subscription_id}`;
+    }
     return live(state.status)
       ? `subscription ${sub.id}: organization ${account.organization_id} already has live subscription ${account.stripe_subscription_id}; cancel and refund one of them in Stripe`
       : `subscription ${sub.id} (${state.status}) ignored; organization keeps ${account.stripe_subscription_id}`;

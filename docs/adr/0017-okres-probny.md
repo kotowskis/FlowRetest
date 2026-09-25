@@ -10,14 +10,14 @@ ADR 0010 zostawił okres próbny jako decyzję założyciela („Checkout przyjm
 
 | Temat | Decyzja | Powód |
 |---|---|---|
-| Długość | 14 dni, zmienna `STRIPE_TRIAL_DAYS` (0 do 90, 0 wyłącza, inna wartość daje 14) | dwa tygodnie to czas na podłączenie CI i kilka prawdziwych zmian w workflow; zmiana długości nie wymaga wdrożenia kodu |
+| Długość | 14 dni, zmienna `STRIPE_TRIAL_DAYS` (0 do 90, 0 wyłącza, inna wartość też wyłącza, od ADR 0018) | dwa tygodnie to czas na podłączenie CI i kilka prawdziwych zmian w workflow; zmiana długości nie wymaga wdrożenia kodu |
 | Plany | Team i Agency, miesięcznie i rocznie | cena po okresie próbnym jest ta sama co bez niego |
 | Karta | Checkout zawsze pobiera kartę (`payment_method_collection=always`); `trial_settings.end_behavior.missing_payment_method=cancel` na wypadek subskrypcji bez karty | darmowy wariant bez karty już istnieje (Free); karta zmniejsza liczbę kont zakładanych tylko po to, żeby przez dwa tygodnie mieć Agency |
 | Ile razy | raz na organizację: `billing_accounts.first_subscription_at` ustawia pierwsza zsynchronizowana subskrypcja, z okresem próbnym albo bez; organizacje z subskrypcją sprzed tej zmiany mają go uzupełnionego w migracji | kolejna subskrypcja po anulowaniu zaczyna się od płatności; porzucony Checkout nie zużywa okresu próbnego, bo nie powstała subskrypcja |
 | Plan w trakcie | status `trialing` daje cały plan (tak było od ADR 0010: `subscription_gives_plan`) | limity, Check i Slack działają od pierwszego dnia |
 | Zmiana planu w trakcie | przez to samo `changeSubscriptionPrice`; Stripe nie obciąża niczego i zostawia datę końca; komunikat mówi, do kiedy trwa okres próbny | proporcjonalna faktura za zmianę w trakcie okresu próbnego wynosi 0 |
 | Koniec | pierwsza faktura za pełny okres; nieudana płatność daje `past_due`, dalej jak każde nieudane odnowienie (ponawianie przez Stripe, potem Free) | jedna ścieżka dla wszystkich nieudanych płatności |
-| Zapis | `billing_accounts.trial_end` (koniec okresu próbnego, gdy status to `trialing`), zdarzenie `customer.subscription.trial_will_end` dodane do synchronizowanych | strona Billing pokazuje datę pierwszego obciążenia i kwotę |
+| Zapis | `billing_accounts.trial_end` (koniec okresu próbnego, gdy status to `trialing`), zdarzenie `customer.subscription.trial_will_end` dodane do synchronizowanych (do `WEBHOOK_EVENTS` w `stripe-setup.mjs` dopiero w ADR 0018) | strona Billing pokazuje datę pierwszego obciążenia i kwotę |
 | Teksty | strona Billing („Free trial until …, then the card is charged … unless you cancel”), przyciski „Try Team free for 14 days, then monthly”, cennik, strona główna, punkt 3 regulaminu | klient widzi datę i kwotę pierwszego obciążenia, zanim poda kartę i po jej podaniu |
 
 ## Czego tu nie ma

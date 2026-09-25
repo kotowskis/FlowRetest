@@ -37,14 +37,17 @@ export interface StripeEnv {
 export const DEFAULT_TRIAL_DAYS = 14;
 
 /**
- * Trial length from STRIPE_TRIAL_DAYS (0 to 90, Stripe allows up to 730), 14 when unset or not a whole number in that
- * range. Read without the Stripe keys so the public pricing page can say it.
+ * Trial length from STRIPE_TRIAL_DAYS (0 to 90, Stripe allows up to 730), 14 when unset. Anything else turns trials
+ * off: an operator who writes "off" or "-1" wants no trial, and the pages must not advertise one (audit of week 14,
+ * item 29). Read without the Stripe keys so the public pricing page can say it.
  */
 export function trialDays(env: StripeEnv = process.env as StripeEnv): number {
   const raw = env.STRIPE_TRIAL_DAYS?.trim();
   if (!raw) return DEFAULT_TRIAL_DAYS;
   const n = Number(raw);
-  return Number.isInteger(n) && n >= 0 && n <= 90 ? n : DEFAULT_TRIAL_DAYS;
+  if (Number.isInteger(n) && n >= 0 && n <= 90) return n;
+  console.warn(`[stripe] STRIPE_TRIAL_DAYS=${raw} is not a whole number from 0 to 90; trials are off`);
+  return 0;
 }
 
 /** Billing settings, or undefined when this server takes no payments (the billing page says so). */
@@ -99,7 +102,7 @@ export class StripeError extends Error {
   }
 }
 
-async function call<T>(config: StripeConfig, method: 'GET' | 'POST', path: string, params?: Params, idempotencyKey?: string): Promise<T> {
+async function call<T>(config: StripeConfig, method: 'GET' | 'POST' | 'DELETE', path: string, params?: Params, idempotencyKey?: string): Promise<T> {
   const query = method === 'GET' && params ? `?${formEncode(params)}` : '';
   const res = await fetch(`${config.apiUrl}${path}${query}`, {
     method,
@@ -230,6 +233,9 @@ export function createCheckoutSession(
     line_items: [{ price: input.price, quantity: '1' }],
     subscription_data: {
       metadata: { organization_id: input.organizationId },
+      // The default of the pinned API version, set anyway: in classic mode a change of interval during a trial resets
+      // the billing anchor and can end the trial, while the billing page says it continues.
+      billing_mode: { type: 'flexible' },
       // The trial asks for a card like a paid start (payment_method_collection=always); should a subscription lose
       // its payment method, it ends with the trial instead of turning into an unpaid invoice.
       ...(input.trialDays ? { trial_period_days: input.trialDays, trial_settings: { end_behavior: { missing_payment_method: 'cancel' } } } : {}),
@@ -271,6 +277,11 @@ export function changeSubscriptionPrice(config: StripeConfig, subscription: Stri
     proration_behavior: 'always_invoice',
     payment_behavior: 'pending_if_incomplete',
   });
+}
+
+/** Cancels a subscription at once, without a refund; used for a second trial that has charged nothing. */
+export function cancelSubscription(config: StripeConfig, id: string): Promise<StripeSubscription> {
+  return call(config, 'DELETE', `/v1/subscriptions/${encodeURIComponent(id)}`);
 }
 
 /** The customer's subscriptions in any status, newest first; finds a live one when the tracked one ended. */

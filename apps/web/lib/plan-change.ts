@@ -25,7 +25,8 @@ export async function customerFor(admin: Admin, config: StripeConfig, orgId: str
   return stored.stripe_customer_id;
 }
 
-const date = (iso: string) => new Date(iso).toISOString().slice(0, 10);
+/** The day in UTC, said so: a trial that ends at 23:00 UTC ends on the next day in Warsaw. */
+const date = (iso: string) => `${new Date(iso).toISOString().slice(0, 10)} (UTC)`;
 
 /** Trial days for the next Checkout: only an organization that never had a subscription gets one. */
 export function trialFor(config: Pick<StripeConfig, 'trialDays'>, account: { first_subscription_at: string | null } | null | undefined): number {

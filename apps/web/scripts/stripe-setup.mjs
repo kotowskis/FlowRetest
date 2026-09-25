@@ -37,6 +37,7 @@ export const WEBHOOK_EVENTS = [
   'customer.subscription.resumed',
   'customer.subscription.pending_update_applied',
   'customer.subscription.pending_update_expired',
+  'customer.subscription.trial_will_end',
   'invoice.finalized',
   'invoice.paid',
   'invoice.payment_failed',

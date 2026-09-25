@@ -122,3 +122,18 @@ test('one trial per organization; none when trials are off', { skip }, async () 
   // Nothing was paid, so the organization keeps its trial for later.
   assert.equal((await account(fresh.id)).first_subscription_at, null);
 });
+
+test('two Checkout tabs paid before either synced: the second trial is cancelled, one plan is billed', { skip }, async () => {
+  // Audit of week 14, item 9: both sessions carried a trial, and both subscriptions would charge when the trials ended.
+  const o = await org();
+  const team = (await change(o, 'team', 'month')) as { url: string };
+  const agency = (await change(o, 'agency', 'month')) as { url: string };
+  assert.equal((await sessionOf(agency.url)).trial_period_days, 14, 'the second tab still got a trial');
+  await pay(team.url);
+  await pay(agency.url);
+  const acc = await account(o.id);
+  assert.deepEqual([acc.plan, acc.status], ['team', 'trialing'], 'the first paid tab is the plan');
+  const subs = ((await fake()) as unknown as { subscriptions: Array<{ id: string; customer: string; status: string }> }).subscriptions.filter((s) => s.customer === acc.stripe_customer_id);
+  assert.deepEqual(subs.map((s) => s.status).sort(), ['canceled', 'trialing']);
+  assert.equal(subs.find((s) => s.status === 'trialing')!.id, acc.stripe_subscription_id);
+});

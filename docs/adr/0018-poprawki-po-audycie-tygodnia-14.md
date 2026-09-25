@@ -49,3 +49,15 @@ Po wdrożeniu na projekt Supabase w chmurze trzeba jeden raz sprawdzić, że `se
 | 8 | Duże organizacje | filtry `in` po 100 workspace'ów, na stronie Data i w macierzy dryfu też | około 250 identyfikatorów w adresie dawało błąd |
 | 25 | Urwany plik | ostatni wiersz `{"type":"end","data":{"lines":N}}`; po 270 s wiersz `error` z liczbą wierszy i prośbą o kontakt; 5 przebiegów na zapytanie zamiast 20 | bez wiersza końcowego plik ucięty przez limit czasu wyglądał na pełny; 20 raportów po 5 MB podnosiło pamięć o 300 MB |
 | 26 | Brakujące dane | licznik uploadów, maile o podprocesorach wysłane do właścicieli organizacji, wszystkie daty z `billing_accounts` (bez identyfikatorów Stripe); format eksportu `2` | strona obiecuje wszystko, co usługa trzyma |
+
+## Okres próbny
+
+| # | Temat | Decyzja | Powód |
+|---|---|---|---|
+| 9 | Dwie karty Checkoutu | druga żywa subskrypcja organizacji w statusie `trialing` jest od razu anulowana (`DELETE /v1/subscriptions/<id>`), bo nic jeszcze nie pobrała; opłacona druga subskrypcja dalej trafia do logu z prośbą o zwrot | oba okresy próbne kończyły się dwoma obciążeniami, a sesje Checkoutu żyją 24 godziny |
+| 29 | `trial_will_end` | zdarzenie dopisane do `WEBHOOK_EVENTS` w `stripe-setup.mjs` | Stripe wysyła tylko zdarzenia, które endpoint subskrybuje |
+| 29 | `STRIPE_TRIAL_DAYS` | wartość spoza liczb całkowitych 0 do 90 wyłącza okres próbny i daje ostrzeżenie w logu | ktoś, kto wpisuje „off”, chce wyłączyć okres próbny, a nie dostać 14 dni |
+| 29 | Daty | komunikaty zmiany planu podają dzień z dopiskiem „(UTC)” | okres próbny kończący się o 23:00 UTC kończy się w Warszawie następnego dnia |
+| 29 | Tryb rozliczeń | Checkout ustawia `subscription_data.billing_mode.type=flexible` | to domyślna wartość przypiętej wersji API, ale atrapa i komunikaty zakładają, że zmiana interwału nie kończy okresu próbnego |
+
+Punkt 30 (`past_due` po okresie próbnym) nie zmienia kodu. Ponawianie płatności w Stripe trzeba ustawić na anulowanie subskrypcji (lista założyciela w ADR 0010), inaczej karta odrzucona po okresie próbnym zostawia plan płatny do końca ponawiania.

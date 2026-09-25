@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { DEFAULT_TRIAL_DAYS, stripeConfig, subscriptionState, trialDays, type StripeSubscription } from '../../lib/stripe.ts';
 import { trialFor } from '../../lib/plan-change.ts';
 
-test('STRIPE_TRIAL_DAYS: 14 by default, 0 turns trials off, anything odd falls back to 14', () => {
+test('STRIPE_TRIAL_DAYS: 14 by default, 0 turns trials off, anything odd turns them off too', () => {
   assert.equal(DEFAULT_TRIAL_DAYS, 14);
   assert.equal(trialDays({}), 14);
   assert.equal(trialDays({ STRIPE_TRIAL_DAYS: '0' }), 0);
   assert.equal(trialDays({ STRIPE_TRIAL_DAYS: ' 30 ' }), 30);
-  for (const odd of ['-1', '7.5', '91', 'two weeks']) assert.equal(trialDays({ STRIPE_TRIAL_DAYS: odd }), 14, odd);
+  for (const odd of ['-1', '7.5', '91', 'two weeks', 'off']) assert.equal(trialDays({ STRIPE_TRIAL_DAYS: odd }), 0, odd);
   assert.equal(stripeConfig({ STRIPE_SECRET_KEY: 'sk', STRIPE_WEBHOOK_SECRET: 'wh', STRIPE_TRIAL_DAYS: '7' })?.trialDays, 7);
 });
 
