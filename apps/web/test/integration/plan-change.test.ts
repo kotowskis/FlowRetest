@@ -24,7 +24,8 @@ async function missing(): Promise<string | undefined> {
   return undefined;
 }
 const skip = mustRun(await missing());
-const config = stripeConfig() as StripeConfig;
+// These tests are about paid starts and switches; the trial path has its own file (trial.test.ts).
+const config: StripeConfig = { ...(stripeConfig() as StripeConfig), trialDays: 0 };
 
 async function org(): Promise<{ id: string; email: string }> {
   const owner = await user('plan-owner');

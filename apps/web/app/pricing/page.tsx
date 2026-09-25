@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { createClient } from '@supabase/supabase-js';
 import { env } from '@/lib/env.ts';
 import { planFeatures } from '@/lib/plans.ts';
+import { trialDays } from '@/lib/stripe.ts';
 import type { Database } from '@/lib/database.types.ts';
 import { buttonClass, money } from '@/components/ui.tsx';
 import { PublicShell } from '@/components/public-shell.tsx';
@@ -48,6 +49,7 @@ const QUESTIONS: Array<[string, React.ReactNode]> = [
 
 export default async function PricingPage() {
   const rows = await plans();
+  const trial = trialDays();
   return (
     <PublicShell>
       <main className="mx-auto max-w-6xl px-4 py-10">
@@ -74,12 +76,14 @@ export default async function PricingPage() {
                 {planFeatures(p).map((f) => <li key={f}>{f}</li>)}
               </ul>
               <Link href="/login" className={`${buttonClass} mt-6 text-center`}>
-                {p.price_month_cents === 0 ? 'Start free' : `Start with ${p.name}`}
+                {p.price_month_cents === 0 ? 'Start free' : trial ? `Try ${p.name} free for ${trial} days` : `Start with ${p.name}`}
               </Link>
             </section>
           ))}
         </div>
-        <p className="mt-4 text-sm text-muted">Prices exclude VAT. Yearly billing costs 20% less than twelve months. Paid plans are chosen on the billing page of an organization after signing in.</p>
+        <p className="mt-4 text-sm text-muted">
+          Prices exclude VAT. Yearly billing costs 20% less than twelve months.{trial ? ` Team and Agency start with ${trial} days free, once per organization; Stripe asks for a card and charges nothing if you cancel before the trial ends.` : ''} Paid plans are chosen on the billing page of an organization after signing in.
+        </p>
 
         <section className="mt-12 max-w-3xl">
           <h2 className="text-lg font-semibold">Questions</h2>

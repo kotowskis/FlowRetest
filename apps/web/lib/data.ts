@@ -59,7 +59,7 @@ export interface PlanLimits {
   drift_matrix: boolean;
 }
 
-export type BillingAccount = Pick<Tables<'billing_accounts'>, 'plan' | 'status' | 'billing_interval' | 'current_period_end' | 'cancel_at_period_end' | 'cancel_at' | 'ended_at'>;
+export type BillingAccount = Pick<Tables<'billing_accounts'>, 'plan' | 'status' | 'billing_interval' | 'current_period_end' | 'cancel_at_period_end' | 'cancel_at' | 'ended_at' | 'trial_end' | 'first_subscription_at'>;
 
 async function planLimits(db: Db, orgId: string): Promise<PlanLimits> {
   const { data, error } = await db.rpc('org_plan', { org: orgId });
@@ -97,7 +97,7 @@ export async function getBilling(orgId: string) {
   const org = orFail(await db.from('organizations').select('*').eq('id', orgId).maybeSingle(), 'organization');
   const [plans, account, invoices, owner, limits] = await Promise.all([
     db.from('plans').select('*').order('sort'),
-    db.from('billing_accounts').select('plan, status, billing_interval, current_period_end, cancel_at_period_end, cancel_at, ended_at').eq('organization_id', orgId).maybeSingle(),
+    db.from('billing_accounts').select('plan, status, billing_interval, current_period_end, cancel_at_period_end, cancel_at, ended_at, trial_end, first_subscription_at').eq('organization_id', orgId).maybeSingle(),
     // RLS gives invoices to owners only; members get an empty list.
     db.from('invoices').select('*').eq('organization_id', orgId).order('created_at', { ascending: false }).limit(50),
     db.rpc('is_owner', { org: orgId }),

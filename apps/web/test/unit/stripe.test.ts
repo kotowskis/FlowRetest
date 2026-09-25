@@ -60,7 +60,7 @@ test('subscription state: the plan comes from the price lookup key, the period f
     items: { data: [{ id: 'si_1', current_period_end: 1_800_000_000, price: { id: 'p', lookup_key: lookup, unit_amount: 7900, currency: 'eur', recurring: { interval: 'month' } } }] },
   });
   const active = subscriptionState(sub('active', 'flowretest_team_monthly'));
-  assert.deepEqual(active, { plan: 'team', interval: 'month', status: 'active', currentPeriodEnd: new Date(1_800_000_000_000).toISOString(), cancelAtPeriodEnd: false, cancelAt: null, endedAt: null });
+  assert.deepEqual(active, { plan: 'team', interval: 'month', status: 'active', currentPeriodEnd: new Date(1_800_000_000_000).toISOString(), cancelAtPeriodEnd: false, cancelAt: null, endedAt: null, trialEnd: null });
   // Flexible billing mode schedules the end with cancel_at; classic mode with cancel_at_period_end at the period end.
   assert.equal(subscriptionState({ ...sub('active', 'flowretest_team_monthly'), cancel_at: 1_800_000_000 }).cancelAt, new Date(1_800_000_000_000).toISOString());
   assert.equal(subscriptionState({ ...sub('active', 'flowretest_team_monthly'), cancel_at_period_end: true }).cancelAt, new Date(1_800_000_000_000).toISOString());

@@ -427,6 +427,7 @@ function terms(p: Provider): LegalDocument {
         heading: '3. Plans and payment',
         blocks: [
           { p: 'The plans, their limits and prices are on the pricing page. Prices exclude VAT. Paid plans are billed in advance, monthly or yearly, by Stripe. A plan change takes effect at once and is charged or credited pro rata.' },
+          { p: 'The first paid plan of an organization may start with a free trial of the length shown on the pricing page. Stripe takes the card at the start and charges nothing during the trial. When the trial ends, the plan is billed like any other unless you cancelled before that day. An organization gets one trial.' },
           { p: 'You can cancel at any time on the billing page. The plan stays until the end of the paid period; we do not refund the remaining part of a period, except as stated in section 6 of the Data Processing Agreement.' },
           { p: 'If a payment fails and Stripe cannot collect it after its retries, the organization moves to the Free plan. Nothing is deleted on that day; the retention rules at /legal/retention apply.' },
         ],

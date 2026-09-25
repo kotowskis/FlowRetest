@@ -11,12 +11,14 @@ const SUBSCRIPTION_EVENTS = new Set([
   'customer.subscription.resumed',
   // A plan change waiting for payment (pending_if_incomplete) was paid or dropped.
   'customer.subscription.pending_update_applied',
+  // Three days before a trial ends; nothing changes yet, the re-read keeps the stored trial end current.
+  'customer.subscription.trial_will_end',
   'customer.subscription.pending_update_expired',
 ]);
 const INVOICE_EVENTS = new Set(['invoice.finalized', 'invoice.paid', 'invoice.payment_failed', 'invoice.voided', 'invoice.marked_uncollectible', 'invoice.updated']);
 
-async function organizationOf(admin: Admin, customer: string): Promise<{ organization_id: string; stripe_subscription_id: string | null; status: string | null } | undefined> {
-  const { data } = await admin.from('billing_accounts').select('organization_id, stripe_subscription_id, status').eq('stripe_customer_id', customer).maybeSingle();
+async function organizationOf(admin: Admin, customer: string): Promise<{ organization_id: string; stripe_subscription_id: string | null; status: string | null; first_subscription_at: string | null } | undefined> {
+  const { data } = await admin.from('billing_accounts').select('organization_id, stripe_subscription_id, status, first_subscription_at').eq('stripe_customer_id', customer).maybeSingle();
   return data ?? undefined;
 }
 
@@ -49,6 +51,9 @@ export async function syncSubscription(admin: Admin, config: StripeConfig, subsc
       cancel_at_period_end: state.cancelAtPeriodEnd,
       cancel_at: state.cancelAt,
       ended_at: state.endedAt,
+      trial_end: state.trialEnd,
+      // The first subscription the organization ever had uses up its trial, whatever happens to it later.
+      first_subscription_at: account.first_subscription_at ?? new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
     .eq('organization_id', account.organization_id);

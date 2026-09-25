@@ -292,3 +292,18 @@ Wnioski:
 - React wstawia `<!-- -->` między fragmenty tekstu w HTML, więc test szukający zdania z wartością w środku musi je najpierw usunąć;
 - w react-pdf 4.9 `minPresenceAhead` na nagłówku nie przeniósł go na następną stronę; pomógł wspólny `View` z `wrap: false` dla nagłówka i pierwszego akapitu.
 
+## Okres próbny planów płatnych (2026-09-25)
+
+Decyzja odłożona w ADR 0010, wprowadzona na prośbę założyciela. Szczegóły w ADR 0017.
+
+Zrobione:
+
+- migracja `20270118000000_trial.sql`: `billing_accounts.trial_end` i `first_subscription_at` (organizacje, które już miały subskrypcję, mają okres próbny za sobą);
+- `STRIPE_TRIAL_DAYS` (domyślnie 14, 0 wyłącza); Checkout pierwszej subskrypcji organizacji dostaje `trial_period_days` i pobiera kartę; kolejne zaczynają się od płatności;
+- strona Billing: przyciski „Try Team free for 14 days, then monthly”, a w trakcie data i kwota pierwszego obciążenia; zmiana planu w trakcie okresu próbnego mówi, do kiedy on trwa;
+- cennik, strona główna i punkt 3 regulaminu wspominają okres próbny;
+- atrapa Stripe: subskrypcja `trialing` z fakturą na 0, koniec okresu próbnego przez `end_trial`, zmiana ceny w trakcie bez obciążenia.
+
+Sprawdzone na żywo w przeglądarce przy 375 px: przycisk okresu próbnego, strona płatności atrapy, powrót z planem Team i zdaniem „Free trial until 2026-10-09 … Then the card is charged 79 EUR a month unless you cancel”. Testy: 3 nowe jednostkowe, 4 nowe integracyjne (Checkout z okresem próbnym i fakturą 0, zmiana planu w trakcie bez obciążenia, pierwsza faktura po końcu, nieudana karta na końcu daje `past_due`, drugi Checkout bez okresu próbnego, `trialDays: 0`).
+
+Do decyzji założyciela: 14 dni i wymóg karty, przypomnienie mailowe Stripe przed końcem okresu próbnego (lista w ADR 0017).

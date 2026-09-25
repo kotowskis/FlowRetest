@@ -21,6 +21,7 @@ Kolejność: 5 i 4 od razu, bo czekają na kogoś z zewnątrz. Potem 1, bo pilot
 - Team: 79 EUR miesięcznie netto, 10 workspace'ów, 3 osoby, 90 dni, Check i Slack.
 - Agency: 199 EUR miesięcznie netto, bez limitu workspace'ów, 10 osób, 365 dni, PDF przebiegu, macierz dryfu.
 - Rocznie 20% taniej.
+- Team i Agency zaczynają się od 14 dni za darmo, raz na organizację; Checkout pobiera kartę i obciąża ją dopiero po okresie próbnym (ADR 0017).
 - Wdrożenie: 1 000 do 2 500 EUR z planem Team na 6 miesięcy w cenie (notatka, sekcja 9). Propozycja widełek do decyzji: do 3 instancji klientów 1 000 EUR, 4 do 10 instancji 1 750 EUR, powyżej 10 instancji 2 500 EUR. W cenie: fixture'y dla workflow wskazanych przez agencję, GitHub Action w jej repozytorium, pierwszy `upgrade-check` na każdej instancji, jedna sesja szkoleniowa. Praca: 2 do 4 dni założyciela.
 
 ## Lejek na pierwsze tygodnie

@@ -227,7 +227,7 @@ test('the success page applies the subscription even when no webhook arrives', {
   assert.equal((await account(orgId)).plan, null, 'nothing applied before the page');
   const page = await fetch(location, { headers: { cookie: owner.cookie } });
   assert.equal(page.status, 200);
-  assert.match(await page.text(), /Payment received/);
+  assert.match(await page.text(), /The plan applies to this organization now/);
   assert.equal((await account(orgId)).plan, 'team');
 
   // Another organization's session does not apply here.

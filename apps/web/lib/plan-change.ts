@@ -27,6 +27,11 @@ export async function customerFor(admin: Admin, config: StripeConfig, orgId: str
 
 const date = (iso: string) => new Date(iso).toISOString().slice(0, 10);
 
+/** Trial days for the next Checkout: only an organization that never had a subscription gets one. */
+export function trialFor(config: Pick<StripeConfig, 'trialDays'>, account: { first_subscription_at: string | null } | null | undefined): number {
+  return config.trialDays > 0 && !account?.first_subscription_at ? config.trialDays : 0;
+}
+
 /**
  * Without a subscription the owner goes to Stripe Checkout. With a live one the price changes at once and the
  * difference is invoiced, after checking that the organization fits the new plan. A subscription that is failing,
@@ -35,7 +40,7 @@ const date = (iso: string) => new Date(iso).toISOString().slice(0, 10);
  */
 export async function changePlan(admin: Admin, config: StripeConfig, input: { orgId: string; plan: PaidPlan; interval: Interval; email: string; billingUrl: string }): Promise<PlanChange> {
   const { orgId, plan, interval } = input;
-  const { data: account } = await admin.from('billing_accounts').select('stripe_subscription_id, plan, billing_interval, status, cancel_at, cancel_at_period_end').eq('organization_id', orgId).maybeSingle();
+  const { data: account } = await admin.from('billing_accounts').select('stripe_subscription_id, plan, billing_interval, status, cancel_at, cancel_at_period_end, trial_end, first_subscription_at').eq('organization_id', orgId).maybeSingle();
   const status = account?.stripe_subscription_id ? account.status : null;
 
   if (status === 'unpaid' || status === 'paused' || status === 'incomplete') {
@@ -59,6 +64,8 @@ export async function changePlan(admin: Admin, config: StripeConfig, input: { or
     const updated = await changeSubscriptionPrice(config, subscription, price.id);
     await syncSubscription(admin, config, subscription.id);
     if (updated.pending_update) return { kind: 'refused', error: `Stripe could not charge the difference for ${target.name}, so the plan did not change. Pay the open invoice in the Stripe portal and the new plan starts right away.` };
+    // During a trial nothing is charged for the switch; the trial keeps its end date.
+    if (status === 'trialing' && account.trial_end) return { kind: 'switched', ok: `Switched to ${target.name}, billed ${interval === 'month' ? 'monthly' : 'yearly'}. The free trial continues until ${date(account.trial_end)}; the first charge is on that day.` };
     return { kind: 'switched', ok: `Switched to ${target.name}, billed ${interval === 'month' ? 'monthly' : 'yearly'}. The prorated difference is on a new invoice.` };
   }
 
@@ -70,6 +77,7 @@ export async function changePlan(admin: Admin, config: StripeConfig, input: { or
       organizationId: orgId,
       successUrl: `${input.billingUrl}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
       cancelUrl: `${input.billingUrl}?checkout=cancelled`,
+      trialDays: trialFor(config, account),
     });
   let checkout;
   try {

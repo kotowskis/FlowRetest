@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server.ts';
 import { contactEmail } from '@/lib/legal/provider.ts';
+import { trialDays } from '@/lib/stripe.ts';
 import { PublicShell, REPOSITORY_URL } from '@/components/public-shell.tsx';
 import { buttonClass } from '@/components/ui.tsx';
 
@@ -44,6 +45,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
   if (data.user) redirect('/orgs');
   const { account } = await searchParams;
   const contact = contactEmail();
+  const trial = trialDays();
   return (
     <PublicShell>
       <main>
@@ -87,7 +89,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         <section className="mx-auto max-w-6xl px-4 py-10">
           <h2 className="text-xl font-semibold">For agencies with many customer instances</h2>
           <p className="mt-3 max-w-3xl text-sm text-muted">
-            The runner is free and needs no account. The hosted layer keeps the redacted reports of your team and your customers in one place. Team is 79 EUR a month, Agency 199 EUR.
+            The runner is free and needs no account. The hosted layer keeps the redacted reports of your team and your customers in one place. Team is 79 EUR a month, Agency 199 EUR{trial ? `, both with ${trial} days free to start` : ''}.
           </p>
           <ul className="mt-5 grid gap-2 text-sm md:grid-cols-2">
             {HOSTED.map((h) => (

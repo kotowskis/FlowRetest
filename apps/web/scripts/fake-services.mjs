@@ -38,7 +38,8 @@ const PRICES = [
  * goes to cancel_url, ?deliver=0 skips the webhooks), subscriptions, invoices, the customer portal. Control endpoints:
  * POST /__stripe/subscriptions/<id> {status, cancel_at_period_end, cancel_at} changes a subscription as Stripe would
  * after a failed card or a cancellation (classic mode sets cancel_at_period_end, flexible mode cancel_at) and delivers
- * the event; POST /__stripe/customers/<id> {fail_payments} makes the customer's next charges fail (and {deleted}
+ * the event, and {end_trial: true} ends a trial the way Stripe does on its last day (status active, the first real
+ * invoice, paid or failed by fail_payments); POST /__stripe/customers/<id> {fail_payments} makes the customer's next charges fail (and {deleted}
  * deletes it), so a plan change
  * with payment_behavior=pending_if_incomplete stays pending; GET /__stripe dumps the state. As in Stripe, an
  * idempotency key reused with other parameters is refused.
@@ -92,6 +93,18 @@ function fakeStripe({ appUrl, baseOf }) {
       const sub = state.subscriptions.get(m[1]);
       if (!sub) return err(res, 404, 'No such subscription');
       const change = raw ? JSON.parse(raw) : {};
+      if (change.end_trial) {
+        if (sub.status !== 'trialing') return err(res, 400, 'Subscription is not trialing');
+        const failed = state.customers.get(sub.customer)?.fail_payments === true;
+        const price = sub.items.data[0].price;
+        sub.status = failed ? 'past_due' : 'active';
+        sub.trial_end = null;
+        sub.items.data[0].current_period_end = periodEnd(price);
+        const inv = invoice(sub, price.unit_amount, failed ? 'open' : 'paid');
+        await deliver('customer.subscription.updated', sub);
+        await deliver(failed ? 'invoice.payment_failed' : 'invoice.paid', inv);
+        return json(res, 200, { subscription: sub, deliveries: state.deliveries });
+      }
       if (change.status) sub.status = change.status;
       if (change.cancel_at_period_end !== undefined) sub.cancel_at_period_end = change.cancel_at_period_end;
       if (change.cancel_at !== undefined) sub.cancel_at = change.cancel_at;
@@ -120,13 +133,16 @@ function fakeStripe({ appUrl, baseOf }) {
       }
       if (session.status !== 'complete') {
         const price = PRICES.find((p) => p.id === session.price);
+        // With trial_period_days Stripe starts the subscription trialing: the period ends with the trial and the
+        // first invoice is for 0.
+        const trialEnd = session.trial_period_days ? now() + session.trial_period_days * 86400 : null;
         const sub = {
-          id: `sub_${n++}`, object: 'subscription', customer: session.customer, status: 'active', cancel_at_period_end: false, ended_at: null, canceled_at: null,
-          metadata: session.subscription_metadata, items: { object: 'list', data: [{ id: `si_${n++}`, object: 'subscription_item', current_period_end: periodEnd(price), price }] },
+          id: `sub_${n++}`, object: 'subscription', customer: session.customer, status: trialEnd ? 'trialing' : 'active', cancel_at_period_end: false, ended_at: null, canceled_at: null, trial_end: trialEnd,
+          metadata: session.subscription_metadata, items: { object: 'list', data: [{ id: `si_${n++}`, object: 'subscription_item', current_period_end: trialEnd ?? periodEnd(price), price }] },
         };
         state.subscriptions.set(sub.id, sub);
         Object.assign(session, { status: 'complete', subscription: sub.id });
-        const inv = invoice(sub, price.unit_amount);
+        const inv = invoice(sub, trialEnd ? 0 : price.unit_amount);
         if (url.searchParams.get('deliver') !== '0') {
           await deliver('checkout.session.completed', { id: session.id, object: 'checkout.session', customer: session.customer, subscription: sub.id });
           await deliver('customer.subscription.created', sub);
@@ -178,6 +194,9 @@ function fakeStripe({ appUrl, baseOf }) {
         id, object: 'checkout.session', url: `${baseOf()}/stripe/pay/${id}`, status: 'open', customer: form.customer, subscription: null, client_reference_id: form.client_reference_id ?? null,
         success_url: form.success_url, cancel_url: form.cancel_url, price: form['line_items[0][price]'], subscription_metadata: { organization_id: form['subscription_data[metadata][organization_id]'] },
         tax_id_collection: form['tax_id_collection[enabled]'] === 'true',
+        trial_period_days: form['subscription_data[trial_period_days]'] ? Number(form['subscription_data[trial_period_days]']) : null,
+        trial_missing_payment_method: form['subscription_data[trial_settings][end_behavior][missing_payment_method]'] ?? null,
+        payment_method_collection: form.payment_method_collection ?? null,
       };
       state.sessions.set(id, session);
       if (key) state.idempotency.set(key, { id, params: raw });
@@ -195,7 +214,8 @@ function fakeStripe({ appUrl, baseOf }) {
         if (form['items[0][price]'] && !price) return err(res, 400, 'No such price');
         if (price && form['items[0][id]'] !== sub.items.data[0].id) return err(res, 400, 'items[0][id] does not belong to this subscription');
         // The prorated difference is billed at once (always_invoice); the fake charges the full new price for it.
-        const failed = price && state.customers.get(sub.customer)?.fail_payments === true;
+        // Nothing is charged for a change during a trial, so nothing can fail.
+        const failed = price && sub.status !== 'trialing' && state.customers.get(sub.customer)?.fail_payments === true;
         if (failed && form.payment_behavior === 'pending_if_incomplete') {
           // Stripe keeps the old price and records what waits for payment.
           sub.pending_update = { expires_at: now() + 23 * 3600, subscription_items: [{ id: sub.items.data[0].id, price: price.id }] };
@@ -204,11 +224,13 @@ function fakeStripe({ appUrl, baseOf }) {
           await deliver('invoice.payment_failed', inv);
           return json(res, 200, sub);
         }
-        if (price) sub.items.data[0] = { ...sub.items.data[0], price, current_period_end: periodEnd(price) };
+        const trialing = sub.status === 'trialing';
+        if (price) sub.items.data[0] = { ...sub.items.data[0], price, current_period_end: trialing ? sub.trial_end : periodEnd(price) };
         sub.pending_update = null;
         if (form.cancel_at_period_end !== undefined) sub.cancel_at_period_end = form.cancel_at_period_end === 'true';
         await deliver('customer.subscription.updated', sub);
-        if (price) await deliver(failed ? 'invoice.payment_failed' : 'invoice.paid', invoice(sub, price.unit_amount, failed ? 'open' : 'paid'));
+        if (price && trialing) await deliver('invoice.paid', invoice(sub, 0));
+        else if (price) await deliver(failed ? 'invoice.payment_failed' : 'invoice.paid', invoice(sub, price.unit_amount, failed ? 'open' : 'paid'));
       }
       return json(res, 200, sub);
     }

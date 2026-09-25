@@ -106,6 +106,7 @@ export type Database = {
           cancel_at_period_end: boolean
           current_period_end: string | null
           ended_at: string | null
+          first_subscription_at: string | null
           organization_id: string
           plan: string | null
           plan_changed_at: string | null
@@ -113,6 +114,7 @@ export type Database = {
           status: string | null
           stripe_customer_id: string
           stripe_subscription_id: string | null
+          trial_end: string | null
           updated_at: string
         }
         Insert: {
@@ -121,6 +123,7 @@ export type Database = {
           cancel_at_period_end?: boolean
           current_period_end?: string | null
           ended_at?: string | null
+          first_subscription_at?: string | null
           organization_id: string
           plan?: string | null
           plan_changed_at?: string | null
@@ -128,6 +131,7 @@ export type Database = {
           status?: string | null
           stripe_customer_id: string
           stripe_subscription_id?: string | null
+          trial_end?: string | null
           updated_at?: string
         }
         Update: {
@@ -136,6 +140,7 @@ export type Database = {
           cancel_at_period_end?: boolean
           current_period_end?: string | null
           ended_at?: string | null
+          first_subscription_at?: string | null
           organization_id?: string
           plan?: string | null
           plan_changed_at?: string | null
@@ -143,6 +148,7 @@ export type Database = {
           status?: string | null
           stripe_customer_id?: string
           stripe_subscription_id?: string | null
+          trial_end?: string | null
           updated_at?: string
         }
         Relationships: [

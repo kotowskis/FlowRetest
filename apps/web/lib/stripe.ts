@@ -17,6 +17,8 @@ export interface StripeConfig {
   apiUrl: string;
   /** Stripe Tax on Checkout; needs tax registrations in the Stripe account first. */
   automaticTax: boolean;
+  /** Days of free trial for an organization's first subscription; 0 turns trials off. */
+  trialDays: number;
 }
 
 export interface StripeEnv {
@@ -24,6 +26,20 @@ export interface StripeEnv {
   STRIPE_WEBHOOK_SECRET?: string;
   STRIPE_API_URL?: string;
   STRIPE_AUTOMATIC_TAX?: string;
+  STRIPE_TRIAL_DAYS?: string;
+}
+
+export const DEFAULT_TRIAL_DAYS = 14;
+
+/**
+ * Trial length from STRIPE_TRIAL_DAYS (0 to 90, Stripe allows up to 730), 14 when unset or not a whole number in that
+ * range. Read without the Stripe keys so the public pricing page can say it.
+ */
+export function trialDays(env: StripeEnv = process.env as StripeEnv): number {
+  const raw = env.STRIPE_TRIAL_DAYS?.trim();
+  if (!raw) return DEFAULT_TRIAL_DAYS;
+  const n = Number(raw);
+  return Number.isInteger(n) && n >= 0 && n <= 90 ? n : DEFAULT_TRIAL_DAYS;
 }
 
 /** Billing settings, or undefined when this server takes no payments (the billing page says so). */
@@ -35,6 +51,7 @@ export function stripeConfig(env: StripeEnv = process.env as StripeEnv): StripeC
     webhookSecret,
     apiUrl: (env.STRIPE_API_URL || 'https://api.stripe.com').replace(/\/+$/, ''),
     automaticTax: env.STRIPE_AUTOMATIC_TAX === 'true',
+    trialDays: trialDays(env),
   };
 }
 
@@ -137,6 +154,8 @@ export interface StripeSubscription {
   ended_at: number | null;
   canceled_at: number | null;
   metadata: Record<string, string>;
+  /** End of the free trial (seconds), null without one. */
+  trial_end?: number | null;
   items: { data: Array<{ id: string; current_period_end: number; price: StripePrice }> };
   /** Set while a plan change waits for its invoice to be paid (payment_behavior=pending_if_incomplete). */
   pending_update?: { expires_at: number } | null;
@@ -191,7 +210,7 @@ export async function priceFor(config: StripeConfig, plan: PaidPlan, interval: I
 
 export function createCheckoutSession(
   config: StripeConfig,
-  input: { customer: string; price: string; organizationId: string; successUrl: string; cancelUrl: string },
+  input: { customer: string; price: string; organizationId: string; successUrl: string; cancelUrl: string; trialDays?: number },
   // A double click within ten seconds gets the same Checkout page instead of a second one.
   idempotencyKey = `frt-checkout-${input.organizationId}-${input.price}-${Math.floor(Date.now() / 10_000)}`,
 ): Promise<CheckoutSession> {
@@ -200,7 +219,13 @@ export function createCheckoutSession(
     customer: input.customer,
     client_reference_id: input.organizationId,
     line_items: [{ price: input.price, quantity: '1' }],
-    subscription_data: { metadata: { organization_id: input.organizationId } },
+    subscription_data: {
+      metadata: { organization_id: input.organizationId },
+      // The trial asks for a card like a paid start (payment_method_collection=always); should a subscription lose
+      // its payment method, it ends with the trial instead of turning into an unpaid invoice.
+      ...(input.trialDays ? { trial_period_days: input.trialDays, trial_settings: { end_behavior: { missing_payment_method: 'cancel' } } } : {}),
+    },
+    payment_method_collection: 'always',
     success_url: input.successUrl,
     cancel_url: input.cancelUrl,
     allow_promotion_codes: true,
@@ -262,6 +287,8 @@ export interface SubscriptionState {
   /** When a scheduled cancellation ends the subscription, whichever way it was scheduled. */
   cancelAt: string | null;
   endedAt: string | null;
+  /** End of the free trial while the subscription is trialing; null otherwise. */
+  trialEnd: string | null;
 }
 
 const iso = (seconds: number | null | undefined) => (seconds ? new Date(seconds * 1000).toISOString() : null);
@@ -278,6 +305,7 @@ export function subscriptionState(sub: StripeSubscription): SubscriptionState {
     cancelAtPeriodEnd: sub.cancel_at_period_end,
     cancelAt: iso(sub.cancel_at) ?? (sub.cancel_at_period_end ? iso(item?.current_period_end) : null),
     endedAt: givesPlan ? null : (iso(sub.ended_at) ?? iso(sub.canceled_at) ?? new Date().toISOString()),
+    trialEnd: sub.status === 'trialing' ? iso(sub.trial_end) : null,
   };
 }
 

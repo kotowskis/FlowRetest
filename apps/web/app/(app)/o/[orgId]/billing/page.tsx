@@ -3,6 +3,7 @@ import { getBilling, type PlanLimits } from '@/lib/data.ts';
 import { planFeatures } from '@/lib/plans.ts';
 import { syncCheckout } from '@/lib/billing.ts';
 import { stripeConfig } from '@/lib/stripe.ts';
+import { trialFor } from '@/lib/plan-change.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
 import { PlanChoice } from '@/components/forms.tsx';
 import { Empty, PageHeader, Section, Time, money, quietButtonClass } from '@/components/ui.tsx';
@@ -24,20 +25,27 @@ function Usage({ label, used, limit }: { label: string; used: number; limit: num
   );
 }
 
-function statusLine(account: { status: string | null; current_period_end: string | null; cancel_at_period_end: boolean; cancel_at: string | null; ended_at: string | null } | undefined, limits: PlanLimits) {
+function statusLine(account: { status: string | null; current_period_end: string | null; cancel_at_period_end: boolean; cancel_at: string | null; ended_at: string | null; trial_end: string | null } | undefined, limits: PlanLimits, price: string | undefined) {
   if (!account?.status) return null;
   if (account.status === 'past_due') return <p className="text-sm text-diff">The last payment failed. Stripe retries the card; update it in the payment details to keep the plan.</p>;
   if (account.status === 'unpaid' || account.status === 'paused' || account.status === 'incomplete') return <p className="text-sm text-diff">The subscription is {account.status}. Pay the open invoice or update the card in the payment details to get the plan back.</p>;
   // In flexible billing mode the portal sets cancel_at only; in classic mode cancel_at_period_end.
   const ends = account.cancel_at ?? (account.cancel_at_period_end ? account.current_period_end : null);
   if (ends) return <p className="text-sm text-diff">Cancelled. The plan ends on <Time value={ends} />, then the organization moves to Free.</p>;
+  if (account.status === 'trialing' && account.trial_end) {
+    return (
+      <p className="text-sm text-muted">
+        Free trial until <Time value={account.trial_end} />. Then the card is charged{price ? ` ${price}` : ''} unless you cancel in the payment details before that day.
+      </p>
+    );
+  }
   if ((account.status === 'active' || account.status === 'trialing') && account.current_period_end) return <p className="text-sm text-muted">Renews on <Time value={account.current_period_end} />.</p>;
   if (account.ended_at && limits.plan === 'free') return <p className="text-sm text-muted">The paid plan ended on <Time value={account.ended_at} />. Runs are kept as long as that plan kept them for 30 days after it ended.</p>;
   return null;
 }
 
 const CHECKOUT_MESSAGES: Record<string, { text: string; ok?: boolean }> = {
-  success: { text: 'Payment received. The plan applies to this organization now; the invoice is below and in your email.', ok: true },
+  success: { text: 'Done. The plan applies to this organization now; invoices are below and in your email.', ok: true },
   pending: { text: 'Stripe has not confirmed the payment yet. This page shows the plan as soon as the confirmation arrives.' },
   cancelled: { text: 'Checkout was cancelled; nothing was charged.' },
 };
@@ -63,6 +71,9 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
   const message = checkoutState ? CHECKOUT_MESSAGES[checkoutState] : portal && PORTAL_MESSAGES[portal] ? { text: PORTAL_MESSAGES[portal] } : undefined;
   const current = plans.find((p) => p.id === limits.plan);
   const livePaid = limits.plan !== 'free' && account?.billing_interval;
+  // An organization that never had a subscription starts its first paid plan with a free trial.
+  const trial = config ? trialFor(config, account) : 0;
+  const currentPrice = current && account?.billing_interval ? (account.billing_interval === 'year' ? `${money(current.price_year_cents)} a year` : `${money(current.price_month_cents)} a month`) : undefined;
 
   return (
     <>
@@ -70,7 +81,7 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
       {message ? <p role="status" className={`mb-6 text-sm ${message.ok ? 'text-pass' : 'text-diff'}`}>{message.text}</p> : null}
 
       <Section title={`Current plan: ${current?.name ?? limits.plan}`}>
-        {statusLine(account, limits)}
+        {statusLine(account, limits, currentPrice)}
         <div className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-4">
           <Usage label="Workspaces" used={limits.workspaces_used} limit={limits.workspaces} />
           <Usage label="Seats (incl. invitations)" used={limits.seats_used} limit={limits.seats} />
@@ -94,7 +105,10 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
         ) : null}
       </Section>
 
-      <Section title="Plans" description="Prices without VAT. Yearly billing costs 20% less than twelve months. The runner and everything that stays on your machines are free and open source.">
+      <Section
+        title="Plans"
+        description={`Prices without VAT. Yearly billing costs 20% less than twelve months.${trial ? ` Your first paid plan starts with ${trial} days free: Stripe asks for a card and charges it only when the trial ends, so cancelling before then costs nothing.` : ''} The runner and everything that stays on your machines are free and open source.`}
+      >
         {!config ? <p className="mb-4 text-sm text-diff">This server does not take payments yet.</p> : null}
         <div className="grid gap-4 md:grid-cols-3">
           {plans.map((p) => {
@@ -117,8 +131,8 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
                       orgId={org.id}
                       plan={p.id}
                       options={[
-                        { interval: 'month', label: `${livePaid ? 'Switch to' : 'Choose'} ${p.name} monthly`, current: isCurrent && account?.billing_interval === 'month' },
-                        { interval: 'year', label: `${livePaid ? 'Switch to' : 'Choose'} ${p.name} yearly`, current: isCurrent && account?.billing_interval === 'year' },
+                        { interval: 'month', label: trial ? `Try ${p.name} free for ${trial} days, then monthly` : `${livePaid ? 'Switch to' : 'Choose'} ${p.name} monthly`, current: isCurrent && account?.billing_interval === 'month' },
+                        { interval: 'year', label: trial ? `Try ${p.name} free for ${trial} days, then yearly` : `${livePaid ? 'Switch to' : 'Choose'} ${p.name} yearly`, current: isCurrent && account?.billing_interval === 'year' },
                       ]}
                     />
                   ) : isCurrent ? (

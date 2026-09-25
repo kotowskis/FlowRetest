@@ -31,7 +31,7 @@ Tydzień 12 planu (sekcja 11): Stripe z planami Team 79 EUR i Agency 199 EUR, li
 
 ## Czego tu nie ma
 
-Okresu próbnego (Checkout przyjmuje `subscription_data[trial_period_days]`, decyzja założyciela). Strony cennika dla niezalogowanych (tydzień 13). Funkcji zależnych od planu z tygodnia 13 (PDF, macierz dryfu). Limitu liczby organizacji na osobę: ktoś może założyć kilka organizacji Free zamiast płacić za Team, co przy 1 workspace na organizację i bez Checka nie wygląda na realne ryzyko.
+Okresu próbnego (Checkout przyjmuje `subscription_data[trial_period_days]`, decyzja założyciela; doszedł w ADR 0017). Strony cennika dla niezalogowanych (tydzień 13). Funkcji zależnych od planu z tygodnia 13 (PDF, macierz dryfu). Limitu liczby organizacji na osobę: ktoś może założyć kilka organizacji Free zamiast płacić za Team, co przy 1 workspace na organizację i bez Checka nie wygląda na realne ryzyko.
 
 ## Lista dla założyciela na dzień założenia konta Stripe
 
