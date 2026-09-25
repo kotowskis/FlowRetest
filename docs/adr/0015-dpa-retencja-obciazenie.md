@@ -18,7 +18,7 @@ Tydzień 14 planu (sekcja 11) obejmuje dokument powierzenia danych (DPA) z polit
 | PDF kopii | `GET /o/<org>/dpa/<id>/pdf` dla każdego członka i na każdym planie; pierwsza strona to strony umowy i rekord akceptacji, dalej pełny tekst | agencja przekazuje kopię swojemu klientowi albo audytorowi; RODO nie może być funkcją planu płatnego |
 | Krótsza historia | `organizations.retention_days` (1 do 3650, puste = plan), zmienia tylko właściciel; nocne czyszczenie bierze krótszy z okresów planu (z okresem łaski) i organizacji | umowy klientów agencji często pozwalają na 30 dni; dłuższy okres niż plan niczego nie zmienia, bo za retencję płaci się planem |
 | Zaproszenia | wygasają po 30 dniach: `claim_invitations` pomija starsze, nocne czyszczenie je usuwa | zaproszenie trzyma adres osoby, która nie założyła konta |
-| Eksport | `GET /o/<org>/export`, tylko właściciele, każdy plan; JSON Lines strumieniowo, przebiegi stronami po 20 według `id`; odczyty przez RLS, dziennik powiadomień przez rolę serwisową tylko dla już odczytanych przebiegów; hashe tokenów nie wychodzą | rok przebiegów po 5 MB nie mieści się w pamięci funkcji; stronicowanie po kluczu nie gubi wierszy, gdy czyszczenie działa w trakcie |
+| Eksport | `GET /o/<org>/export`, tylko właściciele, każdy plan; JSON Lines strumieniowo, przebiegi stronami po 20 według `id` (ADR 0018: po 5, każda tabela stronami po 1000, wiersz końcowy); odczyty przez RLS, dziennik powiadomień przez rolę serwisową tylko dla już odczytanych przebiegów; hashe tokenów nie wychodzą | rok przebiegów po 5 MB nie mieści się w pamięci funkcji; stronicowanie po kluczu nie gubi wierszy, gdy czyszczenie działa w trakcie |
 | Usuwanie | przebieg (właściciel, akceptacje zostają bez linku), workspace i organizacja (właściciel, potwierdzenie przez wpisanie nazwy), konto (każdy, potwierdzenie adresem e-mail) | DPA (punkt 10) i polityka retencji obiecują usuwanie przez właściciela; baza już to dopuszczała przez RLS |
 | Usunięcie konta | organizacje, w których osoba jest jedynym członkiem, znikają razem z kontem; jedyny właściciel organizacji z innymi członkami musi najpierw nadać komuś rolę właściciela; subskrypcja pobierająca opłaty blokuje; wszystko sprawdzane przed pierwszym usunięciem (`lib/account.ts`) | wyzwalacz `keep_an_owner` z audytu P1 i tak zatrzymałby usunięcie użytkownika; lepiej powiedzieć to przed usuwaniem niż zostawić połowę zmian |
 | Nadanie roli | przycisk „Make owner” przy członkach | bez niego jedyny właściciel nie mógł przekazać organizacji ani usunąć konta |
@@ -42,7 +42,7 @@ Wynik końcowy (po poprawkach niżej), 8 organizacji na planie Agency, 30 s na p
 | duży | 4 | 20 | 1,2 | 3 119 ms | 4 143 ms | 201 | 562 MB |
 | duży | 8 | 40 | 1,8 | 4 032 ms | 7 295 ms | 201 | 594 MB |
 | limit Free (50 na dobę) | 40 | 80 | 60 | 518 ms | 921 ms | 50 × 201, 30 × 429 | 559 MB |
-| zły token, ciało 4,5 MB | 25 | 200 | 19,6 | 1 289 ms | 1 481 ms | 200 × 401 | 447 MB |
+| zły token, ciało 4,5 MB | 25 | 200 | 19,6 | 1 289 ms | 1 481 ms | 200 × 401 (serwer zrywał wtedy około 1 połączenia na 200; ADR 0018) | 447 MB |
 
 Co z tego wynika:
 

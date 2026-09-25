@@ -214,6 +214,20 @@ test('DPA copy: a PDF for members, 404 for outsiders', { skip: skipApp }, async 
   assert.equal((await get(outsider.cookie)).status, 404);
 });
 
+test('DPA copy of a version without its text is 410; export works on the Free plan too', { skip: skipApp }, async () => {
+  const lost = (await admin().from('dpa_acceptances').insert({ organization_id: orgId, version: '2099-01-01', company_name: 'X', company_address: 'Y', signer_name: 'Z', signer_role: 'W', signer_email: owner.email }).select('id').single()).data!.id;
+  assert.equal((await fetch(`${appUrl}/o/${orgId}/dpa/${lost}/pdf`, { headers: { cookie: owner.cookie } })).status, 410);
+  assert.ifError((await admin().from('dpa_acceptances').delete().eq('id', lost)).error);
+
+  const free = await user('free-export');
+  const org = (await free.db.rpc('create_organization', { p_name: `Free ${randomUUID().slice(0, 6)}` })).data as string;
+  const res = await fetch(`${appUrl}/o/${org}/export`, { headers: { cookie: free.cookie } });
+  assert.equal(res.status, 200, 'the export is on every plan');
+  const lines = (await res.text()).trim().split('\n').map((l) => JSON.parse(l) as { type: string });
+  assert.deepEqual([lines[0]!.type, lines[1]!.type, lines[lines.length - 1]!.type], ['export', 'organization', 'end']);
+  assert.ifError((await admin().from('organizations').delete().eq('id', org)).error);
+});
+
 test('public pages: home, pricing and every legal text without a session; signed-in visitors of / go to /orgs', { skip: skipApp }, async () => {
   for (const path of ['/', '/pricing', ...LEGAL_SLUGS.map((s) => `/legal/${s}`)]) {
     const res = await fetch(`${appUrl}${path}`, { redirect: 'manual' });

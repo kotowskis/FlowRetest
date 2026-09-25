@@ -26,12 +26,20 @@ export async function generateMetadata({ params, searchParams }: Params): Promis
   return { title: t.title, description: t.summary, robots: { index: !provider().draft } };
 }
 
-/** Announced sub-processor changes, newest first; public rows (RLS lets anyone read them). */
-async function notices(): Promise<Notice[]> {
-  const db = createClient<Database>(env.supabaseUrl(), env.supabaseAnonKey(), { auth: { persistSession: false, autoRefreshToken: false } });
-  const { data, error } = await db.from('subprocessor_notices').select('*').order('effective_on', { ascending: false }).limit(50);
-  if (error) throw new Error(`subprocessor notices: ${error.message}`);
-  return (data ?? []) as unknown as Notice[];
+/**
+ * Announced sub-processor changes, newest first; public rows (RLS lets anyone read them). Undefined when the database
+ * does not answer: the list of sub-processors itself is in the code and still shows (audit of week 14, item 35).
+ */
+async function notices(): Promise<Notice[] | undefined> {
+  try {
+    const db = createClient<Database>(env.supabaseUrl(), env.supabaseAnonKey(), { auth: { persistSession: false, autoRefreshToken: false } });
+    const { data, error } = await db.from('subprocessor_notices').select('*').order('effective_on', { ascending: false }).limit(50);
+    if (error) throw new Error(error.message);
+    return (data ?? []) as unknown as Notice[];
+  } catch (e) {
+    console.error('[legal] subprocessor notices:', e instanceof Error ? e.message : e);
+    return undefined;
+  }
 }
 
 export default async function LegalPage({ params, searchParams }: Params) {
@@ -67,7 +75,9 @@ export default async function LegalPage({ params, searchParams }: Params) {
         {doc === 'subprocessors' ? (
           <section className="mt-8">
             <h2 className="text-base font-semibold">Announced changes</h2>
-            {announced.length === 0 ? (
+            {announced === undefined ? (
+              <p className="mt-3 text-sm text-diff">The announced changes could not be loaded just now. Reload the page in a minute; announcements also go to every owner by email.</p>
+            ) : announced.length === 0 ? (
               <p className="mt-3 text-sm text-muted">No changes are announced.</p>
             ) : (
               <ul className="mt-3 space-y-4 text-sm">

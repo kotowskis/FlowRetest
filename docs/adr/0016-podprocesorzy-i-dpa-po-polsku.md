@@ -10,7 +10,7 @@ ADR 0015 zostawił dwie rzeczy na później. Pierwsza to maile do właścicieli 
 
 | Temat | Decyzja | Powód |
 |---|---|---|
-| Zapis zmiany | tabela `subprocessor_notices` (data ogłoszenia, data wejścia w życie, opis, lista zmian: `add`, `remove`, `change` z nazwą, celem, danymi i lokalizacją); ograniczenie `check` wymaga co najmniej 30 dni między ogłoszeniem a zmianą | termin z DPA pilnuje baza, nie skrypt; krótszego ogłoszenia nie da się zapisać nawet ręcznie |
+| Zapis zmiany | tabela `subprocessor_notices` (data ogłoszenia, data wejścia w życie, opis, lista zmian: `add`, `remove`, `change` z nazwą, celem, danymi i lokalizacją); ograniczenie `check` wymaga co najmniej 30 dni między ogłoszeniem a zmianą (od ADR 0018: 31 dat, czas ogłoszenia z bazy, bez zmian po ogłoszeniu) | termin z DPA pilnuje baza, nie skrypt; krótszego ogłoszenia nie da się zapisać nawet ręcznie |
 | Kto widzi | ogłoszenia czyta każdy (także bez logowania), zapisuje tylko rola serwisowa; rejestr wysyłki tylko rola serwisowa | ogłoszenie jest publiczne z definicji; rejestr ma adresy właścicieli |
 | Kto dostaje mail | właściciele organizacji z co najmniej jedną akceptacją DPA, jeden mail na osobę z nazwami wszystkich jej organizacji (`subprocessor_notice_recipients`) | tak mówi strona podprocesorów; osoba z pięcioma organizacjami nie dostaje pięciu identycznych maili |
 | Wysyłka | skrypt `scripts/subprocessor-notice.ts` (`announce`, `send`, `send --dry-run`, `list`), bez panelu administratora; rejestr `subprocessor_notice_deliveries` z wynikiem; ponowne `send` pomija wysłane i ponawia nieudane | aplikacja nie ma roli administratora, a zmiana podprocesora zdarza się kilka razy w roku; ponawianie bez duplikatów pozwala spokojnie uruchomić skrypt drugi raz po awarii poczty |

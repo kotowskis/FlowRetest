@@ -37,6 +37,31 @@ export async function readLimited(request: Request, limit: number): Promise<{ te
   return { text: Buffer.concat(chunks).toString('utf8') };
 }
 
+/**
+ * Reads and drops the rest of a refused request's body, up to `limit` bytes. Answering before the body is read made
+ * some clients see a reset connection instead of the answer (about 1 upload in 200 with a bad token and 4.5 MB);
+ * the bytes are counted, not kept or parsed, so a refused upload still costs no memory (audit of week 14, item 32).
+ */
+export async function discardBody(request: Request, limit: number): Promise<void> {
+  const declared = Number(request.headers.get('content-length') ?? '0');
+  if (!request.body || declared > limit) return;
+  const reader = request.body.getReader();
+  let size = 0;
+  try {
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) return;
+      size += value.byteLength;
+      if (size > limit) {
+        await reader.cancel();
+        return;
+      }
+    }
+  } catch {
+    // The client went away; there is nobody left to answer.
+  }
+}
+
 /** 28000 is what the token-checking database functions raise for an unknown or revoked token. */
 export function isTokenError(error: { code?: string } | null): boolean {
   return error?.code === '28000';

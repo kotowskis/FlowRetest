@@ -91,8 +91,12 @@ async function githubCheck(admin: Admin, run: RunRow, workflowName: string, inte
     await log({ ok: false, installation_id: installation.installation_id, detail: `${run.git_repository} is not among the repositories linked by one of their admins; an admin of it can connect GitHub again` });
     return;
   }
-  const { data: stored } = await admin.from('runs').select('report').eq('id', run.id).single();
-  if (!stored) return;
+  const { data: stored, error: readError } = await admin.from('runs').select('report').eq('id', run.id).single();
+  if (!stored) {
+    // The run page and the workspace log say why the check is missing (audit of week 14, item 33).
+    await log({ ok: false, installation_id: installation.installation_id, detail: `could not read the report for the check: ${readError?.message ?? 'run not found'}` });
+    return;
+  }
   const report = stored.report as unknown as PlanReport;
   const summary = run.summary as RunSummary;
   const counts = [summary.changed && `${summary.changed} changed`, summary.added && `${summary.added} added`, summary.removed && `${summary.removed} removed`].filter(Boolean).join(', ');

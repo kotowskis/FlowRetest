@@ -8,6 +8,9 @@
  *
  * Needs .env.local (npm run db:env) and a running app; `next start` gives numbers closer to production than
  * `next dev`. The numbers describe one machine: use them to compare changes and to find limits, not as capacity.
+ * It refuses a database or an app that is not on localhost: it creates organizations with fake Agency
+ * subscriptions. Ctrl+C still deletes them. Percentiles are nearest-rank over the answered requests; with fewer
+ * than 20 answers p95 is the slowest one, and the table says n.
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
@@ -43,7 +46,21 @@ const SCENARIOS = new Set(arg('scenarios', 'steady,burst,large,limit,badtoken').
 const PID = arg('pid', '');
 const OUT = arg('out', '');
 
-const db: SupabaseClient<Database> = createClient<Database>(process.env.NEXT_PUBLIC_SUPABASE_URL ?? '', process.env.SUPABASE_SERVICE_ROLE_KEY ?? '', { auth: { persistSession: false, autoRefreshToken: false } });
+const local = (address: string) => {
+  try {
+    return ['localhost', '127.0.0.1', '[::1]'].includes(new URL(address).hostname);
+  } catch {
+    return false;
+  }
+};
+const SUPABASE = process.env.NEXT_PUBLIC_SUPABASE_URL ?? '';
+// Audit of week 14, item 31: with production variables in the shell the script wrote fake subscriptions there.
+if (!local(SUPABASE) || !local(APP)) {
+  console.error(`load-upload runs against the local stack only; got database ${SUPABASE || '(none)'} and app ${APP}`);
+  process.exit(4);
+}
+
+const db: SupabaseClient<Database> = createClient<Database>(SUPABASE, process.env.SUPABASE_SERVICE_ROLE_KEY ?? '', { auth: { persistSession: false, autoRefreshToken: false } });
 
 // ---------------------------------------------------------------------------------------------------------------
 // Reports: `cases` cases with `calls` changed calls of `fields` fields each, redacted like an upload
@@ -128,9 +145,10 @@ interface Result {
   appRssMB?: number;
 }
 
+/** Nearest-rank percentile: the smallest value with at least p% of the values at or below it. */
 function pct(sorted: number[], p: number): number {
   if (sorted.length === 0) return 0;
-  return Math.round(sorted[Math.min(sorted.length - 1, Math.floor((p / 100) * sorted.length))] as number);
+  return Math.round(sorted[Math.min(sorted.length - 1, Math.max(0, Math.ceil((p / 100) * sorted.length) - 1))] as number);
 }
 
 /** Resident memory of the app process in MB (Windows tasklist or Linux /proc), when --pid is given. */
@@ -180,7 +198,8 @@ async function drive(scenario: string, concurrency: number, tokens: string[], bo
   );
   clearInterval(sampler);
   const seconds = (performance.now() - start) / 1000;
-  const sorted = samples.map((s) => s.ms).sort((a, b) => a - b);
+  // Dropped connections (status 0) are counted in the status line, not in the latencies.
+  const sorted = samples.filter((s) => s.status !== 0).map((s) => s.ms).sort((a, b) => a - b);
   const status: Record<string, number> = {};
   for (const s of samples) status[s.status] = (status[s.status] ?? 0) + 1;
   const bodyKB = Math.round(bodies.reduce((a, b) => a + Buffer.byteLength(b), 0) / bodies.length / 1024);
@@ -244,8 +263,8 @@ async function main(): Promise<void> {
   }
 
   if (SCENARIOS.has('badtoken')) {
-    // Revoked or made-up tokens with a 4 MB body: the server must answer 401 without reading the body.
-    const r = await drive('badtoken', 25, [`frt_${'x'.repeat(40)}`], [sizes.large], (sent) => sent >= 200);
+    // A made-up token of the right shape with a 4 MB body: one database lookup, then 401, the body drained, not parsed.
+    const r = await drive('badtoken', 25, [generateToken().token], [sizes.large], (sent) => sent >= 200);
     results.push(r);
     print(r);
     if (Object.keys(r.status).some((s) => s !== '401')) process.exitCode = 1;
@@ -253,6 +272,12 @@ async function main(): Promise<void> {
 
   if (OUT) writeFileSync(OUT, `${JSON.stringify({ app: APP, at: new Date().toISOString(), node: process.version, platform: process.platform, results }, null, 2)}\n`);
 }
+
+// Ctrl+C: delete the organizations before leaving, as the normal end does.
+process.once('SIGINT', () => {
+  console.error('interrupted; deleting the test organizations');
+  void cleanup().finally(() => process.exit(130));
+});
 
 try {
   await main();

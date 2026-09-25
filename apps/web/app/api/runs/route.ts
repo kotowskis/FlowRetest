@@ -1,5 +1,5 @@
 import { after, NextResponse, type NextRequest } from 'next/server';
-import { fail, isTokenError, readLimited, tokenHashOf } from '@/lib/api-auth.ts';
+import { discardBody, fail, isTokenError, readLimited, tokenHashOf } from '@/lib/api-auth.ts';
 import { MAX_REPORT_BYTES, prepareIngest } from '@/lib/ingest.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
 import { env } from '@/lib/env.ts';
@@ -16,11 +16,17 @@ export const dynamic = 'force-dynamic';
  */
 export async function POST(request: NextRequest) {
   const auth = tokenHashOf(request);
-  if ('response' in auth) return auth.response;
+  if ('response' in auth) {
+    await discardBody(request, MAX_REPORT_BYTES);
+    return auth.response;
+  }
   const admin = createAdminClient();
-  // The token first: without a live one nobody gets the server to read, parse and validate a body.
+  // The token first: without a live one nobody gets the server to parse and validate a body; it is only drained.
   const known = await admin.rpc('token_workspace', { p_token_hash: auth.hash });
-  if (isTokenError(known.error)) return fail(401, 'invalid or revoked workspace token');
+  if (isTokenError(known.error)) {
+    await discardBody(request, MAX_REPORT_BYTES);
+    return fail(401, 'invalid or revoked workspace token');
+  }
   const body = await readLimited(request, MAX_REPORT_BYTES);
   if ('tooLarge' in body) return fail(413, `report is over ${MAX_REPORT_BYTES} bytes (${body.tooLarge} read)`);
 

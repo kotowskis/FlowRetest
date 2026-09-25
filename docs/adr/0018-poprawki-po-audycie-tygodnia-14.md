@@ -71,3 +71,13 @@ Punkt 30 (`past_due` po okresie próbnym) nie zmienia kodu. Ponawianie płatnoś
 | 34 | Testy | nowy `test/integration/deletion.test.ts`: odmowy usunięcia konta, usunięcie po zaplanowanym anulowaniu, przebieg (akceptacja zostaje bez linku), workspace, organizacja, „Make owner” | te ścieżki kasują dane i nie miały testów |
 
 Parametr `p_terms_version` w `create_organization` jest opcjonalny, żeby testy i skrypty mogły zakładać organizacje bez formularza. Aplikacja zawsze go wysyła. Organizacja założona bezpośrednio przez API bez niego widzi baner akceptacji.
+
+## Drobniejsze (P2)
+
+| # | Temat | Decyzja |
+|---|---|---|
+| 31 | Test obciążeniowy | skrypt przyjmuje tylko bazę i aplikację na localhost; Ctrl+C usuwa organizacje; scenariusz `badtoken` używa tokenu o poprawnym kształcie, więc mierzy też wywołanie bazy; percentyle metodą najbliższej rangi z pominięciem zerwanych połączeń |
+| 32 | Zerwane połączenia przy 401 | `/api/runs` przed odpowiedzią 401 odczytuje i wyrzuca resztę ciała (do 5 MB, bez parsowania); trzy przebiegi `badtoken` po 200 żądań dały 600 × 401 |
+| 33 | Check GitHuba | nieudany odczyt raportu przed Checkiem zapisuje wiersz `github_checks` z przyczyną |
+| 35 | Drobne w interfejsie | `/legal/subprocessors` pokazuje listę także wtedy, gdy baza nie odpowiada; „Make owner” zostaje bez komunikatu, jak „Remove”: przycisk widzi tylko właściciel |
+| 38 | Dokumentacja | 31 dni w ADR 0016 i `docs/rozwoj.md`, liczby w dzienniku zgodne z tabelą ADR 0015, `LEGAL_ALLOW_DRAFT_ACCEPTANCE` jako osobna linia w `.env.example` |
