@@ -4,17 +4,26 @@ import { notFound } from 'next/navigation';
 import { createClient } from '@supabase/supabase-js';
 import { PublicShell } from '@/components/public-shell.tsx';
 import { DraftNotice, LegalText } from '@/components/legal.tsx';
-import { isLegalSlug, legalDocument, LEGAL_SLUGS } from '@/lib/legal/documents.ts';
+import { DPA_VERSION, dpaDocument, isDpaLang, isLegalSlug, legalDocument, LEGAL_SLUGS, type DpaLang, type LegalDocument, type LegalSlug } from '@/lib/legal/documents.ts';
 import { provider } from '@/lib/legal/provider.ts';
 import { changeLine, type Notice } from '@/lib/subprocessor-notices.ts';
 import { env } from '@/lib/env.ts';
 import type { Database } from '@/lib/database.types.ts';
 
-export async function generateMetadata({ params }: { params: Promise<{ doc: string }> }): Promise<Metadata> {
+type Params = { params: Promise<{ doc: string }>; searchParams: Promise<{ lang?: string }> };
+
+/** The page's text: the DPA in the language asked for (?lang=pl), everything else in English. */
+function text(doc: LegalSlug, lang: string | undefined): { text: LegalDocument; lang: DpaLang } {
+  const who = provider();
+  if (doc === 'dpa' && isDpaLang(lang) && lang !== 'en') return { text: dpaDocument(DPA_VERSION, who, lang) as LegalDocument, lang };
+  return { text: legalDocument(doc, who), lang: 'en' };
+}
+
+export async function generateMetadata({ params, searchParams }: Params): Promise<Metadata> {
   const { doc } = await params;
   if (!isLegalSlug(doc)) return {};
-  const text = legalDocument(doc, provider());
-  return { title: text.title, description: text.summary, robots: { index: !provider().draft } };
+  const { text: t } = text(doc, (await searchParams).lang);
+  return { title: t.title, description: t.summary, robots: { index: !provider().draft } };
 }
 
 /** Announced sub-processor changes, newest first; public rows (RLS lets anyone read them). */
@@ -25,25 +34,34 @@ async function notices(): Promise<Notice[]> {
   return (data ?? []) as unknown as Notice[];
 }
 
-export default async function LegalPage({ params }: { params: Promise<{ doc: string }> }) {
+export default async function LegalPage({ params, searchParams }: Params) {
   const { doc } = await params;
   if (!isLegalSlug(doc)) notFound();
   const who = provider();
-  const text = legalDocument(doc, who);
+  const { text: t, lang } = text(doc, (await searchParams).lang);
   const others = LEGAL_SLUGS.filter((s) => s !== doc).map((s) => ({ slug: s, title: legalDocument(s, who).title }));
   const announced = doc === 'subprocessors' ? await notices() : [];
   const today = new Date().toISOString().slice(0, 10);
   return (
     <PublicShell>
-      <main className="mx-auto max-w-3xl px-4 py-10">
-        {who.draft ? <DraftNotice /> : null}
-        <h1 className="mt-6 text-3xl font-semibold">{text.title}</h1>
+      <main lang={lang} className="mx-auto max-w-3xl px-4 py-10">
+        {who.draft ? <DraftNotice lang={lang} /> : null}
+        {doc === 'dpa' ? (
+          <p className="mt-6 text-sm">
+            {lang === 'en' ? <span className="font-medium">English</span> : <Link href="/legal/dpa" className="underline">English</Link>}
+            {' · '}
+            {lang === 'pl' ? <span className="font-medium">Polski</span> : <Link href="/legal/dpa?lang=pl" className="underline">Polski</Link>}
+          </p>
+        ) : null}
+        <h1 className="mt-6 text-3xl font-semibold">{t.title}</h1>
         <p className="mt-2 text-sm text-muted">
-          {text.summary} Version of {text.version}.
+          {t.summary} {lang === 'pl' ? `Wersja z ${t.version}.` : `Version of ${t.version}.`}
         </p>
         {doc === 'dpa' ? (
           <p className="mt-4 text-sm">
-            Owners accept this agreement for their organization on the Data page of the organization in the app. The acceptance records the company, the signer and the version, and gives a PDF copy.
+            {lang === 'pl'
+              ? 'Właściciel organizacji akceptuje umowę na stronie Data swojej organizacji w aplikacji. Akceptacja zapisuje firmę, osobę akceptującą i wersję oraz daje kopię PDF po angielsku i po polsku. W razie rozbieżności rozstrzyga wersja angielska.'
+              : 'Owners accept this agreement for their organization on the Data page of the organization in the app. The acceptance records the company, the signer and the version, and gives a PDF copy in English and in Polish.'}
           </p>
         ) : null}
         {doc === 'subprocessors' ? (
@@ -69,7 +87,7 @@ export default async function LegalPage({ params }: { params: Promise<{ doc: str
             )}
           </section>
         ) : null}
-        <LegalText doc={text} />
+        <LegalText doc={t} />
         <nav className="mt-12 border-t border-line pt-6 text-sm">
           <span className="text-muted">Also: </span>
           {others.map((o, i) => (

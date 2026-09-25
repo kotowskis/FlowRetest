@@ -273,16 +273,22 @@ Wnioski:
 
 Do decyzji założyciela (lista w `docs/sprzedaz.md`): publikacja 0.3.0, domena z hostingiem i pocztą, konto Stripe, przegląd prawny tekstów i dane firmy, mail do n8n o licencji; widełki ceny wdrożenia.
 
-## Po tygodniu 14: powiadomienia o zmianie podprocesorów (2026-09-25)
+## Po tygodniu 14: powiadomienia o zmianie podprocesorów, DPA po polsku (2026-09-25)
 
-Rzecz odłożona w ADR 0015, zrobiona na prośbę założyciela przed startem sprzedaży. Decyzje są w ADR 0016.
+Dwie rzeczy odłożone w ADR 0015, zrobione na prośbę założyciela przed startem sprzedaży. Decyzje są w ADR 0016.
 
 Zrobione:
 
 - migracja `20270111000000_subprocessor_notices.sql`: ogłoszenia zmian z regułą 30 dni w bazie, rejestr wysyłki, funkcja odbiorców (właściciele organizacji z akceptacją DPA), czyszczenie rejestru rok po zmianie;
 - `lib/subprocessor-notices.ts` (treść maila, wysyłka z ponawianiem) i skrypt `scripts/subprocessor-notice.ts`;
-- sekcja zapowiedzianych zmian na `/legal/subprocessors` i na stronie Data organizacji.
+- sekcja zapowiedzianych zmian na `/legal/subprocessors` i na stronie Data organizacji;
+- polski tekst DPA w `lib/legal/dpa-pl.ts`, przełącznik języka na `/legal/dpa`, PDF kopii po polsku; w obu wersjach punkt 12 mówi, że rozstrzyga wersja angielska;
+- w PDF nagłówek punktu nie zostaje już sam na dole strony.
 
-Sprawdzone na żywo: ogłoszenie z datą za 29 dni odrzucone przez bazę, za 31 dni przyjęte; wysyłka do 12 właścicieli w lokalnej bazie trafiła do Mailpita, druga wysyłka niczego nie powtórzyła. Testy: 2 nowe jednostkowe, 4 nowe integracyjne.
+Sprawdzone na żywo: ogłoszenie z datą za 29 dni odrzucone przez bazę, za 31 dni przyjęte; wysyłka do 12 właścicieli w lokalnej bazie trafiła do Mailpita, druga wysyłka niczego nie powtórzyła; polska strona DPA i PDF po polsku (4 strony obejrzane jako obrazy). Testy: 5 nowych jednostkowych (w tym zgodność struktury obu wersji i reguły filtra markerów AI na polskim tekście), 4 nowe integracyjne.
 
-Wniosek: React wstawia `<!-- -->` między fragmenty tekstu w HTML, więc test szukający zdania z wartością w środku musi je najpierw usunąć.
+Wnioski:
+
+- React wstawia `<!-- -->` między fragmenty tekstu w HTML, więc test szukający zdania z wartością w środku musi je najpierw usunąć;
+- w react-pdf 4.9 `minPresenceAhead` na nagłówku nie przeniósł go na następną stronę; pomógł wspólny `View` z `wrap: false` dla nagłówka i pierwszego akapitu.
+

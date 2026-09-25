@@ -1,6 +1,6 @@
 # Start sprzedaży
 
-Stan na 2026-09-25, koniec tygodnia 14 planu. Technicznie sprzedaż może ruszyć. Działa strona główna z cennikiem, plany rozlicza Stripe (na razie atrapa), a właściciel organizacji przyjmuje DPA w aplikacji i tam eksportuje albo usuwa dane. Zmianę podprocesora ogłasza skrypt z mailem do właścicieli (ADR 0016). Nie może ruszyć, dopóki założyciel nie zamknie pięciu decyzji z listy niżej. Każda z nich blokuje pierwszą fakturę.
+Stan na 2026-09-25, koniec tygodnia 14 planu. Technicznie sprzedaż może ruszyć. Działa strona główna z cennikiem, plany rozlicza Stripe (na razie atrapa), a właściciel organizacji przyjmuje DPA w aplikacji i tam eksportuje albo usuwa dane. DPA ma tłumaczenie na polski, a zmianę podprocesora ogłasza skrypt z mailem do właścicieli (ADR 0016). Nie może ruszyć, dopóki założyciel nie zamknie pięciu decyzji z listy niżej. Każda z nich blokuje pierwszą fakturę.
 
 ## Blokery
 
@@ -85,5 +85,6 @@ Po angielsku, bo tak piszą agencje z forum i z experts.n8n.io. Każdą wiadomo�
 3. Klauzula 6 (podprocesorzy, 30 dni na sprzeciw, zwrot przedpłaty): czy to wystarcza przy agencjach, które same są procesorami swoich klientów?
 4. Regulamin: limit odpowiedzialności do opłat z 12 miesięcy, prawo polskie, sąd właściwy dla siedziby. Czy to działa wobec klientów spoza Polski?
 5. Czy Stripe powinien być na liście podprocesorów, skoro przetwarza dane rozliczeniowe jako osobny administrator?
-6. Powiadomienie o zmianie podprocesora idzie mailem do właścicieli organizacji, które przyjęły DPA, 30 dni przed zmianą, z adresem do sprzeciwu. Czy to wystarcza jako „informowanie” z art. 28 ust. 2 RODO?
-7. Sustainable Use License: czy warstwa hostowana, która nie uruchamia n8n i pokazuje tylko wyniki runnera działającego u klienta, mieści się w licencji (to samo pytanie co w mailu do n8n)?
+6. DPA ma wersję angielską i polską, a punkt 12 mówi, że przy rozbieżności rozstrzyga angielska. Czy wobec klienta z Polski to działa, czy wiążąca powinna być wersja polska?
+7. Powiadomienie o zmianie podprocesora idzie mailem do właścicieli organizacji, które przyjęły DPA, 30 dni przed zmianą, z adresem do sprzeciwu. Czy to wystarcza jako „informowanie” z art. 28 ust. 2 RODO?
+8. Sustainable Use License: czy warstwa hostowana, która nie uruchamia n8n i pokazuje tylko wyniki runnera działającego u klienta, mieści się w licencji (to samo pytanie co w mailu do n8n)?

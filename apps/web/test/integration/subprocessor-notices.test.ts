@@ -1,6 +1,6 @@
 /**
  * Sub-processor change notices (ADR 0016): the 30-day rule in the database, who may read what, one email per owner
- * of organizations that accepted the DPA, repeatable sending, and the pages that show announced changes.
+ * of organizations that accepted the DPA, repeatable sending, and the public pages (announced changes, Polish DPA).
  */
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
@@ -106,15 +106,27 @@ test('the delivery log goes a year after the change; the notice stays', { skip: 
   assert.equal((await admin().from('subprocessor_notices').select('id').eq('id', n.id)).data?.length, 1);
 });
 
-test('pages: announced changes on /legal/subprocessors and on the Data page', { skip: skipApp }, async () => {
+test('pages: announced changes on /legal/subprocessors, the DPA in Polish, the Polish PDF copy', { skip: skipApp }, async () => {
   if (notices.length === 0) notices.push((await announceNotice(admin(), input(earliestEffectiveOn(new Date())))).id);
   // React separates text nodes with <!-- --> in the HTML.
   const page = (await (await fetch(`${appUrl}/legal/subprocessors`)).text()).replace(/<!-- -->/g, '');
   assert.match(page, new RegExp(`Email delivery moves to Postmark ${tag}`));
   assert.match(page, /Takes effect on \d{4}-\d{2}-\d{2}/);
 
+  const pl = await fetch(`${appUrl}/legal/dpa?lang=pl`);
+  assert.equal(pl.status, 200);
+  const html = await pl.text();
+  assert.match(html, /Umowa powierzenia przetwarzania danych osobowych/);
+  assert.match(html, /<main lang="pl"/);
+  assert.match(await (await fetch(`${appUrl}/legal/dpa?lang=de`)).text(), /Data Processing Agreement/, 'unknown languages fall back to English');
 
   const orgId = (await owner.db.from('organizations').select('id').eq('name', `Alpha ${tag}`).single()).data!.id;
+  const acceptance = (await owner.db.from('dpa_acceptances').select('id').eq('organization_id', orgId).limit(1).single()).data!.id;
+  const pdf = await fetch(`${appUrl}/o/${orgId}/dpa/${acceptance}/pdf?lang=pl`, { headers: { cookie: owner.cookie } });
+  assert.equal(pdf.status, 200);
+  assert.match(pdf.headers.get('content-disposition') ?? '', /-pl\.pdf"$/);
+  assert.equal((await fetch(`${appUrl}/o/${orgId}/dpa/${acceptance}/pdf?lang=de`, { headers: { cookie: owner.cookie } })).status, 400);
   const data = await (await fetch(`${appUrl}/o/${orgId}/data`, { headers: { cookie: owner.cookie } })).text();
   assert.match(data, /Announced sub-processor changes/);
+  assert.match(data, /PDF \(PL\)/);
 });

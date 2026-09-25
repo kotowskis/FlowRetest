@@ -25,7 +25,40 @@ export interface DpaRecordInput {
     acceptedAt: string;
   };
   printedAt: string;
+  /** Language of the labels on the first page; the agreement text comes in `doc`. */
+  lang?: 'en' | 'pl';
 }
+
+const LABELS = {
+  en: {
+    kicker: 'FlowRetest · accepted agreement',
+    customer: 'Customer',
+    organization: 'Organization in FlowRetest',
+    acceptedBy: 'Accepted by',
+    acceptedAt: 'Accepted at',
+    provider: 'Provider',
+    version: 'Version',
+    record: 'Record',
+    draft: 'Draft: the text awaits legal review and the provider details are not filled in yet.',
+    intro: 'The Customer accepted this agreement electronically in the FlowRetest application. The person named above confirmed that they may accept agreements for the Customer. The text below is the version accepted.',
+    printed: 'printed',
+    page: (n: number, total: number) => `page ${n} of ${total}`,
+  },
+  pl: {
+    kicker: 'FlowRetest · zaakceptowana umowa',
+    customer: 'Klient',
+    organization: 'Organizacja w FlowRetest',
+    acceptedBy: 'Akceptacja',
+    acceptedAt: 'Data akceptacji',
+    provider: 'Dostawca',
+    version: 'Wersja',
+    record: 'Rekord',
+    draft: 'Wersja robocza: tekst czeka na przegląd prawny, a dane Dostawcy nie są jeszcze uzupełnione.',
+    intro: 'Klient zaakceptował tę umowę elektronicznie w aplikacji FlowRetest. Wskazana wyżej osoba potwierdziła umocowanie do zawierania umów w imieniu Klienta. Poniżej tekst zaakceptowanej wersji w tłumaczeniu na polski; w razie rozbieżności rozstrzyga wersja angielska.',
+    printed: 'wydruk',
+    page: (n: number, total: number) => `strona ${n} z ${total}`,
+  },
+};
 
 const INK = '#111827';
 const MUTED = '#6b7280';
@@ -71,14 +104,15 @@ function block(b: Block, key: number): ReactElement {
 export function DpaRecordDocument(input: DpaRecordInput): ReactElement {
   const a = input.acceptance;
   const p = input.provider;
+  const l = LABELS[input.lang ?? 'en'];
   const rows: Array<[string, string]> = [
-    ['Customer', [a.companyName, a.companyAddress, a.companyId].filter(Boolean).join(', ')],
-    ['Organization in FlowRetest', a.organizationName],
-    ['Accepted by', `${a.signerName}, ${a.signerRole} (${a.signerEmail})`],
-    ['Accepted at', a.acceptedAt],
-    ['Provider', `${p.name}, ${p.address}, ${p.companyId}`],
-    ['Version', input.doc.version],
-    ['Record', a.id],
+    [l.customer, [a.companyName, a.companyAddress, a.companyId].filter(Boolean).join(', ')],
+    [l.organization, a.organizationName],
+    [l.acceptedBy, `${a.signerName}, ${a.signerRole} (${a.signerEmail})`],
+    [l.acceptedAt, a.acceptedAt],
+    [l.provider, `${p.name}, ${p.address}, ${p.companyId}`],
+    [l.version, input.doc.version],
+    [l.record, a.id],
   ];
   return h(
     Document,
@@ -86,17 +120,18 @@ export function DpaRecordDocument(input: DpaRecordInput): ReactElement {
     h(
       Page,
       { size: 'A4', style: s.page, wrap: true },
-      text(s.footerLeft, `DPA ${input.doc.version} · ${a.companyName} · printed ${input.printedAt}`, { fixed: true }),
-      h(Text, { style: s.footerRight, fixed: true, render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => `page ${pageNumber} of ${totalPages}` }),
-      text(s.kicker, 'FlowRetest · accepted agreement'),
+      text(s.footerLeft, `DPA ${input.doc.version} · ${a.companyName} · ${l.printed} ${input.printedAt}`, { fixed: true }),
+      h(Text, { style: s.footerRight, fixed: true, render: ({ pageNumber, totalPages }: { pageNumber: number; totalPages: number }) => l.page(pageNumber, totalPages) }),
+      text(s.kicker, l.kicker),
       text(s.title, input.doc.title),
-      p.draft ? text(s.draft, 'Draft: the text awaits legal review and the provider details are not filled in yet.') : null,
+      p.draft ? text(s.draft, l.draft) : null,
       h(View, { style: s.meta }, ...rows.map(([k, v]) => h(View, { key: k, style: s.metaRow, wrap: false }, text(s.metaKey, k), text(s.metaValue, v)))),
       text(
         [s.p, { marginTop: 10 }],
-        `The Customer accepted this agreement electronically in the FlowRetest application. The person named above confirmed that they may accept agreements for the Customer. The text below is the version accepted.`,
+        l.intro,
       ),
-      ...input.doc.sections.map((sec, i) => h(View, { key: i }, text(s.h2, sec.heading), ...sec.blocks.map(block))),
+      // A heading never ends a page alone: it stays in one unbreakable view with the first block of its section.
+      ...input.doc.sections.map((sec, i) => h(View, { key: i }, h(View, { wrap: false }, text(s.h2, sec.heading), sec.blocks[0] ? block(sec.blocks[0], 0) : null), ...sec.blocks.slice(1).map((b, j) => block(b, j + 1)))),
     ),
   );
 }

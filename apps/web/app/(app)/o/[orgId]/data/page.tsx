@@ -48,7 +48,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
         title="Data Processing Agreement"
         description={
           <>
-            The <Link href="/legal/dpa" className="underline">DPA</Link> (version of {DPA_VERSION}) sets how FlowRetest processes personal data for this organization. An owner accepts it for the company; each acceptance is kept with a PDF copy. Owners of organizations that accepted it get an email 30 days before a sub-processor changes.
+            The <Link href="/legal/dpa" className="underline">DPA</Link> (version of {DPA_VERSION}, also <Link href="/legal/dpa?lang=pl" className="underline">in Polish</Link>) sets how FlowRetest processes personal data for this organization. An owner accepts it for the company; each acceptance is kept with a PDF copy. Owners of organizations that accepted it get an email 30 days before a sub-processor changes.
           </>
         }
       >
@@ -77,6 +77,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
                 <span className="flex items-center gap-3 text-xs text-muted">
                   <Time value={a.accepted_at} />
                   <a href={`/o/${org.id}/dpa/${a.id}/pdf`} className="underline">PDF</a>
+                  <a href={`/o/${org.id}/dpa/${a.id}/pdf?lang=pl`} className="underline" title="Polish translation">PDF (PL)</a>
                 </span>
               </li>
             ))}

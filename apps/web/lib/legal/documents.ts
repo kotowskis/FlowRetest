@@ -6,6 +6,7 @@
  * Changing the DPA means a new DPA_VERSION (a date); owners then see that the accepted version is older.
  */
 import type { Provider } from './provider.ts';
+import { dpaPl } from './dpa-pl.ts';
 
 export const DPA_VERSION = '2026-09-25';
 
@@ -42,6 +43,8 @@ export interface Subprocessor {
   purpose: string;
   data: string;
   location: string;
+  /** The same in Polish, for the Polish DPA (lib/legal/dpa-pl.ts). */
+  pl: { purpose: string; data: string; location: string };
 }
 
 /**
@@ -50,10 +53,10 @@ export interface Subprocessor {
  * before the draft banner goes.
  */
 export const SUBPROCESSORS: Subprocessor[] = [
-  { name: 'Supabase Inc.', purpose: 'Database and sign-in', data: 'Everything the service stores', location: 'EU (Frankfurt, AWS eu-central-1)' },
-  { name: 'Vercel Inc.', purpose: 'Hosting of the web application', data: 'Requests to the application, including uploaded reports in transit; request logs', location: 'EU (Frankfurt) for functions; global edge network' },
-  { name: 'Resend Inc.', purpose: 'Email delivery (sign-in codes, run notifications)', data: 'Email addresses; workflow and workspace names and run status in notifications', location: 'EU (Ireland, AWS eu-west-1)' },
-  { name: 'Stripe Payments Europe Ltd.', purpose: 'Payments and invoices', data: 'Billing contact, address, VAT number, payment method', location: 'EU (Ireland), with transfers to Stripe Inc. under the EU Standard Contractual Clauses' },
+  { name: 'Supabase Inc.', purpose: 'Database and sign-in', data: 'Everything the service stores', location: 'EU (Frankfurt, AWS eu-central-1)', pl: { purpose: 'Baza danych i logowanie', data: 'Wszystko, co przechowuje usługa', location: 'UE (Frankfurt, AWS eu-central-1)' } },
+  { name: 'Vercel Inc.', purpose: 'Hosting of the web application', data: 'Requests to the application, including uploaded reports in transit; request logs', location: 'EU (Frankfurt) for functions; global edge network', pl: { purpose: 'Hosting aplikacji internetowej', data: 'Żądania do aplikacji, w tym przesyłane raporty; logi żądań', location: 'UE (Frankfurt) dla funkcji; globalna sieć brzegowa' } },
+  { name: 'Resend Inc.', purpose: 'Email delivery (sign-in codes, run notifications)', data: 'Email addresses; workflow and workspace names and run status in notifications', location: 'EU (Ireland, AWS eu-west-1)', pl: { purpose: 'Wysyłka poczty (kody logowania, powiadomienia o przebiegach)', data: "Adresy e-mail; nazwy workflow i workspace'ów oraz status przebiegu w powiadomieniach", location: 'UE (Irlandia, AWS eu-west-1)' } },
+  { name: 'Stripe Payments Europe Ltd.', purpose: 'Payments and invoices', data: 'Billing contact, address, VAT number, payment method', location: 'EU (Ireland), with transfers to Stripe Inc. under the EU Standard Contractual Clauses', pl: { purpose: 'Płatności i faktury', data: 'Kontakt rozliczeniowy, adres, numer VAT, metoda płatności', location: 'UE (Irlandia), z przekazywaniem do Stripe Inc. na podstawie standardowych klauzul umownych UE' } },
 ];
 
 export interface RetentionRow {
@@ -135,10 +138,10 @@ export const RETENTION_ROWS: RetentionRow[] = [
   },
 ];
 
-const LOCAL_ONLY =
+export const LOCAL_ONLY =
   'The runner never uploads request bodies, recorded executions, fixtures, baselines or credentials. They stay in the .flowretest folder on the machine or CI runner where the runner ran.';
 
-const REDACTED =
+export const REDACTED =
   'A redacted report holds workflow and node names, version labels, HTTP methods, hosts, URL templates, field names, and each value as its type, its length and a hash. The hash is keyed with a random secret that is created for each report on the runner and never uploaded, so the service cannot recompute it from a guessed value. Error messages come with email addresses, quoted text and long numbers replaced. The service refuses a report that still carries values.';
 
 function dpa(p: Provider): LegalDocument {
@@ -231,7 +234,7 @@ function dpa(p: Provider): LegalDocument {
       {
         heading: '12. Term, liability and precedence',
         blocks: [
-          { p: 'This agreement lasts as long as the Provider processes data for the Customer. Liability follows the Terms of Service. If this agreement and the Terms of Service disagree about personal data, this agreement prevails. Polish law applies.' },
+          { p: 'This agreement lasts as long as the Provider processes data for the Customer. Liability follows the Terms of Service. If this agreement and the Terms of Service disagree about personal data, this agreement prevails. Polish law applies. The agreement is available in English and Polish; if the two versions differ, the English version prevails.' },
         ],
       },
       {
@@ -467,10 +470,22 @@ function terms(p: Provider): LegalDocument {
  * Every DPA version an owner has accepted, by version. A new version gets a new function here and the old one
  * stays, so the PDF copy of an old acceptance still prints the text that was accepted.
  */
-const DPA_TEXTS: Record<string, (p: Provider) => LegalDocument> = { [DPA_VERSION]: dpa };
+export const DPA_LANGS = ['en', 'pl'] as const;
+export type DpaLang = (typeof DPA_LANGS)[number];
 
-export function dpaDocument(version: string, p: Provider): LegalDocument | undefined {
-  return DPA_TEXTS[version]?.(p);
+export function isDpaLang(value: string | undefined): value is DpaLang {
+  return (DPA_LANGS as readonly (string | undefined)[]).includes(value);
+}
+
+const DPA_TEXTS: Record<string, Record<DpaLang, (p: Provider) => LegalDocument>> = {
+  [DPA_VERSION]: {
+    en: dpa,
+    pl: (p) => dpaPl(p, DPA_VERSION, SUBPROCESSORS.map((s) => [s.name, s.pl.purpose, s.pl.data, s.pl.location])),
+  },
+};
+
+export function dpaDocument(version: string, p: Provider, lang: DpaLang = 'en'): LegalDocument | undefined {
+  return DPA_TEXTS[version]?.[lang](p);
 }
 
 /** Owners may accept only a reviewed text, except where LEGAL_ALLOW_DRAFT_ACCEPTANCE is set (local stack, CI). */
