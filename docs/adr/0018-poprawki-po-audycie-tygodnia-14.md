@@ -61,3 +61,13 @@ Po wdrożeniu na projekt Supabase w chmurze trzeba jeden raz sprawdzić, że `se
 | 29 | Tryb rozliczeń | Checkout ustawia `subscription_data.billing_mode.type=flexible` | to domyślna wartość przypiętej wersji API, ale atrapa i komunikaty zakładają, że zmiana interwału nie kończy okresu próbnego |
 
 Punkt 30 (`past_due` po okresie próbnym) nie zmienia kodu. Ponawianie płatności w Stripe trzeba ustawić na anulowanie subskrypcji (lista założyciela w ADR 0010), inaczej karta odrzucona po okresie próbnym zostawia plan płatny do końca ponawiania.
+
+## Regulamin, usuwanie konta, testy
+
+| # | Temat | Decyzja | Powód |
+|---|---|---|---|
+| 11 | Akceptacja regulaminu | zakładający organizację zaznacza akceptację regulaminu (z DPA jako częścią), baza zapisuje `organizations.terms_version`, czas i osobę (migracja `20270126000000_terms_acceptance.sql`); właściciel organizacji bez akceptacji albo ze starszą wersją widzi na stronie organizacji przycisk akceptacji (`accept_terms`); strona logowania linkuje informację o prywatności i regulamin | limit odpowiedzialności, zwroty i okres próbny opierają się na regulaminie, którego nikt nie przyjmował; `consent_collection` w Checkoucie wymaga adresu regulaminu w ustawieniach konta Stripe, więc zostaje na liście założyciela |
+| 16, 27 | Usuwanie konta | logika przeniesiona do `lib/account.ts` (`deleteAccountData`) i sprawdzona testem integracyjnym; organizacja, która zostaje z innym właścicielem, dostaje jego adres na kliencie Stripe | ścieżka z rolą serwisową nie miała testu, a faktury szły na adres usuniętej osoby |
+| 34 | Testy | nowy `test/integration/deletion.test.ts`: odmowy usunięcia konta, usunięcie po zaplanowanym anulowaniu, przebieg (akceptacja zostaje bez linku), workspace, organizacja, „Make owner” | te ścieżki kasują dane i nie miały testów |
+
+Parametr `p_terms_version` w `create_organization` jest opcjonalny, żeby testy i skrypty mogły zakładać organizacje bez formularza. Aplikacja zawsze go wysyła. Organizacja założona bezpośrednio przez API bez niego widzi baner akceptacji.

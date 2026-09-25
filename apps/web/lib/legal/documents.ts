@@ -9,6 +9,8 @@ import type { Provider } from './provider.ts';
 import { dpaPl } from './dpa-pl.ts';
 
 export const DPA_VERSION = '2026-09-25';
+/** Version of the Terms of Service an owner accepts for the organization (organizations.terms_version). */
+export const TERMS_VERSION = '2026-09-25';
 
 export type Block = { p: string } | { ul: string[] } | { table: { head: string[]; rows: string[][] } };
 
@@ -434,7 +436,7 @@ function terms(p: Provider): LegalDocument {
   return {
     slug: 'terms',
     title: 'Terms of Service',
-    version: DPA_VERSION,
+    version: TERMS_VERSION,
     summary: 'Terms for organizations using the FlowRetest hosted service.',
     sections: [
       {

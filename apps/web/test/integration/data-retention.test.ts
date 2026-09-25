@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { diffCase, redactPlanReport, type PlanReport } from '@flowretest/core';
 import { generateToken } from '../../lib/tokens.ts';
-import { DPA_VERSION, LEGAL_SLUGS, PLAN_HISTORY_DAYS } from '../../lib/legal/documents.ts';
+import { DPA_VERSION, LEGAL_SLUGS, PLAN_HISTORY_DAYS, TERMS_VERSION } from '../../lib/legal/documents.ts';
 import { admin, anon, appMissing, appUrl, insertableRun, setPlan, supabaseMissing, user, mustRun } from './helpers.ts';
 
 const skipDb = mustRun(await supabaseMissing());
@@ -224,4 +224,20 @@ test('public pages: home, pricing and every legal text without a session; signed
   assert.equal((await fetch(`${appUrl}/legal/nope`)).status, 404);
   const signedIn = await fetch(`${appUrl}/`, { headers: { cookie: owner.cookie }, redirect: 'manual' });
   assert.ok([302, 307].includes(signedIn.status) && (signedIn.headers.get('location') ?? '').endsWith('/orgs'));
+});
+
+test('terms of service: accepted when the organization is created, a newer version by an owner only', { skip: skipDb }, async () => {
+  // Audit of week 14, item 11: nothing recorded that anybody accepted the terms the liability cap and refunds rest on.
+  const org = (await owner.db.rpc('create_organization', { p_name: `Terms ${randomUUID().slice(0, 6)}`, p_terms_version: TERMS_VERSION })).data as string;
+  const row = async () => (await admin().from('organizations').select('terms_version, terms_accepted_at, terms_accepted_by').eq('id', org).single()).data!;
+  const created = await row();
+  assert.equal(created.terms_version, TERMS_VERSION);
+  assert.equal(created.terms_accepted_by, owner.id);
+  assert.ok(created.terms_accepted_at);
+  assert.ifError((await admin().from('members').insert({ organization_id: org, user_id: member.id, email: member.email, role: 'member' })).error);
+  assert.equal((await member.db.rpc('accept_terms', { p_org: org, p_version: '2027-01-01' })).error?.code, '42501', 'members do not accept for the organization');
+  assert.ok((await owner.db.from('organizations').update({ terms_version: '2027-01-01' } as never).eq('id', org)).error, 'no direct update of the record');
+  assert.ifError((await owner.db.rpc('accept_terms', { p_org: org, p_version: '2027-01-01' })).error);
+  assert.equal((await row()).terms_version, '2027-01-01');
+  assert.ifError((await admin().from('organizations').delete().eq('id', org)).error);
 });

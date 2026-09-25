@@ -15,6 +15,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       <p className="mt-8 text-xs text-muted">
         New here? <Link href="/pricing" className="underline">Plans and prices</Link>. The Free plan needs no card.
       </p>
+      <p className="mt-2 text-xs text-muted">
+        Signing in creates an account under the <Link href="/legal/privacy" className="underline">privacy notice</Link>. The owner of an organization accepts the <Link href="/legal/terms" className="underline">Terms of Service</Link> when creating it.
+      </p>
     </main>
   );
 }

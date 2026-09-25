@@ -537,6 +537,9 @@ export type Database = {
           id: string
           name: string
           retention_days: number | null
+          terms_accepted_at: string | null
+          terms_accepted_by: string | null
+          terms_version: string | null
         }
         Insert: {
           created_at?: string
@@ -544,6 +547,9 @@ export type Database = {
           id?: string
           name: string
           retention_days?: number | null
+          terms_accepted_at?: string | null
+          terms_accepted_by?: string | null
+          terms_version?: string | null
         }
         Update: {
           created_at?: string
@@ -551,6 +557,9 @@ export type Database = {
           id?: string
           name?: string
           retention_days?: number | null
+          terms_accepted_at?: string | null
+          terms_accepted_by?: string | null
+          terms_version?: string | null
         }
         Relationships: []
       }
@@ -1035,6 +1044,10 @@ export type Database = {
         Args: { p_case_ids: string[]; p_message: string; p_run_id: string }
         Returns: string
       }
+      accept_terms: {
+        Args: { p_org: string; p_version: string }
+        Returns: undefined
+      }
       claim_invitations: { Args: never; Returns: number }
       claim_notice_delivery: {
         Args: {
@@ -1044,7 +1057,10 @@ export type Database = {
         }
         Returns: boolean
       }
-      create_organization: { Args: { p_name: string }; Returns: string }
+      create_organization: {
+        Args: { p_name: string; p_terms_version?: string }
+        Returns: string
+      }
       drift_matrix_allowed: { Args: { ws: string }; Returns: boolean }
       ingest_run: {
         Args: {

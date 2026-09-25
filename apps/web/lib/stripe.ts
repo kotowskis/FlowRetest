@@ -209,6 +209,11 @@ export function createCustomer(config: StripeConfig, input: { organizationId: st
   return call(config, 'POST', '/v1/customers', { name: input.name, email: input.email, metadata: { organization_id: input.organizationId } }, `frt-customer-${input.organizationId}-${who}${input.attempt ? `-${input.attempt}` : ''}`);
 }
 
+/** The customer's email for invoices; after its owner deleted their account, the next owner's. */
+export function updateCustomerEmail(config: StripeConfig, id: string, email: string): Promise<StripeCustomer> {
+  return call(config, 'POST', `/v1/customers/${encodeURIComponent(id)}`, { email });
+}
+
 export async function priceFor(config: StripeConfig, plan: PaidPlan, interval: Interval): Promise<StripePrice> {
   const key = lookupKey(plan, interval);
   const list = await call<{ data: StripePrice[] }>(config, 'GET', '/v1/prices', { lookup_keys: [key], active: true, limit: 1 });

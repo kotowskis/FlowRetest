@@ -159,6 +159,12 @@ function fakeStripe({ appUrl, baseOf }) {
     if (!path.startsWith('/stripe/v1/')) return err(res, 404, 'Unrecognized request URL');
     if ((req.headers.authorization ?? '') !== `Bearer ${FAKE.stripeKey}`) return err(res, 401, 'Invalid API Key provided');
     const api = path.slice('/stripe'.length);
+    if (req.method === 'POST' && (m = /^\/v1\/customers\/([\w]+)$/.exec(api))) {
+      const customer = state.customers.get(m[1]);
+      if (!customer) return err(res, 404, `No such customer: '${m[1]}'`, 'resource_missing');
+      if (form.email) customer.email = form.email;
+      return json(res, 200, customer);
+    }
     if (req.method === 'POST' && api === '/v1/customers') {
       const key = req.headers['idempotency-key'];
       const seen = key ? state.idempotency.get(key) : undefined;

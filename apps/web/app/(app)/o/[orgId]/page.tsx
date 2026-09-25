@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { getOrganization } from '@/lib/data.ts';
 import { ActionForm } from '@/components/forms.tsx';
 import { Empty, PageHeader, Section, Time, inputClass, quietButtonClass } from '@/components/ui.tsx';
-import { cancelInvitation, createWorkspace, inviteMember, makeOwner, removeMember } from '../../actions.ts';
+import { TERMS_VERSION } from '@/lib/legal/documents.ts';
+import { acceptTerms, cancelInvitation, createWorkspace, inviteMember, makeOwner, removeMember } from '../../actions.ts';
 
 export const metadata: Metadata = { title: 'Organization' };
 
@@ -23,6 +24,18 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
           </Link>
         </span>
       </PageHeader>
+
+      {isOwner && org.terms_version !== TERMS_VERSION ? (
+        <form action={acceptTerms} role="note" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-diff/40 bg-diff/10 px-4 py-3 text-sm">
+          <input type="hidden" name="orgId" value={org.id} />
+          <input type="hidden" name="version" value={TERMS_VERSION} />
+          <span>
+            {org.terms_version ? `The Terms of Service changed since this organization accepted the version of ${org.terms_version}.` : 'This organization has not accepted the Terms of Service yet.'}{' '}
+            <Link href="/legal/terms" className="underline">Read the terms</Link>, with the <Link href="/legal/dpa" className="underline">DPA</Link> as part of them.
+          </span>
+          <button className="rounded-md border border-line bg-panel px-3 py-1.5">Accept for {org.name}</button>
+        </form>
+      ) : null}
 
       <Section
         title="Workspaces"

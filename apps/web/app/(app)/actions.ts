@@ -8,6 +8,7 @@ import { generateToken } from '@/lib/tokens.ts';
 import { validateSlackWebhook } from '@/lib/slack.ts';
 import { planLimitOf } from '@/lib/limits.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
+import { TERMS_VERSION } from '@/lib/legal/documents.ts';
 
 export interface FormState {
   error?: string;
@@ -34,8 +35,10 @@ function firstIssue(error: z.ZodError): string {
 export async function createOrganization(_prev: FormState, form: FormData): Promise<FormState> {
   const name = Name.safeParse(form.get('name'));
   if (!name.success) return { error: firstIssue(name.error) };
+  // The owner accepts the Terms of Service for the new organization; the version and the time go with it.
+  if (form.get('terms') !== 'on') return { error: 'Accept the Terms of Service to create the organization.' };
   const { db } = await session();
-  const { data, error } = await db.rpc('create_organization', { p_name: name.data });
+  const { data, error } = await db.rpc('create_organization', { p_name: name.data, p_terms_version: TERMS_VERSION });
   if (error || !data) return { error: 'Could not create the organization.' };
   redirect(`/o/${data}`);
 }
@@ -200,4 +203,13 @@ export async function deleteRun(form: FormData): Promise<void> {
   const { data } = await db.from('runs').delete().eq('id', input.runId).select('id');
   if (!data?.length) return;
   redirect(`/w/${run.workspace_id}/workflows/${run.workflow_id}`);
+}
+
+/** An owner accepts the current Terms of Service for an organization that accepted an older version or none. */
+export async function acceptTerms(form: FormData): Promise<void> {
+  const input = z.object({ orgId: Id, version: z.literal(TERMS_VERSION) }).safeParse(Object.fromEntries(form));
+  if (!input.success) return;
+  const { db } = await session();
+  await db.rpc('accept_terms', { p_org: input.data.orgId, p_version: input.data.version });
+  revalidatePath(`/o/${input.data.orgId}`);
 }

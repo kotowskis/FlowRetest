@@ -43,6 +43,12 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
             Name
             <input name="name" required maxLength={100} placeholder="Acme Automation" className={inputClass} />
           </label>
+          <label className="flex items-start gap-2 text-sm">
+            <input name="terms" type="checkbox" required className="mt-1" />
+            <span>
+              I accept the <Link href="/legal/terms" className="underline">Terms of Service</Link>, with the <Link href="/legal/dpa" className="underline">DPA</Link> as part of them, for this organization.
+            </span>
+          </label>
         </ActionForm>
       </Section>
     </>
