@@ -13,6 +13,8 @@ Znaleziska oznaczone „potwierdzone” sprawdzono skryptem na lokalnym stosie (
 
 Punkt wyjścia: `npm run verify` przechodzi (lint, type-check, testy: core 62, cli 33, web 48, proxy 15, services 8, schemas 4). `db-types --check` potwierdza, że `database.types.ts` zgadza się z bazą. Liczby testów w dzienniku są dokładne (48 jednostkowych i 62 integracyjne w `apps/web` po okresie próbnym).
 
+Stan po poprawkach: poprawione są wszystkie punkty poza 13, 14, 15, 30 i 39, które czekają na prawnika, księgową albo ustawienia w Stripe i na GitHubie (lista w `docs/sprzedaz.md`). Decyzje są w ADR 0018, stan każdego punktu w kolumnie „Stan”.
+
 Autoryzacja trzyma się wszędzie, gdzie ją sprawdzano: RLS na nowych tabelach, funkcje `security definer` z pustym `search_path`, trasa PDF-u filtruje po akceptacji i organizacji, eksport tylko dla właściciela, usuwanie przez klienta użytkownika i RLS. Najwięcej problemów jest w tekstach prawnych, które obiecują więcej niż kod, i w wysyłce powiadomień.
 
 ## P0: obietnica prawna niezgodna z kodem, dotyczy danych klientów

@@ -307,3 +307,25 @@ Zrobione:
 Sprawdzone na żywo w przeglądarce przy 375 px: przycisk okresu próbnego, strona płatności atrapy, powrót z planem Team i zdaniem „Free trial until 2026-10-09 … Then the card is charged 79 EUR a month unless you cancel”. Testy: 3 nowe jednostkowe, 4 nowe integracyjne (Checkout z okresem próbnym i fakturą 0, zmiana planu w trakcie bez obciążenia, pierwsza faktura po końcu, nieudana karta na końcu daje `past_due`, drugi Checkout bez okresu próbnego, `trialDays: 0`).
 
 Do decyzji założyciela: 14 dni i wymóg karty, przypomnienie mailowe Stripe przed końcem okresu próbnego (lista w ADR 0017).
+
+## Audyt tygodnia 14 i poprawki (2026-09-25)
+
+Audyt w `docs/audyt-tydzien-14-2026-09-25.md`: sześć przeglądów, 39 punktów (1 P0, 15 P1, reszta P2). Decyzje poprawek są w ADR 0018, stan każdego punktu w kolumnie „Stan” audytu.
+
+Zrobione:
+
+- teksty prawne opisują redakcję tak, jak działa `core/redact.ts`, wymieniają gałąź i konto GitHub, podają podstawę transferów, mają punkt o końcu umowy; VAT w tekstach i na stronie Billing, klucz produkcyjny Stripe wymaga decyzji o `STRIPE_AUTOMATIC_TAX`;
+- migracja `20270125000000_audit_week14.sql`: `accept_dpa` tylko dla serwera z danymi dostawcy i flagą wersji roboczej, niezmienne ogłoszenia o podprocesorach z 31 dniami, odbiorcy to właściciele wszystkich organizacji, rezerwacja adresu przed mailem, wygasłe zaproszenia bez miejsca, flaga okresu próbnego z wyzwalacza, czyszczenie `auth.audit_log_entries`;
+- migracja `20270126000000_terms_acceptance.sql`: akceptacja regulaminu przy zakładaniu organizacji i przycisk dla starszej wersji;
+- eksport stronami po 1000 wierszy z wierszem końcowym, filtry po 100 workspace'ów;
+- druga subskrypcja w okresie próbnym anulowana, `trial_will_end` w webhooku, `STRIPE_TRIAL_DAYS` spoza zakresu wyłącza okres próbny;
+- `/api/runs` odczytuje ciało przed 401, test obciążeniowy tylko na localhost i ze sprzątaniem po Ctrl+C.
+
+Sprawdzone: `npm run verify` (web 50 jednostkowych), testy integracyjne 72 z 72 na własnej aplikacji (3101) i atrapie (55391) z worktree w katalogu tymczasowym, bo na 3100 działał `next start` innej sesji z tego samego `.next`; scenariusz `badtoken` trzy razy po 200 żądań, zawsze 401; skrypty powiadomień i obciążenia odmawiają pracy przeciw bazie spoza localhost; strony organizacji, Data, regulaminu, retencji, DPA po polsku i cennika przy 375 px bez przewijania w poziomie.
+
+Wnioski:
+
+- test integracyjny uruchomiony z głównego katalogu wziął atrapę innej sesji z `.env.local` (55390, stary kod) i padł na nowej trasie; testy tej sesji trzeba puszczać z worktree, które ma własne `.env.local`;
+- zmiana ogłoszeń na niezmienne wyłączyła test czyszczenia rejestru po roku przez API; ten przypadek sprawdza teraz SQL z `session_replication_role = replica` (ADR 0018).
+
+Do decyzji założyciela: nowe pozycje 6 do 8 i pytania 9 do 16 w `docs/sprzedaz.md`, sprawdzenie czyszczenia dziennika auth na projekcie w chmurze (ADR 0018).

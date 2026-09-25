@@ -140,7 +140,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
       </Section>
 
       {isOwner ? (
-        <Section title="Delete the organization" description="Deletes every workspace, run, acceptance and token of this organization at once; backups lose them within 7 days. A running subscription has to be cancelled on the Billing page first. Stripe keeps the invoices.">
+        <Section title="Delete the organization" description="Deletes every workspace, run, acceptance and token of this organization at once; backups lose them within 7 days. A subscription that still renews has to be cancelled on the Billing page first. Stripe keeps the invoices.">
           <ActionForm action={deleteOrganization} submit="Delete organization" pending="Deleting…">
             <input type="hidden" name="orgId" value={org.id} />
             <label className="flex flex-col gap-1 text-sm">
