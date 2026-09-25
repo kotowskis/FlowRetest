@@ -126,7 +126,7 @@ export async function getWorkspace(workspaceId: string) {
   ]);
   const [subscription, installations, slack, owner, overLimit, limits] = await Promise.all([
     db.from('notification_subscriptions').select('statuses').eq('workspace_id', workspaceId).eq('user_id', user.id).maybeSingle(),
-    db.from('github_installations').select('installation_id, account_login, account_type, suspended_at, created_at').eq('workspace_id', workspaceId).order('created_at'),
+    db.from('github_installations').select('installation_id, account_login, account_type, repositories, suspended_at, created_at').eq('workspace_id', workspaceId).order('created_at'),
     db.from('slack_webhooks').select('id, url_hint, statuses, created_at').eq('workspace_id', workspaceId).order('created_at'),
     db.rpc('is_owner', { org: workspace.organization_id }),
     db.rpc('workspace_over_limit', { ws: workspaceId }),

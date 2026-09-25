@@ -86,8 +86,16 @@ async function call<T>(url: string, init: { method?: string; auth?: string; body
   return (text ? JSON.parse(text) : {}) as T;
 }
 
-export async function installationToken(config: GitHubConfig, installationId: number): Promise<string> {
-  const json = await call<{ token: string }>(`${config.apiUrl}/app/installations/${installationId}/access_tokens`, { method: 'POST', auth: `Bearer ${appJwt(config)}` });
+/**
+ * A token of the installation limited to one repository (the name without the owner) and to writing checks, so a
+ * mistake elsewhere in the app cannot reach the installation's other repositories or permissions.
+ */
+export async function installationToken(config: GitHubConfig, installationId: number, repository: string): Promise<string> {
+  const json = await call<{ token: string }>(`${config.apiUrl}/app/installations/${installationId}/access_tokens`, {
+    method: 'POST',
+    auth: `Bearer ${appJwt(config)}`,
+    body: { repositories: [repository], permissions: { checks: 'write' } },
+  });
   return json.token;
 }
 
@@ -103,7 +111,7 @@ export interface CheckRunInput {
 }
 
 export async function createCheckRun(config: GitHubConfig, installationId: number, input: CheckRunInput): Promise<{ id: number; html_url: string }> {
-  const token = await installationToken(config, installationId);
+  const token = await installationToken(config, installationId, input.repository.split('/')[1] ?? '');
   return call<{ id: number; html_url: string }>(`${config.apiUrl}/repos/${input.repository}/check-runs`, {
     method: 'POST',
     auth: `Bearer ${token}`,
@@ -134,15 +142,38 @@ export async function exchangeCode(config: GitHubConfig, code: string): Promise<
 export interface InstallationInfo {
   id: number;
   account: { login: string; type: string };
+  suspended_at?: string | null;
 }
 
-/** Installations of this app the person can access; the only proof that a callback's installation_id is theirs. */
+/**
+ * Installations of this app the person can access; the only proof that a callback's installation_id is theirs. GitHub
+ * lists an installation for anyone with read access to one of its repositories, so this alone does not make someone
+ * the right person to route checks into it; see `adminRepositories`.
+ */
 export async function userInstallations(config: GitHubConfig, userToken: string): Promise<InstallationInfo[]> {
   const out: InstallationInfo[] = [];
   for (let page = 1; page <= 10; page++) {
     const json = await call<{ installations: InstallationInfo[] }>(`${config.apiUrl}/user/installations?per_page=100&page=${page}`, { auth: `Bearer ${userToken}` });
     out.push(...json.installations);
     if (json.installations.length < 100) break;
+  }
+  return out;
+}
+
+/**
+ * Repositories of the installation the person administers (`owner/name`, lower case). A check can make or break a
+ * required status on those repositories, so only their admins may send FlowRetest checks there; a contributor with
+ * read access to one repository of an organization must not be able to link the whole installation.
+ */
+export async function adminRepositories(config: GitHubConfig, userToken: string, installationId: number): Promise<string[]> {
+  const out: string[] = [];
+  for (let page = 1; page <= 10; page++) {
+    const json = await call<{ repositories: Array<{ full_name: string; permissions?: { admin?: boolean } }> }>(
+      `${config.apiUrl}/user/installations/${installationId}/repositories?per_page=100&page=${page}`,
+      { auth: `Bearer ${userToken}` },
+    );
+    out.push(...json.repositories.filter((r) => r.permissions?.admin === true).map((r) => r.full_name.toLowerCase()));
+    if (json.repositories.length < 100) break;
   }
   return out;
 }

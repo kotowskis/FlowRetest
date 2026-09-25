@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { authorizeUrl, exchangeCode, githubConfig, signState, userInstallations, verifyState } from '@/lib/github.ts';
+import { adminRepositories, authorizeUrl, exchangeCode, githubConfig, signState, userInstallations, verifyState } from '@/lib/github.ts';
 import { ownerOfWorkspace } from '@/lib/github-link.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
 import { env } from '@/lib/env.ts';
@@ -36,9 +36,24 @@ export async function GET(request: NextRequest) {
     const token = await exchangeCode(config, code);
     const installation = (await userInstallations(config, token)).find((i) => i.id === installationId);
     if (!installation) return back('not-yours');
+    // Seeing an installation needs read access to one of its repositories; posting checks needs admin rights on the
+    // repository that gets them. Linking again refreshes the list after the app was added to more repositories.
+    const repositories = await adminRepositories(config, token, installation.id);
+    if (repositories.length === 0) return back('not-admin');
     const { error } = await createAdminClient()
       .from('github_installations')
-      .upsert({ workspace_id: state.w, installation_id: installation.id, account_login: installation.account.login, account_type: installation.account.type, created_by: who.userId, suspended_at: null }, { onConflict: 'workspace_id,installation_id' });
+      .upsert(
+        {
+          workspace_id: state.w,
+          installation_id: installation.id,
+          account_login: installation.account.login,
+          account_type: installation.account.type,
+          repositories,
+          created_by: who.userId,
+          suspended_at: installation.suspended_at ?? null,
+        },
+        { onConflict: 'workspace_id,installation_id' },
+      );
     if (error) throw new Error(error.message);
     return back('linked');
   } catch (e) {

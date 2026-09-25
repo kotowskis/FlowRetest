@@ -34,6 +34,9 @@ export function slackMessage(input: Omit<RunEmailInput, 'to' | 'settingsUrl'>): 
 }
 
 export async function sendSlack(url: string, message: { text: string }): Promise<{ ok: boolean; detail: string }> {
+  // Checked again before every post: a row written past the app (an old one, a manual insert) must not make the
+  // server call an internal address.
+  if (!validateSlackWebhook(url).ok) return { ok: false, detail: 'not sent: the URL is not a Slack incoming webhook' };
   try {
     const res = await fetch(url, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(message), signal: AbortSignal.timeout(10_000), redirect: 'error' });
     const text = await res.text();

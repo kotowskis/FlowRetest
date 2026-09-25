@@ -5,8 +5,8 @@
 //   node scripts/fake-services.mjs init    # key pair in .fake-services/, GitHub App and Stripe settings in .env.local
 //   node scripts/fake-services.mjs serve   # listen on 127.0.0.1:55390 (FAKE_SERVICES_PORT)
 //
-// Installations: 1001 belongs to the organization "acme-agency", whose member is the user "agency-dev"; 1002 belongs
-// to "someone-else". OAuth codes are "code-<login>" and give the token "gho_<login>". GET /__calls lists every request
+// Installations: 1001 belongs to the organization "acme-agency": "agency-dev" administers its repository "flows",
+// "contractor" reads it and administers nothing; 1002 belongs to "someone-else". OAuth codes are "code-<login>" and give the token "gho_<login>". GET /__calls lists every request
 // the fake received, DELETE /__calls clears the list.
 import { createHmac, createPublicKey, createVerify, generateKeyPairSync } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
@@ -30,7 +30,7 @@ const PRICES = [
   ['team', 'yearly', 'year', 75840],
   ['agency', 'monthly', 'month', 19900],
   ['agency', 'yearly', 'year', 191040],
-].map(([plan, period, interval, amount]) => ({ id: `price_${plan}_${period}`, object: 'price', active: true, lookup_key: `flowretest_${plan}_${period}`, unit_amount: amount, currency: 'eur', recurring: { interval } }));
+].map(([plan, period, interval, amount]) => ({ id: `price_${plan}_${period}`, object: 'price', active: true, lookup_key: `flowretest_${plan}_${period}`, unit_amount: amount, currency: 'eur', recurring: { interval }, metadata: { flowretest_plan: plan } }));
 
 /**
  * Stripe: customers, prices by lookup key, Checkout (GET /stripe/pay/<session> plays the payment page: it creates the
@@ -41,7 +41,9 @@ const PRICES = [
  */
 function fakeStripe({ appUrl, baseOf }) {
   const state = { customers: new Map(), sessions: new Map(), subscriptions: new Map(), invoices: new Map(), idempotency: new Map(), deliveries: [] };
-  let n = 1;
+  // Ids continue across restarts of the fake, so a local database that keeps customers from earlier runs never sees
+  // the same cus_/sub_ id twice.
+  let n = Date.now();
   const now = () => Math.floor(Date.now() / 1000);
   const err = (res, status, message) => json(res, status, { error: { message, type: 'invalid_request_error' } });
 
@@ -182,9 +184,10 @@ function fakeStripe({ appUrl, baseOf }) {
 
   return { state, handle };
 }
+// repositories: name -> who administers it; the other users see the installation with read access only.
 const INSTALLATIONS = [
-  { id: 1001, account: { login: 'acme-agency', type: 'Organization' }, users: ['agency-dev'] },
-  { id: 1002, account: { login: 'someone-else', type: 'User' }, users: ['someone-else'] },
+  { id: 1001, account: { login: 'acme-agency', type: 'Organization' }, users: ['agency-dev', 'contractor'], repositories: { flows: ['agency-dev'], 'private-billing': [] } },
+  { id: 1002, account: { login: 'someone-else', type: 'User' }, users: ['someone-else'], repositories: { flows: ['someone-else'] } },
 ];
 
 function json(res, status, body) {
@@ -231,13 +234,18 @@ export async function startFakeServices({ port = 0, publicKeyPem, appUrl }) {
       let m;
       if (req.method === 'POST' && (m = /^\/api\/app\/installations\/(\d+)\/access_tokens$/.exec(url.pathname))) {
         if (!verifyJwt(auth, publicKeyPem)) return json(res, 401, { message: 'A JSON web token could not be decoded' });
-        if (!INSTALLATIONS.some((i) => i.id === Number(m[1]))) return json(res, 404, { message: 'Not Found' });
-        return json(res, 201, { token: `ghs_fake_${m[1]}`, expires_at: new Date(Date.now() + 3600_000).toISOString() });
+        const installation = INSTALLATIONS.find((i) => i.id === Number(m[1]));
+        if (!installation) return json(res, 404, { message: 'Not Found' });
+        // Like GitHub: a token limited to named repositories of the installation; unknown names are refused.
+        const repos = body?.repositories ?? [];
+        if (repos.length !== 1 || !(repos[0] in installation.repositories)) return json(res, 422, { message: 'There is at least one repository that does not exist or is not accessible to the parent installation.' });
+        if (body?.permissions?.checks !== 'write') return json(res, 422, { message: 'permissions.checks must be write' });
+        return json(res, 201, { token: `ghs_fake_${m[1]}_${repos[0]}`, expires_at: new Date(Date.now() + 3600_000).toISOString() });
       }
       if (req.method === 'POST' && (m = /^\/api\/repos\/([^/]+)\/([^/]+)\/check-runs$/.exec(url.pathname))) {
-        const installation = INSTALLATIONS.find((i) => auth === `ghs_fake_${i.id}`);
+        const installation = INSTALLATIONS.find((i) => auth.startsWith(`ghs_fake_${i.id}_`));
         if (!installation) return json(res, 401, { message: 'Bad credentials' });
-        if (installation.account.login.toLowerCase() !== m[1].toLowerCase()) return json(res, 403, { message: 'Resource not accessible by integration' });
+        if (installation.account.login.toLowerCase() !== m[1].toLowerCase() || auth !== `ghs_fake_${installation.id}_${m[2]}`) return json(res, 403, { message: 'Resource not accessible by integration' });
         if (!/^[0-9a-f]{40}$/.test(body?.head_sha ?? '')) return json(res, 422, { message: 'Invalid head_sha' });
         const id = nextCheck++;
         return json(res, 201, { id, html_url: `http://fake/${m[1]}/${m[2]}/runs/${id}`, conclusion: body.conclusion });
@@ -245,7 +253,15 @@ export async function startFakeServices({ port = 0, publicKeyPem, appUrl }) {
       if (req.method === 'GET' && url.pathname === '/api/user/installations') {
         const login = auth.startsWith('gho_') ? auth.slice(4) : undefined;
         if (!login) return json(res, 401, { message: 'Bad credentials' });
-        return json(res, 200, { total_count: 1, installations: INSTALLATIONS.filter((i) => i.users.includes(login)).map(({ id, account }) => ({ id, account })) });
+        return json(res, 200, { total_count: 1, installations: INSTALLATIONS.filter((i) => i.users.includes(login)).map(({ id, account }) => ({ id, account, suspended_at: null })) });
+      }
+      if (req.method === 'GET' && (m = /^\/api\/user\/installations\/(\d+)\/repositories$/.exec(url.pathname))) {
+        const login = auth.startsWith('gho_') ? auth.slice(4) : undefined;
+        const installation = INSTALLATIONS.find((i) => i.id === Number(m[1]));
+        if (!login) return json(res, 401, { message: 'Bad credentials' });
+        if (!installation || !installation.users.includes(login)) return json(res, 404, { message: 'Not Found' });
+        const repositories = Object.entries(installation.repositories).map(([name, admins]) => ({ full_name: `${installation.account.login}/${name}`, permissions: { admin: admins.includes(login), push: admins.includes(login), pull: true } }));
+        return json(res, 200, { total_count: repositories.length, repositories });
       }
       if (req.method === 'POST' && url.pathname === '/login/oauth/access_token') {
         if (body?.client_id !== FAKE.clientId || body?.client_secret !== FAKE.clientSecret) return json(res, 200, { error: 'incorrect_client_credentials' });

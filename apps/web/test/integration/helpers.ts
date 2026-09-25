@@ -66,20 +66,26 @@ export function insertableRun(run: Database['public']['Tables']['runs']['Row']):
   return row;
 }
 
-/** A confirmed user signed in with a password; tests use passwords, people use email codes. */
+/** The token hash of a fresh sign-in link, as in the sign-in email; the database refuses password sessions. */
+async function signInLink(email: string): Promise<string> {
+  const link = await admin().auth.admin.generateLink({ type: 'magiclink', email });
+  if (link.error) throw link.error;
+  return link.data.properties.hashed_token;
+}
+
+/** A confirmed user signed in through the emailed link, as people do. */
 export async function user(label: string): Promise<{ db: Db; id: string; email: string; cookie: string }> {
   const email = `${label}-${randomUUID().slice(0, 8)}@it.flowretest.test`;
-  const password = randomUUID();
-  const created = await admin().auth.admin.createUser({ email, password, email_confirm: true });
+  const created = await admin().auth.admin.createUser({ email, email_confirm: true });
   if (created.error || !created.data.user) throw created.error ?? new Error('createUser failed');
   const db = anon();
-  const signed = await db.auth.signInWithPassword({ email, password });
+  const signed = await db.auth.verifyOtp({ token_hash: await signInLink(email), type: 'email' });
   if (signed.error) throw signed.error;
-  return { db, id: created.data.user.id, email, cookie: await sessionCookie(email, password) };
+  return { db, id: created.data.user.id, email, cookie: await sessionCookie(email) };
 }
 
 /** The Cookie header a browser would send after signing in, written by @supabase/ssr itself. */
-async function sessionCookie(email: string, password: string): Promise<string> {
+async function sessionCookie(email: string): Promise<string> {
   const jar = new Map<string, string>();
   const ssr = createServerClient(url, anonKey, {
     cookies: {
@@ -87,7 +93,7 @@ async function sessionCookie(email: string, password: string): Promise<string> {
       setAll: (list) => list.forEach(({ name, value }) => (value ? jar.set(name, value) : jar.delete(name))),
     },
   });
-  const signed = await ssr.auth.signInWithPassword({ email, password });
+  const signed = await ssr.auth.verifyOtp({ token_hash: await signInLink(email), type: 'email' });
   if (signed.error) throw signed.error;
   return [...jar].map(([name, value]) => `${name}=${value}`).join('; ');
 }

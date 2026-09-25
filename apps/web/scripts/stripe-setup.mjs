@@ -35,6 +35,8 @@ export const WEBHOOK_EVENTS = [
   'customer.subscription.deleted',
   'customer.subscription.paused',
   'customer.subscription.resumed',
+  'customer.subscription.pending_update_applied',
+  'customer.subscription.pending_update_expired',
   'invoice.finalized',
   'invoice.paid',
   'invoice.payment_failed',
@@ -73,6 +75,10 @@ for (const p of PLANS) {
       const price = found.data[0];
       const same = price.unit_amount === amount && price.currency === 'eur' && price.recurring?.interval === interval;
       console.log(`${lookup}: exists (${price.id})${same ? '' : `, but it is ${price.unit_amount} ${price.currency}/${price.recurring?.interval}; create a new price with transfer_lookup_key to change it`}`);
+      // The app reads the plan from the price's metadata; prices made before that get it now.
+      if (price.metadata?.flowretest_plan !== p.plan) await stripe('POST', `/v1/prices/${price.id}`, { metadata: { flowretest_plan: p.plan } });
+      // The other price of the plan goes to the same product instead of a second one.
+      product ??= { id: typeof price.product === 'string' ? price.product : price.product.id };
       continue;
     }
     product ??= await stripe('POST', '/v1/products', { name: p.name, metadata: { flowretest_plan: p.plan } });
@@ -82,6 +88,9 @@ for (const p of PLANS) {
       unit_amount: amount,
       recurring: { interval },
       lookup_key: lookup,
+      // The plan the app gives for this price. A new price that takes over the lookup key (transfer_lookup_key) must
+      // carry it too; subscribers who stay on the old price keep their plan through this field.
+      metadata: { flowretest_plan: p.plan },
       // The prices on the pricing page are without VAT.
       tax_behavior: 'exclusive',
       nickname: `${p.name} ${period}`,

@@ -1,7 +1,7 @@
 import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  changeSubscriptionPrice, createCheckoutSession, createCustomer, createPortalSession, formEncode, getCheckoutSession, getInvoice, getSubscription, lookupKey, parseLookupKey,
+  changeSubscriptionPrice, createCheckoutSession, createCustomer, createPortalSession, formEncode, getCheckoutSession, getInvoice, getSubscription, lookupKey, parseLookupKey, planOfPrice,
   priceFor, signStripePayload, stripeConfig, subscriptionState, verifyStripeSignature, type StripeConfig, type StripeSubscription,
 } from '../../lib/stripe.ts';
 import { planLimitOf } from '../../lib/limits.ts';
@@ -66,6 +66,15 @@ test('subscription state: the plan comes from the price lookup key, the period f
   assert.equal(subscriptionState(sub('active', 'someone_elses_price')).plan, null);
 });
 
+test('a price that lost its lookup key to a newer price keeps its plan through the metadata', () => {
+  const price = (lookup: string | null, metadata?: Record<string, string>, interval = 'year') => ({ id: 'p', lookup_key: lookup, unit_amount: 75840, currency: 'eur', recurring: { interval }, metadata });
+  // transfer_lookup_key moved flowretest_team_yearly to a new price; this subscriber still pays the old one.
+  assert.deepEqual(planOfPrice(price(null, { flowretest_plan: 'team' })), { plan: 'team', interval: 'year' });
+  assert.deepEqual(planOfPrice(price('flowretest_agency_monthly')), { plan: 'agency', interval: 'month' }, 'older prices without metadata');
+  assert.equal(planOfPrice(price(null, { flowretest_plan: 'enterprise' })), undefined);
+  assert.equal(planOfPrice(price(null, { flowretest_plan: 'team' }, 'week')), undefined);
+});
+
 test('customer, checkout, payment, plan change and portal against the fake Stripe', async () => {
   const customer = await createCustomer(config, { organizationId: 'org-1', name: 'Acme', email: 'owner@acme.test' });
   const again = await createCustomer(config, { organizationId: 'org-1', name: 'Acme', email: 'owner@acme.test' });
@@ -89,6 +98,11 @@ test('customer, checkout, payment, plan change and portal against the fake Strip
   const yearly = await priceFor(config, 'agency', 'year');
   const changed = await changeSubscriptionPrice(config, sub, yearly.id);
   assert.deepEqual({ plan: subscriptionState(changed).plan, interval: subscriptionState(changed).interval }, { plan: 'agency', interval: 'year' });
+  // The difference is billed now and the new price applies only once that invoice is paid.
+  const update = (await (await fetch(`${fake.base}/__calls`)).json() as Array<{ method: string; path: string; body: string }>).filter((c) => c.method === 'POST' && c.path === `/stripe/v1/subscriptions/${sub.id}`).pop();
+  const form = new URLSearchParams(update?.body ?? '');
+  assert.equal(form.get('proration_behavior'), 'always_invoice');
+  assert.equal(form.get('payment_behavior'), 'pending_if_incomplete');
 
   const invoiceId = (await (await fetch(`${fake.base}/__stripe`)).json() as { invoices: Array<{ id: string }> }).invoices.at(-1)?.id as string;
   const invoice = await getInvoice(config, invoiceId);

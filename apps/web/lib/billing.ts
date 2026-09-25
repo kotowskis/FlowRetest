@@ -10,6 +10,9 @@ const SUBSCRIPTION_EVENTS = new Set([
   'customer.subscription.deleted',
   'customer.subscription.paused',
   'customer.subscription.resumed',
+  // A plan change waiting for payment (pending_if_incomplete) was paid or dropped.
+  'customer.subscription.pending_update_applied',
+  'customer.subscription.pending_update_expired',
 ]);
 const INVOICE_EVENTS = new Set(['invoice.finalized', 'invoice.paid', 'invoice.payment_failed', 'invoice.voided', 'invoice.marked_uncollectible', 'invoice.updated']);
 

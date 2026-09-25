@@ -87,11 +87,13 @@ async function poll<T>(read: () => Promise<T[]>): Promise<T[]> {
 test('an installation is linked only for an owner whose GitHub account can access it', { skip }, async () => {
   assert.match(await link(outsider.cookie).catch(() => 'refused'), /refused|owner-only/);
   assert.match(await link(owner.cookie, 'intruder'), /github=not-yours/);
+  // GitHub lists acme's installation for a contributor who only reads its repositories; that is not enough.
+  assert.match(await link(owner.cookie, 'contractor'), /github=not-admin/);
   assert.equal((await owner.db.from('github_installations').select('installation_id').eq('workspace_id', workspaceId)).data?.length, 0);
 
   assert.match(await link(owner.cookie), /github=linked/);
-  const rows = await owner.db.from('github_installations').select('installation_id, account_login, account_type').eq('workspace_id', workspaceId);
-  assert.deepEqual(rows.data, [{ installation_id: 1001, account_login: 'acme-agency', account_type: 'Organization' }]);
+  const rows = await owner.db.from('github_installations').select('installation_id, account_login, account_type, repositories').eq('workspace_id', workspaceId);
+  assert.deepEqual(rows.data, [{ installation_id: 1001, account_login: 'acme-agency', account_type: 'Organization', repositories: ['acme-agency/flows'] }]);
   assert.equal((await outsider.db.from('github_installations').select('installation_id')).data?.length, 0);
 
   // A valid state stolen from the owner does not work in another session.
@@ -118,19 +120,34 @@ test('an upload from a linked repository gets a check on the tested commit; othe
   const other = await upload('other-org/flows');
   const refused = await poll(async () => (await owner.db.from('github_checks').select('ok, detail').eq('run_id', other)).data ?? []);
   assert.deepEqual(refused, [{ ok: false, detail: 'no GitHub App installation for other-org is linked to this workspace' }]);
+
+  // The same installation covers acme-agency/private-billing, but nobody who administers it linked the workspace.
+  const foreign = await upload('acme-agency/private-billing');
+  const notAdmin = await poll(async () => (await owner.db.from('github_checks').select('ok, detail').eq('run_id', foreign)).data ?? []);
+  assert.equal(notAdmin[0]?.ok, false);
+  assert.match(notAdmin[0]?.detail ?? '', /acme-agency\/private-billing is not among the repositories linked by one of their admins/);
 });
 
 test('Slack: owners add only Slack webhooks, members never read the URL, subscribers get the run', { skip }, async () => {
   const slackUrl = `${fakeUrl}/slack/services/T1/B2/secretsecret`;
   const intruder = await outsider.db.from('slack_webhooks').insert({ workspace_id: workspaceId, url: slackUrl, url_hint: 'x', statuses: ['DIFF'], created_by: outsider.id });
   assert.ok(intruder.error, 'outsider added a webhook');
-  const added = await owner.db.from('slack_webhooks').insert({ workspace_id: workspaceId, url: slackUrl, url_hint: '127.0.0.1/slack/services/T1/B2/secr…', statuses: ['DIFF'], created_by: owner.id });
+  // Only the app stores webhooks (after checking the host); here the service role stands in for addSlackWebhook.
+  assert.ok((await owner.db.from('slack_webhooks').insert({ workspace_id: workspaceId, url: slackUrl, url_hint: 'x', statuses: ['DIFF'], created_by: owner.id })).error, 'owner inserted past the app');
+  const added = await admin().from('slack_webhooks').insert({ workspace_id: workspaceId, url: slackUrl, url_hint: '127.0.0.1/slack/services/T1/B2/secr…', statuses: ['DIFF'], created_by: owner.id });
   assert.ifError(added.error);
+  // A row that points elsewhere (written before the fix, or by hand) is not posted to.
+  const internal = await admin().from('slack_webhooks').insert({ workspace_id: workspaceId, url: 'http://169.254.169.254/latest/meta-data', url_hint: 'internal', statuses: ['DIFF'], created_by: owner.id });
+  assert.ifError(internal.error);
   assert.ok((await owner.db.from('slack_webhooks').select('url')).error, 'owner read the webhook URL back');
   await fetch(`${fakeUrl}/__calls`, { method: 'DELETE' });
   const runId = await upload('acme-agency/flows');
-  const logged = await poll(async () => (await admin().from('notification_log').select('recipient, ok').eq('run_id', runId).eq('channel', 'slack')).data ?? []);
-  assert.deepEqual(logged, [{ recipient: '127.0.0.1/slack/services/T1/B2/secr…', ok: true }]);
+  const logged = await poll(async () => {
+    const rows = (await admin().from('notification_log').select('recipient, ok, detail').eq('run_id', runId).eq('channel', 'slack').order('recipient')).data ?? [];
+    return rows.length === 2 ? rows : [];
+  });
+  assert.deepEqual(logged.map((r) => [r.recipient, r.ok]), [['127.0.0.1/slack/services/T1/B2/secr…', true], ['internal', false]]);
+  assert.match(logged[1]?.detail ?? '', /not a Slack incoming webhook/);
   const calls = (await (await fetch(`${fakeUrl}/__calls`)).json()) as Array<{ path: string; body: { text?: string } }>;
   const message = calls.find((c) => c.path === '/slack/services/T1/B2/secretsecret');
   assert.match(message?.body.text ?? '', /^\*DIFF\* · Run of "Lead intake" in Acme/);

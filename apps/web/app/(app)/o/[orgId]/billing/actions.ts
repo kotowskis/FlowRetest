@@ -53,6 +53,8 @@ export async function choosePlan(_prev: FormState, form: FormData): Promise<Form
   try {
     if (account?.stripe_subscription_id && live(account.status)) {
       if (account.plan === plan && account.billing_interval === interval) return { error: 'This is the current plan.' };
+      // A card that is already failing must not buy a bigger plan on credit: pay the open invoice first.
+      if (account.status === 'past_due') return { error: 'The last payment failed. Update the card and pay the open invoice in the Stripe portal, then change the plan.' };
       const [{ data: target }, { data: usage }] = await Promise.all([admin.from('plans').select('*').eq('id', plan).single(), admin.rpc('org_plan', { org: orgId })]);
       const used = usage?.[0];
       if (!target || !used) return { error: 'Could not read the plan limits.' };
@@ -60,10 +62,11 @@ export async function choosePlan(_prev: FormState, form: FormData): Promise<Form
       if (used.seats_used > target.seats) return { error: `${target.name} includes ${target.seats} seats and this organization uses ${used.seats_used}, counting invitations. Remove someone first.` };
       const price = await priceFor(config, plan, interval);
       const subscription = await getSubscription(config, account.stripe_subscription_id);
-      await changeSubscriptionPrice(config, subscription, price.id);
+      const updated = await changeSubscriptionPrice(config, subscription, price.id);
       await syncSubscription(admin, config, subscription.id);
       revalidatePath(`/o/${orgId}/billing`);
-      return { done: Date.now(), ok: `Switched to ${target.name}, billed ${interval === 'month' ? 'monthly' : 'yearly'}. Stripe prorates the difference on the next invoice.` };
+      if (updated.pending_update) return { error: `Stripe could not charge the difference for ${target.name}, so the plan did not change. Pay the open invoice in the Stripe portal and the new plan starts right away.` };
+      return { done: Date.now(), ok: `Switched to ${target.name}, billed ${interval === 'month' ? 'monthly' : 'yearly'}. The prorated difference is on a new invoice.` };
     }
     const customer = await customerFor(admin, config, orgId, who.user.email ?? '');
     const price = await priceFor(config, plan, interval);

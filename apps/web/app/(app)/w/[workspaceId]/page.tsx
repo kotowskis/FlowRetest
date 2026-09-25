@@ -15,6 +15,7 @@ const GITHUB_MESSAGES: Record<string, { text: string; ok?: boolean }> = {
   requested: { text: 'GitHub asked an organization owner to approve the installation. Connect again once it is approved.' },
   'not-yours': { text: 'GitHub did not list that installation for your account, so it was not linked.' },
   'owner-only': { text: 'Only owners of this organization can connect GitHub.' },
+  'not-admin': { text: 'Your GitHub account is not an admin of any repository in that installation. Ask a repository admin to connect GitHub.' },
   'no-installation': { text: 'GitHub did not return an installation. Try connecting again.' },
   error: { text: 'Linking failed. Try again; if it keeps failing, check the GitHub App settings of this server.' },
 };
@@ -112,6 +113,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
                       <span>
                         <span className="font-medium">{i.account_login}</span> <span className="text-xs text-muted">{i.account_type.toLowerCase()}</span>
                         {i.suspended_at ? <span className="ml-2 text-xs text-diff">suspended on GitHub</span> : null}
+                        <span className="block text-xs text-muted">{i.repositories.length > 0 ? `checks on ${i.repositories.join(', ')}` : 'no repositories; connect again as a repository admin'}</span>
                       </span>
                       {isOwner ? (
                         <form action={unlinkGitHub}>

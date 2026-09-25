@@ -222,6 +222,8 @@ enable_signup = true
 # addresses. If disabled, only the new email is required to confirm.
 double_confirm_changes = true
 # If enabled, users need to confirm their email address before signing in.
+# FlowRetest signs in with emailed codes only; migration 20261228000000 refuses every password session in the
+# database, so this setting does not decide who can claim an invitation (docs/audyt-2026-09-25.md, point 3).
 enable_confirmations = false
 # If enabled, users will need to reauthenticate or have logged in recently to change their password.
 secure_password_change = false

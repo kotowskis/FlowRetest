@@ -104,6 +104,8 @@ export type Database = {
           ended_at: string | null
           organization_id: string
           plan: string | null
+          plan_changed_at: string | null
+          previous_plan: string | null
           status: string | null
           stripe_customer_id: string
           stripe_subscription_id: string | null
@@ -116,6 +118,8 @@ export type Database = {
           ended_at?: string | null
           organization_id: string
           plan?: string | null
+          plan_changed_at?: string | null
+          previous_plan?: string | null
           status?: string | null
           stripe_customer_id: string
           stripe_subscription_id?: string | null
@@ -128,6 +132,8 @@ export type Database = {
           ended_at?: string | null
           organization_id?: string
           plan?: string | null
+          plan_changed_at?: string | null
+          previous_plan?: string | null
           status?: string | null
           stripe_customer_id?: string
           stripe_subscription_id?: string | null
@@ -144,6 +150,13 @@ export type Database = {
           {
             foreignKeyName: "billing_accounts_plan_fkey"
             columns: ["plan"]
+            isOneToOne: false
+            referencedRelation: "plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "billing_accounts_previous_plan_fkey"
+            columns: ["previous_plan"]
             isOneToOne: false
             referencedRelation: "plans"
             referencedColumns: ["id"]
@@ -218,6 +231,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           installation_id: number
+          repositories: string[]
           suspended_at: string | null
           workspace_id: string
         }
@@ -227,6 +241,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           installation_id: number
+          repositories?: string[]
           suspended_at?: string | null
           workspace_id: string
         }
@@ -236,6 +251,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           installation_id?: number
+          repositories?: string[]
           suspended_at?: string | null
           workspace_id?: string
         }

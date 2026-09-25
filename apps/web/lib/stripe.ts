@@ -110,6 +110,21 @@ export interface StripePrice {
   unit_amount: number | null;
   currency: string;
   recurring: { interval: string } | null;
+  /** `flowretest_plan`: set by scripts/stripe-setup.mjs on every price it creates. */
+  metadata?: Record<string, string>;
+}
+
+/**
+ * The plan and interval a price stands for. The price's metadata comes first: a new price created with
+ * `transfer_lookup_key` takes the lookup key away from the old one, and subscribers who still pay the old price must
+ * keep their plan. The lookup key is the fallback for prices created before the metadata existed.
+ */
+export function planOfPrice(price: StripePrice | undefined): { plan: PaidPlan; interval: Interval } | undefined {
+  if (!price) return undefined;
+  const plan = price.metadata?.flowretest_plan;
+  const interval = price.recurring?.interval;
+  if ((plan === 'team' || plan === 'agency') && (interval === 'month' || interval === 'year')) return { plan, interval };
+  return parseLookupKey(price.lookup_key);
 }
 
 export interface StripeSubscription {
@@ -121,6 +136,8 @@ export interface StripeSubscription {
   canceled_at: number | null;
   metadata: Record<string, string>;
   items: { data: Array<{ id: string; current_period_end: number; price: StripePrice }> };
+  /** Set while a plan change waits for its invoice to be paid (payment_behavior=pending_if_incomplete). */
+  pending_update?: { expires_at: number } | null;
 }
 
 export interface StripeInvoice {
@@ -200,13 +217,18 @@ export function getSubscription(config: StripeConfig, id: string): Promise<Strip
   return call(config, 'GET', `/v1/subscriptions/${encodeURIComponent(id)}`);
 }
 
-/** Moves the subscription to another price; Stripe prorates the difference on the next invoice. */
+/**
+ * Moves the subscription to another price and bills the prorated difference at once. With `pending_if_incomplete`
+ * the new price takes effect only when that invoice is paid; until then Stripe keeps the old price and the returned
+ * subscription has `pending_update`. A move to a smaller plan gives a credit on the customer's balance.
+ */
 export function changeSubscriptionPrice(config: StripeConfig, subscription: StripeSubscription, price: string): Promise<StripeSubscription> {
   const item = subscription.items.data[0];
   if (!item) throw new StripeError(409, `subscription ${subscription.id} has no items`);
   return call(config, 'POST', `/v1/subscriptions/${encodeURIComponent(subscription.id)}`, {
     items: [{ id: item.id, price }],
-    proration_behavior: 'create_prorations',
+    proration_behavior: 'always_invoice',
+    payment_behavior: 'pending_if_incomplete',
     cancel_at_period_end: false,
   });
 }
@@ -215,7 +237,10 @@ export function getInvoice(config: StripeConfig, id: string): Promise<StripeInvo
   return call(config, 'GET', `/v1/invoices/${encodeURIComponent(id)}`);
 }
 
-/** What the database keeps of a subscription: the plan comes from the price's lookup key, never from metadata. */
+/**
+ * What the database keeps of a subscription. The plan comes from the price Stripe charges (`planOfPrice`), never from
+ * the subscription's metadata, which stays stale after a change in the portal.
+ */
 export interface SubscriptionState {
   plan: PaidPlan | null;
   interval: Interval | null;
@@ -228,8 +253,8 @@ export interface SubscriptionState {
 const iso = (seconds: number | null | undefined) => (seconds ? new Date(seconds * 1000).toISOString() : null);
 
 export function subscriptionState(sub: StripeSubscription): SubscriptionState {
-  const item = sub.items.data.find((i) => parseLookupKey(i.price.lookup_key));
-  const parsed = parseLookupKey(item?.price.lookup_key);
+  const item = sub.items.data.find((i) => planOfPrice(i.price));
+  const parsed = planOfPrice(item?.price);
   const givesPlan = ['active', 'trialing', 'past_due'].includes(sub.status);
   return {
     plan: parsed?.plan ?? null,

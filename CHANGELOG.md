@@ -27,6 +27,7 @@ All notable changes to this project are documented here. The format follows Keep
 
 ### Fixed
 
+- The redacted report no longer carries numbers from a million up (a PESEL or phone number sent as a JSON number becomes `<digits N>`), emails or long digit runs in object and query keys, path segments that hold a value (`/customers/Anna%20Kowalska` becomes a shape), and emails or long numbers in the workflow name, labels, node names, warnings, scanner messages and field paths. Error texts also lose phone numbers written in groups (`+48 600 100 200`). `upload` and the hosted layer refuse a report that still has any of these.
 - `redact --report` salts the body hash and multipart hashes with the report key: an unsalted SHA-256 of a small body (one phone number sent to a known endpoint) could be reversed by guessing. A version label that is a file path keeps only the file name, and `generatedAt` is the run's time instead of the redaction time.
 - `init --api-key` keeps other lines of `.flowretest/secrets.env`.
 - Errors that escape a command exit with 4 (usage or environment) or 5 (internal) instead of 1, which means DIFF; the GitHub Action no longer reports a crashed run as DIFF with a green job.

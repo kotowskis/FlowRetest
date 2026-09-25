@@ -77,12 +77,18 @@ async function githubCheck(admin: Admin, run: RunRow, workflowName: string, inte
     return;
   }
   const owner = run.git_repository.split('/')[0]?.toLowerCase();
-  const { data: installations } = await admin.from('github_installations').select('installation_id, account_login').eq('workspace_id', run.workspace_id).is('suspended_at', null);
+  const { data: installations } = await admin.from('github_installations').select('installation_id, account_login, repositories').eq('workspace_id', run.workspace_id).is('suspended_at', null);
   const installation = (installations ?? []).find((i) => i.account_login.toLowerCase() === owner);
   const log = (row: { ok: boolean; detail?: string; installation_id?: number; check_run_id?: number; html_url?: string; conclusion?: string }) =>
     admin.from('github_checks').insert({ run_id: run.id, workspace_id: run.workspace_id, ...row, detail: row.detail?.slice(0, 500) });
   if (!installation) {
     await log({ ok: false, detail: `no GitHub App installation for ${owner} is linked to this workspace` });
+    return;
+  }
+  // The repository comes from the uploaded report, so the token holder chooses it; only repositories whose admin
+  // linked the installation get checks.
+  if (!installation.repositories.includes(run.git_repository.toLowerCase())) {
+    await log({ ok: false, installation_id: installation.installation_id, detail: `${run.git_repository} is not among the repositories linked by one of their admins; an admin of it can connect GitHub again` });
     return;
   }
   const report = run.report as PlanReport;

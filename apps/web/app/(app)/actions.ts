@@ -7,6 +7,7 @@ import { session } from '@/lib/data.ts';
 import { generateToken } from '@/lib/tokens.ts';
 import { validateSlackWebhook } from '@/lib/slack.ts';
 import { planLimitOf } from '@/lib/limits.ts';
+import { createAdminClient } from '@/lib/supabase/admin.ts';
 
 export interface FormState {
   error?: string;
@@ -148,8 +149,15 @@ export async function addSlackWebhook(_prev: FormState, form: FormData): Promise
   const checked = validateSlackWebhook(input.data.url);
   if (!checked.ok) return { error: checked.error };
   const { db, user } = await session();
-  const { error } = await db.from('slack_webhooks').insert({ workspace_id: input.data.workspaceId, url: checked.url, url_hint: checked.hint, statuses: input.data.statuses, created_by: user.id });
-  if (error) return { error: 'Only owners can add Slack webhooks.' };
+  // People cannot insert webhooks themselves (the server posts to every stored URL); RLS answers who owns the
+  // workspace, the service role writes the row this action has checked.
+  const { data: ws } = await db.from('workspaces').select('organization_id').eq('id', input.data.workspaceId).maybeSingle();
+  const { data: owner } = ws ? await db.rpc('is_owner', { org: ws.organization_id }) : { data: false };
+  if (!ws || owner !== true) return { error: 'Only owners can add Slack webhooks.' };
+  const { data: plan } = await db.rpc('org_plan', { org: ws.organization_id });
+  if (plan?.[0]?.integrations !== true) return { error: 'Slack messages come with the Team and Agency plans.' };
+  const { error } = await createAdminClient().from('slack_webhooks').insert({ workspace_id: input.data.workspaceId, url: checked.url, url_hint: checked.hint, statuses: input.data.statuses, created_by: user.id });
+  if (error) return { error: 'Could not add the webhook.' };
   revalidatePath(`/w/${input.data.workspaceId}`);
   return { done: Date.now(), ok: 'Slack webhook added.' };
 }
