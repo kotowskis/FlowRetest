@@ -41,7 +41,7 @@ export interface RunRecordInput {
 let fontsReady = false;
 
 /** Inter and Roboto Mono from assets/fonts (fontkit fails on the JetBrains Mono and IBM Plex Mono files of @expo-google-fonts): the 14 standard PDF fonts have no Polish letters, node names do. */
-function registerFonts(dir = join(process.cwd(), 'assets', 'fonts')): void {
+export function registerFonts(dir = join(process.cwd(), 'assets', 'fonts')): void {
   if (fontsReady) return;
   Font.register({ family: 'Inter', fonts: [{ src: join(dir, 'Inter_400Regular.ttf') }, { src: join(dir, 'Inter_600SemiBold.ttf'), fontWeight: 600 }] });
   Font.register({ family: 'Mono', src: join(dir, 'RobotoMono_400Regular.ttf') });

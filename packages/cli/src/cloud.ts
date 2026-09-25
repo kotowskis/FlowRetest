@@ -48,6 +48,17 @@ export function cloudConfigured(cwd: string): boolean {
   }
 }
 
+/** True when the hosted layer answers 401 to the token; false for any other answer or none. */
+async function tokenRefused(base: string, token: string): Promise<boolean> {
+  try {
+    const res = await fetch(`${base}/api/acceptances?workflow=-`, { headers: { authorization: `Bearer ${token}`, 'user-agent': `flowretest/${CLI_VERSION}` }, signal: AbortSignal.timeout(10_000) });
+    await res.arrayBuffer();
+    return res.status === 401;
+  } catch {
+    return false;
+  }
+}
+
 /** One authenticated JSON request to the hosted layer; a non-2xx answer throws CloudError with the server's reason. */
 export async function cloudRequest<T>(base: string, token: string, path: string, init: { method?: string; body?: string } = {}): Promise<T> {
   let res: Response;
@@ -59,6 +70,12 @@ export async function cloudRequest<T>(base: string, token: string, path: string,
       signal: AbortSignal.timeout(60_000),
     });
   } catch (e) {
+    // The server checks the token before it reads a body and answers 401 at once; with a large report still being
+    // sent, the connection can close before the client reads that answer (1 in 15 uploads of 4.5 MB with a bad
+    // token in the week 14 load test). A GET without a body then tells a refused token from a network failure.
+    if (init.body !== undefined && (await tokenRefused(base, token))) {
+      throw new CloudError(401, `${init.method ?? 'GET'} ${path} refused with 401 (the token is wrong or revoked): invalid or revoked workspace token`);
+    }
     throw new Error(`request to ${base} failed`, { cause: e });
   }
   const text = await res.text();

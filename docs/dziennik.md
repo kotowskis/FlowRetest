@@ -247,3 +247,28 @@ Wnioski:
 - w react-pdf 4.9 tekst z `render` (numer strony) znika, gdy `lineHeight` jest ustawione na stronie, i nie pokazuje się bez szerokości; znalezione przez wyciąganie tekstu z PDF przez pdfjs, bo podgląd w panelu przeglądarki nie wyświetla PDF.
 
 Do decyzji założyciela: czy PDF i macierz dryfu zostają tylko w Agency (jedna instrukcja `update` na tabeli `plans`), domena i hosting strony cennika.
+
+## Tydzień 14: DPA, polityka retencji, testy obciążeniowe uploadu, strony do startu sprzedaży (2026-09-25)
+
+Zakres z planu (sekcja 11, tydzień 14). Decyzje i liczby są w ADR 0015, materiały sprzedażowe w `docs/sprzedaz.md`, protokół pilotażu w `docs/pilotaz-protokol.md`.
+
+Zrobione:
+
+- migracja `20270104000000_data_retention_dpa.sql`. Właściciel może ustawić krótszą historię (`organizations.retention_days`), a `purge_expired_runs` bierze krótszy z okresów planu i organizacji. Akceptacje DPA trafiają do `dpa_acceptances` przez `accept_dpa`, którą wołają tylko właściciele. E-mail pochodzi z sesji, a wierszy nie da się edytować. Zaproszenia wygasają po 30 dniach;
+- publiczne strony `/legal/terms`, `/legal/privacy`, `/legal/dpa`, `/legal/subprocessors`, `/legal/retention` z treścią w `lib/legal/documents.ts`, dane firmy ze zmiennych `LEGAL_*`, baner „Draft” do czasu przeglądu prawnego;
+- strona organizacji „Data and privacy” (`/o/<id>/data`): historia przebiegów, akceptacja DPA z listą akceptacji i kopią PDF (`/o/<id>/dpa/<id>/pdf`), eksport JSON Lines (`/o/<id>/export`), usunięcie organizacji; strona konta (`/account`) z usunięciem konta; usuwanie workspace'u i przebiegu, przycisk „Make owner”;
+- strona główna `/` dla niezalogowanych, wspólny nagłówek i stopka z linkami prawnymi na wszystkich stronach publicznych, pytanie o DPA w cenniku;
+- `apps/web/scripts/load-upload.ts`: testy obciążeniowe `POST /api/runs` w pięciu scenariuszach;
+- `notifyRun` czyta raport tylko przed Checkiem GitHuba; CLI po zerwanym połączeniu przy uploadzie sprawdza token i zgłasza 401 zamiast błędu sieci.
+
+Sprawdzone na żywo na `next start`: akceptacja DPA w przeglądarce przy 375 px (firma z polskimi znakami), PDF kopii 200 i 3 strony obejrzane jako obrazy, eksport 10 linii w 8 typach wierszy, usunięcie workspace'u z potwierdzeniem nazwy i powrót na stronę organizacji, strony prawne i główna bez przewijania w poziomie. Testy: 6 nowych jednostkowych, 8 nowych integracyjnych (okresy planów zgodne ze stroną retencji, krótsza historia i jej granice, wygasłe zaproszenia, uprawnienia akceptacji DPA, ostatni właściciel, eksport z kodami 200/403/404/logowanie, PDF kopii, strony publiczne), 1 nowy w CLI. Razem w `apps/web`: 40 jednostkowych i 54 integracyjne, wszystkie zielone z `CI=1` na własnej aplikacji (3101) i atrapie (55391).
+
+Testy obciążeniowe (tabela w ADR 0015): małe raporty 31 do 47 uploadów na sekundę przez aplikację przy 10 do 50 równoległych, same wywołania `ingest_run` około 190 na sekundę, więc przy małych raportach ogranicza proces Node; raport 4,5 MB zapisuje się około 1,1 s i to limit bazy; limit Free przepuścił dokładnie 50 z 80 równoczesnych uploadów; zły token z ciałem 4,5 MB dostaje 401 bez parsowania. Pierwszy przebieg znalazł dwa problemy, oba poprawione: ponowny odczyt całego raportu po każdym uploadzie (p95 dużych raportów przy 8 równoległych spadło z 20,6 s do 5 do 7 s) oraz zerwane połączenia zamiast 401 przy złym tokenie (14 z 200).
+
+Wnioski:
+
+- ochrona ostatniego właściciela już była (`keep_an_owner` z audytu P1, sprawdzana przy commicie), pierwsza wersja migracji tygodnia dodawała ją drugi raz i `migration up` padło na istniejącym wyzwalaczu; migracja wgrywa się w transakcji, więc nic nie zostało w połowie;
+- 8 porażek integracyjnych przy pierwszym pełnym przebiegu pochodziło od atrapy i serwera innej sesji na 3100 i 55390 (inny klucz aplikacji GitHub, inne `APP_URL`); z własną parą 3101 i 55391 wszystkie przechodzą;
+- pomiary na tej maszynie różnią się między powtórzeniami o około 30%, bo obok działają inne aplikacje i drugi stos Supabase.
+
+Do decyzji założyciela (lista w `docs/sprzedaz.md`): publikacja 0.3.0, domena z hostingiem i pocztą, konto Stripe, przegląd prawny tekstów i dane firmy, mail do n8n o licencji; widełki ceny wdrożenia.

@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { getOrganization } from '@/lib/data.ts';
 import { ActionForm } from '@/components/forms.tsx';
 import { Empty, PageHeader, Section, Time, inputClass, quietButtonClass } from '@/components/ui.tsx';
-import { cancelInvitation, createWorkspace, inviteMember, removeMember } from '../../actions.ts';
+import { cancelInvitation, createWorkspace, inviteMember, makeOwner, removeMember } from '../../actions.ts';
 
 export const metadata: Metadata = { title: 'Organization' };
 
@@ -17,6 +17,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
       <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name }]} title={org.name}>
         <span className="flex flex-wrap items-center gap-4 text-sm text-muted">
           <Link href={`/o/${org.id}/drift`} className="hover:text-ink hover:underline">Engine drift</Link>
+          <Link href={`/o/${org.id}/data`} className="hover:text-ink hover:underline">Data and DPA</Link>
           <Link href={`/o/${org.id}/billing`} className="hover:text-ink hover:underline">
             {planName} plan · Billing
           </Link>
@@ -64,13 +65,20 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
         </div>
       </Section>
 
-      <Section title="Members" description={`${isOwner ? 'Invited people join when they next sign in with the invited address. ' : ''}Seats: ${count(limits.seats_used, limits.seats)}, counting invitations.`}>
+      <Section title="Members" description={`${isOwner ? 'Invited people join when they next sign in with the invited address; invitations expire after 30 days. ' : ''}Seats: ${count(limits.seats_used, limits.seats)}, counting invitations.`}>
         <ul className="divide-y divide-line rounded-md border border-line bg-panel">
           {members.map((m) => (
             <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
               <span>{m.email || m.user_id}</span>
               <span className="flex items-center gap-3 text-xs text-muted">
                 {m.role}
+                {isOwner && m.role !== 'owner' ? (
+                  <form action={makeOwner}>
+                    <input type="hidden" name="orgId" value={org.id} />
+                    <input type="hidden" name="userId" value={m.user_id} />
+                    <button className={quietButtonClass}>Make owner</button>
+                  </form>
+                ) : null}
                 {isOwner && m.user_id !== userId ? (
                   <form action={removeMember}>
                     <input type="hidden" name="orgId" value={org.id} />

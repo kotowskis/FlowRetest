@@ -104,3 +104,26 @@ test('in GitHub Actions the upload names the pull request head commit, not the m
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test('a connection closed while sending the report is reported as a refused token when the server says so', async () => {
+  const cwd = project();
+  const srv = createServer((req, res) => {
+    if (req.method === 'POST') {
+      // Like a server that answers 401 before reading the body: here it drops the connection outright.
+      req.socket.destroy();
+      return;
+    }
+    assert.equal(req.url, '/api/acceptances?workflow=-');
+    res.writeHead(401, { 'content-type': 'application/json' }).end(JSON.stringify({ error: 'invalid or revoked workspace token' }));
+  });
+  await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${(srv.address() as { port: number }).port}`;
+  process.env.FLOWRETEST_TOKEN = 'frt_revoked';
+  try {
+    await assert.rejects(runUpload({ cwd, workflowId: 'w1', url, log: () => {} }), (e: Error & { status?: number }) => e.status === 401 && /token is wrong or revoked/.test(e.message));
+  } finally {
+    delete process.env.FLOWRETEST_TOKEN;
+    await new Promise<void>((r) => srv.close(() => r()));
+    rmSync(cwd, { recursive: true, force: true });
+  }
+});

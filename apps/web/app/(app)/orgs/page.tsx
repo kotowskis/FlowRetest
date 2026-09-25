@@ -13,10 +13,10 @@ const GITHUB_MESSAGES: Record<string, string> = {
   updated: 'The GitHub installation changed. To send checks to newly added repositories, an admin of them connects GitHub again from the workspace page.',
 };
 
-export default async function OrganizationsPage({ searchParams }: { searchParams: Promise<{ github?: string }> }) {
+export default async function OrganizationsPage({ searchParams }: { searchParams: Promise<{ github?: string; deleted?: string }> }) {
   const orgs = await listOrganizations();
-  const { github } = await searchParams;
-  const githubMessage = github ? GITHUB_MESSAGES[github] : undefined;
+  const { github, deleted } = await searchParams;
+  const githubMessage = github ? GITHUB_MESSAGES[github] : deleted === 'organization' ? 'The organization and all its data were deleted.' : undefined;
   return (
     <>
       <PageHeader crumbs={[{ label: 'Organizations' }]} title="Organizations" />

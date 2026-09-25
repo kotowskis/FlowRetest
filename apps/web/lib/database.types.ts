@@ -169,6 +169,56 @@ export type Database = {
           },
         ]
       }
+      dpa_acceptances: {
+        Row: {
+          accepted_at: string
+          accepted_by: string | null
+          company_address: string
+          company_id: string | null
+          company_name: string
+          id: string
+          organization_id: string
+          signer_email: string
+          signer_name: string
+          signer_role: string
+          version: string
+        }
+        Insert: {
+          accepted_at?: string
+          accepted_by?: string | null
+          company_address: string
+          company_id?: string | null
+          company_name: string
+          id?: string
+          organization_id: string
+          signer_email: string
+          signer_name: string
+          signer_role: string
+          version: string
+        }
+        Update: {
+          accepted_at?: string
+          accepted_by?: string | null
+          company_address?: string
+          company_id?: string | null
+          company_name?: string
+          id?: string
+          organization_id?: string
+          signer_email?: string
+          signer_name?: string
+          signer_role?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dpa_acceptances_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       github_checks: {
         Row: {
           check_run_id: number | null
@@ -474,18 +524,21 @@ export type Database = {
           created_by: string | null
           id: string
           name: string
+          retention_days: number | null
         }
         Insert: {
           created_at?: string
           created_by?: string | null
           id?: string
           name: string
+          retention_days?: number | null
         }
         Update: {
           created_at?: string
           created_by?: string | null
           id?: string
           name?: string
+          retention_days?: number | null
         }
         Relationships: []
       }
@@ -892,6 +945,18 @@ export type Database = {
       }
     }
     Functions: {
+      accept_dpa: {
+        Args: {
+          p_company_address: string
+          p_company_id: string
+          p_company_name: string
+          p_org: string
+          p_signer_name: string
+          p_signer_role: string
+          p_version: string
+        }
+        Returns: string
+      }
       accept_run: {
         Args: { p_case_ids: string[]; p_message: string; p_run_id: string }
         Returns: string

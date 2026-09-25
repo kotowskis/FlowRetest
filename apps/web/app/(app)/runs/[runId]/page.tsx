@@ -3,7 +3,8 @@ import Link from 'next/link';
 import type { PlanReport } from '@flowretest/core';
 import { getRun } from '@/lib/data.ts';
 import { ReportView } from '@/components/report-view.tsx';
-import { AcceptanceList, PageHeader, Section, StatusBadge, Time } from '@/components/ui.tsx';
+import { AcceptanceList, PageHeader, Section, StatusBadge, Time, quietButtonClass } from '@/components/ui.tsx';
+import { deleteRun } from '../../actions.ts';
 import { AcceptForm, type AcceptableCase } from '@/components/acceptance.tsx';
 import { acceptRun } from '../../actions.ts';
 
@@ -11,7 +12,7 @@ export const metadata: Metadata = { title: 'Run' };
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
-  const { run, workflow, workspace, org, previous, acceptances, check, pdfExport } = await getRun(runId);
+  const { run, workflow, workspace, org, previous, acceptances, check, pdfExport, isOwner } = await getRun(runId);
   // Stored as uploaded after RedactedReportSchema validation; it has every field the plan renderer reads.
   const report = run.report as unknown as PlanReport & { stability?: Record<string, boolean> };
   // The same rule as `flowretest accept` without --force; accept_run checks it again on the server.
@@ -51,6 +52,12 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
               PDF record comes with Agency
             </Link>
           )}
+          {isOwner ? (
+            <form action={deleteRun}>
+              <input type="hidden" name="runId" value={run.id} />
+              <button className={quietButtonClass} title="Deletes this run now; its acceptances stay in the history">Delete run</button>
+            </form>
+          ) : null}
         </span>
       </PageHeader>
       <dl className="mb-8 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">

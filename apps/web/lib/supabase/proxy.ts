@@ -2,7 +2,7 @@ import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
 /** Paths that need a session; everything else (login, auth callbacks, the upload API) is public. */
-const PROTECTED = ['/orgs', '/o/', '/w/', '/runs/'];
+const PROTECTED = ['/orgs', '/o/', '/w/', '/runs/', '/account'];
 
 /** Refreshes the session cookie on every request and sends signed-out visitors of app pages to /login. */
 export async function updateSession(request: NextRequest, requestHeaders: Headers = request.headers): Promise<NextResponse> {

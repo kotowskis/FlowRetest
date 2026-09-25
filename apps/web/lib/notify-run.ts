@@ -19,7 +19,6 @@ interface RunRow {
   workflow_id: string;
   git_repository: string | null;
   git_sha: string | null;
-  report: unknown;
 }
 
 /**
@@ -29,7 +28,8 @@ interface RunRow {
  */
 export async function notifyRun(runId: string): Promise<void> {
   const admin = createAdminClient();
-  const { data: run } = await admin.from('runs').select('id, status, mode, summary, workspace_id, workflow_id, git_repository, git_sha, report').eq('id', runId).single();
+  // Without the report: it can be 5 MB, and only a GitHub check needs it (read there, after every other check).
+  const { data: run } = await admin.from('runs').select('id, status, mode, summary, workspace_id, workflow_id, git_repository, git_sha').eq('id', runId).single();
   if (!run) return;
   const [{ data: workflow }, { data: workspace }] = await Promise.all([
     admin.from('workflows').select('name').eq('id', run.workflow_id).single(),
@@ -91,7 +91,9 @@ async function githubCheck(admin: Admin, run: RunRow, workflowName: string, inte
     await log({ ok: false, installation_id: installation.installation_id, detail: `${run.git_repository} is not among the repositories linked by one of their admins; an admin of it can connect GitHub again` });
     return;
   }
-  const report = run.report as PlanReport;
+  const { data: stored } = await admin.from('runs').select('report').eq('id', run.id).single();
+  if (!stored) return;
+  const report = stored.report as unknown as PlanReport;
   const summary = run.summary as RunSummary;
   const counts = [summary.changed && `${summary.changed} changed`, summary.added && `${summary.added} added`, summary.removed && `${summary.removed} removed`].filter(Boolean).join(', ');
   const conclusion = checkConclusion(run.status);

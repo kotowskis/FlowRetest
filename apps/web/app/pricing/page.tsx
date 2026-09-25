@@ -5,6 +5,7 @@ import { env } from '@/lib/env.ts';
 import { planFeatures } from '@/lib/plans.ts';
 import type { Database } from '@/lib/database.types.ts';
 import { buttonClass, money } from '@/components/ui.tsx';
+import { PublicShell } from '@/components/public-shell.tsx';
 
 export const metadata: Metadata = {
   title: 'Pricing',
@@ -36,19 +37,19 @@ const QUESTIONS: Array<[string, React.ReactNode]> = [
     'Nothing is deleted on the day. The oldest workspaces up to the new limit keep taking uploads, the newer ones refuse them. Run history follows the new plan after 30 days of grace.',
   ],
   ['How do invoices and VAT work?', 'Stripe charges the card and issues the invoices. Prices exclude VAT; a business in the EU adds its VAT id at checkout and pays under reverse charge.'],
+  [
+    'Do you sign a data processing agreement?',
+    <>
+      Yes. An owner accepts the <Link href="/legal/dpa" className="underline">DPA</Link> for the organization in the app and downloads a PDF copy. Runs are kept for the plan&apos;s history or a shorter period you set; <Link href="/legal/retention" className="underline">data retention</Link> lists everything the service keeps.
+    </>,
+  ],
   ['Can we cancel any time?', 'Yes, on the billing page. The plan stays until the end of the paid month or year, then the organization moves to Free.'],
 ];
 
 export default async function PricingPage() {
   const rows = await plans();
   return (
-    <div className="min-h-screen">
-      <header className="border-b border-line bg-panel">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-4 py-3">
-          <Link href="/pricing" className="font-mono text-sm font-semibold">flowretest</Link>
-          <Link href="/login" className="rounded-md border border-line px-2 py-1 text-xs text-muted hover:text-ink">Sign in</Link>
-        </div>
-      </header>
+    <PublicShell>
       <main className="mx-auto max-w-6xl px-4 py-10">
         <h1 className="text-3xl font-semibold">Pricing</h1>
         <p className="mt-3 max-w-3xl text-muted">
@@ -92,6 +93,6 @@ export default async function PricingPage() {
           </dl>
         </section>
       </main>
-    </div>
+    </PublicShell>
   );
 }

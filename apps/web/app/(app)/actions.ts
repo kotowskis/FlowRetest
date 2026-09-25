@@ -168,3 +168,36 @@ export async function removeSlackWebhook(form: FormData): Promise<void> {
   await db.from('slack_webhooks').delete().eq('id', input.webhookId);
   revalidatePath(`/w/${input.workspaceId}`);
 }
+
+/** Makes a member an owner; owners can then hand over the organization or leave it. */
+export async function makeOwner(form: FormData): Promise<void> {
+  const input = z.object({ orgId: Id, userId: Id }).parse(Object.fromEntries(form));
+  const { db } = await session();
+  await db.from('members').update({ role: 'owner' }).eq('organization_id', input.orgId).eq('user_id', input.userId);
+  revalidatePath(`/o/${input.orgId}`);
+}
+
+/** Deletes a workspace with its tokens, workflows, runs and acceptances; owners only (RLS). */
+export async function deleteWorkspace(_prev: FormState, form: FormData): Promise<FormState> {
+  const input = z.object({ workspaceId: Id, confirm: z.string() }).safeParse(Object.fromEntries(form));
+  if (!input.success) return { error: firstIssue(input.error) };
+  const { db } = await session();
+  const { data: ws } = await db.from('workspaces').select('name, organization_id').eq('id', input.data.workspaceId).maybeSingle();
+  if (!ws) return { error: 'Workspace not found.' };
+  if (input.data.confirm.trim() !== ws.name) return { error: 'Type the name of the workspace exactly as shown.' };
+  const { data, error } = await db.from('workspaces').delete().eq('id', input.data.workspaceId).select('id');
+  if (error || !data?.length) return { error: 'Only owners can delete workspaces.' };
+  revalidatePath(`/o/${ws.organization_id}`);
+  redirect(`/o/${ws.organization_id}`);
+}
+
+/** Deletes one run, for a report uploaded by mistake; its acceptances stay without the link (owners only, RLS). */
+export async function deleteRun(form: FormData): Promise<void> {
+  const input = z.object({ runId: Id }).parse(Object.fromEntries(form));
+  const { db } = await session();
+  const { data: run } = await db.from('runs').select('workflow_id, workspace_id').eq('id', input.runId).maybeSingle();
+  if (!run) return;
+  const { data } = await db.from('runs').delete().eq('id', input.runId).select('id');
+  if (!data?.length) return;
+  redirect(`/w/${run.workspace_id}/workflows/${run.workflow_id}`);
+}

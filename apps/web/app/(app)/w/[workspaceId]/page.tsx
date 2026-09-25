@@ -4,8 +4,8 @@ import { getWorkspace } from '@/lib/data.ts';
 import { env } from '@/lib/env.ts';
 import { githubConfig } from '@/lib/github.ts';
 import { ActionForm, TokenForm } from '@/components/forms.tsx';
-import { Empty, PageHeader, Section, StatusBadge, Time, buttonClass, quietButtonClass } from '@/components/ui.tsx';
-import { addSlackWebhook, createToken, removeSlackWebhook, revokeToken, setSubscription, unlinkGitHub } from '../../actions.ts';
+import { Empty, PageHeader, Section, StatusBadge, Time, buttonClass, inputClass, quietButtonClass } from '@/components/ui.tsx';
+import { addSlackWebhook, createToken, deleteWorkspace, removeSlackWebhook, revokeToken, setSubscription, unlinkGitHub } from '../../actions.ts';
 
 export const metadata: Metadata = { title: 'Workspace' };
 
@@ -207,6 +207,18 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
           </ul>
         ) : null}
       </Section>
+
+      {isOwner ? (
+        <Section title="Delete the workspace" description="Deletes its tokens, workflows, runs and acceptances at once. Runners with its token get 401 from then on; baselines on their machines stay.">
+          <ActionForm action={deleteWorkspace} submit="Delete workspace" pending="Deleting…">
+            <input type="hidden" name="workspaceId" value={workspace.id} />
+            <label className="flex flex-col gap-1 text-sm">
+              <span>Type <span className="font-mono">{workspace.name}</span> to confirm</span>
+              <input name="confirm" required autoComplete="off" className={inputClass} />
+            </label>
+          </ActionForm>
+        </Section>
+      ) : null}
     </>
   );
 }

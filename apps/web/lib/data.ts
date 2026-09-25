@@ -192,9 +192,9 @@ export async function getRun(runId: string) {
   ]);
   const checks = await db.from('github_checks').select('ok, html_url, conclusion, detail, created_at').eq('run_id', run.id).order('created_at', { ascending: false }).limit(1);
   const ws = orFail(workspace, 'workspace');
-  const [orgRow, limits] = await Promise.all([db.from('organizations').select('*').eq('id', ws.organization_id).single(), planLimits(db, ws.organization_id)]);
+  const [orgRow, limits, owner] = await Promise.all([db.from('organizations').select('*').eq('id', ws.organization_id).single(), planLimits(db, ws.organization_id), db.rpc('is_owner', { org: ws.organization_id })]);
   const org = orFail(orgRow, 'organization');
-  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances'), check: checks.data?.[0], pdfExport: limits.pdf_export, plan: limits.plan };
+  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances'), check: checks.data?.[0], pdfExport: limits.pdf_export, plan: limits.plan, isOwner: owner.data === true };
 }
 
 export type DriftCell = Tables<'latest_upgrade_runs'>;
@@ -237,4 +237,25 @@ export async function getOrganizationDrift(orgId: string) {
   const wsRows = orFail(workspaces, 'workspaces');
   const cells = wsRows.length ? await driftCells(db, wsRows.map((w) => w.id)) : [];
   return { org, workspaces: wsRows, cells, limits };
+}
+
+export type DpaAcceptance = Tables<'dpa_acceptances'>;
+
+/** The organization's Data page: history setting, DPA acceptances, what an export would hold. */
+export async function getOrganizationData(orgId: string) {
+  const { db, user } = await session();
+  assertId(orgId);
+  const org = orFail(await db.from('organizations').select('*').eq('id', orgId).maybeSingle(), 'organization');
+  const [owner, limits, dpa, workspaces] = await Promise.all([
+    db.rpc('is_owner', { org: orgId }),
+    planLimits(db, orgId),
+    db.from('dpa_acceptances').select('*').eq('organization_id', orgId).order('accepted_at', { ascending: false }),
+    db.from('workspaces').select('id, name').eq('organization_id', orgId).order('created_at'),
+  ]);
+  const wsRows = orFail(workspaces, 'workspaces');
+  const runs = wsRows.length
+    ? await db.from('runs').select('id', { count: 'exact', head: true }).in('workspace_id', wsRows.map((w) => w.id))
+    : { count: 0, error: null };
+  if (runs.error) throw new Error(`runs: ${runs.error.message}`);
+  return { org, isOwner: owner.data === true, limits, dpa: orFail(dpa, 'dpa acceptances'), workspaces: wsRows, runCount: runs.count ?? 0, email: user.email ?? '' };
 }

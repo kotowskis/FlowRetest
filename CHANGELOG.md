@@ -6,6 +6,7 @@ All notable changes to this project are documented here. The format follows Keep
 
 ### Added
 
+- Hosted layer, data and privacy: public pages with the terms, privacy notice, Data Processing Agreement, sub-processors and data retention; owners accept the DPA for their organization and download a PDF copy, set a run history shorter than the plan's, export every row of the organization as JSON Lines and delete runs, workspaces or the organization; every person can delete their account. Invitations expire after 30 days. A public home page for visitors who are not signed in.
 - `upload`: sends the redacted report of a run (`report.redacted.json`) to the hosted report viewer with a workspace token (`FLOWRETEST_TOKEN`, from the environment or `.flowretest/secrets.env`) and prints the run URL. `run --upload` and `upgrade-check --upload` do it after the plan; a failed upload turns a PASS into exit code 4 and leaves DIFF and ERROR codes alone. The URL comes from `--url`, `FLOWRETEST_URL` or `cloud.url` in `config.yml`.
 - `sync` writes baselines for acceptances made in the hosted report viewer: the viewer stores the decision (cases, message, who), the runner writes the baseline from the full local report of the accepted run and marks it applied. `pull` runs it at the end when `cloud.url` and `FLOWRETEST_TOKEN` are set (`--no-sync` to skip); an acceptance whose run is on another machine stays pending. Baselines written this way carry the accepting person's email and message.
 - `upload` adds the tested commit (`git`: repository, SHA, pull request number) from GitHub Actions, or from `FLOWRETEST_GIT_REPOSITORY` and `FLOWRETEST_GIT_SHA`; on a pull request it is the head commit, not the merge commit. The hosted layer posts a GitHub check on it (PASS success, DIFF action required, ERROR and BLOCKED failure) when a GitHub App installation of the repository owner is linked to the workspace.
@@ -27,6 +28,7 @@ All notable changes to this project are documented here. The format follows Keep
 
 ### Fixed
 
+- `upload` with a wrong or revoked token and a large report: the server answers 401 before reading the body, and the connection sometimes closed before the answer arrived, so the CLI printed a network error. After a failed request with a body the CLI now asks the hosted layer about the token and reports the refusal (exit code 4).
 - `sync` matches accepted cases by exact file name (case 1 was found in `11.json`), leaves an acceptance pending when no baseline could be written or when the local run tested another workflow version, takes a 409 as applied elsewhere and refuses a run name from the server that is not a directory name.
 - `upload` and `sync` refuse a hosted-layer URL over plain http (except localhost) or with a user name or password in it, and treat a 200 answer without JSON (a login page in front of the server) as an error instead of printing `uploaded run undefined`.
 - `report.json` records the n8n `versionId` of both workflows (`versions`), baselines written by `accept` carry the new one, and the redacted report sends it as `workflowVersionId`, so the hosted layer records which version an acceptance approved.

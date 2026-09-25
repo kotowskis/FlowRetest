@@ -29,6 +29,7 @@ export function ActionForm({ action, submit, pending, children, className }: { a
       {children}
       <button disabled={busy || !hydrated} className={buttonClass}>{busy ? pending : submit}</button>
       {state.error ? <p role="alert" className="w-full text-sm text-error">{state.error}</p> : null}
+      {state.ok && !state.error ? <p role="status" className="w-full text-sm text-pass">{state.ok}</p> : null}
     </form>
   );
 }
