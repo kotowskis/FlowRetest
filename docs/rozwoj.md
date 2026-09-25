@@ -46,6 +46,8 @@ Powiadomienia e-mail wychodzą lokalnie do Mailpita (`MAILPIT_URL` w `.env.local
 
 Teksty prawne (`/legal/*`) i kopia DPA biorą dane firmy ze zmiennych `LEGAL_NAME`, `LEGAL_ADDRESS`, `LEGAL_COMPANY_ID`, `LEGAL_EMAIL`; bez nich i bez `LEGAL_FINAL=true` mają baner „Draft”. Lokalnie `db:env` dopisuje `LEGAL_ALLOW_DRAFT_ACCEPTANCE=true`, żeby dało się przyjąć DPA w wersji roboczej. PDF kopii DPA z testu jednostkowego zapisuje `DPA_RECORD_OUT=<plik.pdf> node --test test/unit/data-retention.test.ts`.
 
+Zmiana podprocesora (ADR 0016): plik JSON z `effectiveOn` (co najmniej 30 dni naprzód), `summary` i `changes`, potem w `apps/web` `node scripts/subprocessor-notice.ts announce <plik>` i `send <id>` (najpierw z `--dry-run`); lokalnie maile idą do Mailpita. Po dacie zmiany trzeba poprawić `SUBPROCESSORS` w `lib/legal/documents.ts`.
+
 Testy obciążeniowe uploadu (ADR 0015): na zbudowanej aplikacji (`next build`, `next start`) `node scripts/load-upload.ts --app http://127.0.0.1:3101 --pid <pid aplikacji> --out wynik.json` w `apps/web`. Skrypt zakłada organizacje tymczasowe w lokalnej bazie i usuwa je na końcu; `--scenarios steady,burst,large,limit,badtoken`, `--duration` i `--concurrency 10,25,50` zawężają przebieg.
 
 Upload z CLI do lokalnej aplikacji: token z ekranu workspace'u, potem `FLOWRETEST_TOKEN=frt_... node packages/cli/dist/bin.js upload --workflow <id> --url http://127.0.0.1:3100` w katalogu projektu po `run`.

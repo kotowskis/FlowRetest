@@ -770,6 +770,65 @@ export type Database = {
         }
         Relationships: []
       }
+      subprocessor_notice_deliveries: {
+        Row: {
+          detail: string | null
+          email: string
+          notice_id: string
+          ok: boolean
+          organization_ids: string[]
+          sent_at: string
+        }
+        Insert: {
+          detail?: string | null
+          email: string
+          notice_id: string
+          ok: boolean
+          organization_ids: string[]
+          sent_at?: string
+        }
+        Update: {
+          detail?: string | null
+          email?: string
+          notice_id?: string
+          ok?: boolean
+          organization_ids?: string[]
+          sent_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "subprocessor_notice_deliveries_notice_id_fkey"
+            columns: ["notice_id"]
+            isOneToOne: false
+            referencedRelation: "subprocessor_notices"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      subprocessor_notices: {
+        Row: {
+          announced_at: string
+          changes: Json
+          effective_on: string
+          id: string
+          summary: string
+        }
+        Insert: {
+          announced_at?: string
+          changes: Json
+          effective_on: string
+          id?: string
+          summary: string
+        }
+        Update: {
+          announced_at?: string
+          changes?: Json
+          effective_on?: string
+          id?: string
+          summary?: string
+        }
+        Relationships: []
+      }
       upload_events: {
         Row: {
           at: string
@@ -1035,6 +1094,14 @@ export type Database = {
         Args: { p_run_id: string }
         Returns: {
           email: string
+        }[]
+      }
+      subprocessor_notice_recipients: {
+        Args: never
+        Returns: {
+          email: string
+          organization_ids: string[]
+          organization_names: string[]
         }[]
       }
       subscription_gives_plan: { Args: { p_status: string }; Returns: boolean }

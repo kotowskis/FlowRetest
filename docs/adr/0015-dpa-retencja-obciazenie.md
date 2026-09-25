@@ -63,7 +63,7 @@ Serwer nadal nie czyta ciała przy złym tokenie; Node odbiera resztę danych z 
 
 ## Czego tu nie ma
 
-Tekstów po przeglądzie prawnika. Numeru rejestrowego, adresu i e-maila firmy. Powiadamiania właścicieli mailem o zmianie podprocesora (DPA punkt 6): do pierwszej zmiany wystarczy ręczny mail, lista adresów to właściciele organizacji z wierszem w `dpa_acceptances`. Wersji DPA po polsku. Testów obciążeniowych na docelowym hostingu: liczby wyżej dotyczą jednej maszyny deweloperskiej.
+Tekstów po przeglądzie prawnika. Numeru rejestrowego, adresu i e-maila firmy. Powiadamiania właścicieli mailem o zmianie podprocesora (DPA punkt 6), które doszło w ADR 0016. Wersji DPA po polsku. Testów obciążeniowych na docelowym hostingu: liczby wyżej dotyczą jednej maszyny deweloperskiej.
 
 ## Lista dla założyciela przed zdjęciem banera
 

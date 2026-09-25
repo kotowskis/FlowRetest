@@ -272,3 +272,17 @@ Wnioski:
 - pomiary na tej maszynie różnią się między powtórzeniami o około 30%, bo obok działają inne aplikacje i drugi stos Supabase.
 
 Do decyzji założyciela (lista w `docs/sprzedaz.md`): publikacja 0.3.0, domena z hostingiem i pocztą, konto Stripe, przegląd prawny tekstów i dane firmy, mail do n8n o licencji; widełki ceny wdrożenia.
+
+## Po tygodniu 14: powiadomienia o zmianie podprocesorów (2026-09-25)
+
+Rzecz odłożona w ADR 0015, zrobiona na prośbę założyciela przed startem sprzedaży. Decyzje są w ADR 0016.
+
+Zrobione:
+
+- migracja `20270111000000_subprocessor_notices.sql`: ogłoszenia zmian z regułą 30 dni w bazie, rejestr wysyłki, funkcja odbiorców (właściciele organizacji z akceptacją DPA), czyszczenie rejestru rok po zmianie;
+- `lib/subprocessor-notices.ts` (treść maila, wysyłka z ponawianiem) i skrypt `scripts/subprocessor-notice.ts`;
+- sekcja zapowiedzianych zmian na `/legal/subprocessors` i na stronie Data organizacji.
+
+Sprawdzone na żywo: ogłoszenie z datą za 29 dni odrzucone przez bazę, za 31 dni przyjęte; wysyłka do 12 właścicieli w lokalnej bazie trafiła do Mailpita, druga wysyłka niczego nie powtórzyła. Testy: 2 nowe jednostkowe, 4 nowe integracyjne.
+
+Wniosek: React wstawia `<!-- -->` między fragmenty tekstu w HTML, więc test szukający zdania z wartością w środku musi je najpierw usunąć.

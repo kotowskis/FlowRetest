@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { getOrganizationData } from '@/lib/data.ts';
 import { DPA_VERSION, dpaAcceptanceOpen } from '@/lib/legal/documents.ts';
 import { provider } from '@/lib/legal/provider.ts';
+import { changeLine } from '@/lib/subprocessor-notices.ts';
 import { DraftNotice } from '@/components/legal.tsx';
 import { ActionForm } from '@/components/forms.tsx';
 import { Empty, PageHeader, Section, Time, inputClass } from '@/components/ui.tsx';
@@ -12,7 +13,7 @@ export const metadata: Metadata = { title: 'Data' };
 
 export default async function OrganizationDataPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
-  const { org, isOwner, limits, dpa, workspaces, runCount } = await getOrganizationData(orgId);
+  const { org, isOwner, limits, dpa, workspaces, runCount, upcoming } = await getOrganizationData(orgId);
   const planName = limits.plan.charAt(0).toUpperCase() + limits.plan.slice(1);
   const effective = org.retention_days === null ? limits.retention_days : Math.min(org.retention_days, limits.retention_days);
   const current = dpa.find((a) => a.version === DPA_VERSION);
@@ -47,10 +48,22 @@ export default async function OrganizationDataPage({ params }: { params: Promise
         title="Data Processing Agreement"
         description={
           <>
-            The <Link href="/legal/dpa" className="underline">DPA</Link> (version of {DPA_VERSION}) sets how FlowRetest processes personal data for this organization. An owner accepts it for the company; each acceptance is kept with a PDF copy.
+            The <Link href="/legal/dpa" className="underline">DPA</Link> (version of {DPA_VERSION}) sets how FlowRetest processes personal data for this organization. An owner accepts it for the company; each acceptance is kept with a PDF copy. Owners of organizations that accepted it get an email 30 days before a sub-processor changes.
           </>
         }
       >
+        {upcoming.length > 0 ? (
+          <div role="note" className="mb-4 rounded-md border border-diff/40 bg-diff/10 px-4 py-3 text-sm">
+            <p className="font-medium">Announced sub-processor changes</p>
+            <ul className="mt-1 list-disc pl-5">
+              {upcoming.map((n) => (
+                <li key={n.id}>
+                  On {n.effective_on}: {n.changes.map(changeLine).join('; ')}. <Link href="/legal/subprocessors" className="underline">Details</Link>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
         {dpa.length === 0 ? (
           <Empty>Not accepted yet.</Empty>
         ) : (

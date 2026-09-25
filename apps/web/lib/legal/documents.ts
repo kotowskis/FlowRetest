@@ -119,6 +119,11 @@ export const RETENTION_ROWS: RetentionRow[] = [
     removed: 'With the organization (the copies); Stripe under its own policy',
   },
   {
+    what: 'Emails about sub-processor changes: owner address, organizations, result of sending',
+    kept: '1 year after the change takes effect; the announcement itself stays on the sub-processors page',
+    removed: 'Every night',
+  },
+  {
     what: 'Stripe webhook events (ids and types, used to process each event once)',
     kept: '90 days',
     removed: 'Every night',

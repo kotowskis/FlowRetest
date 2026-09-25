@@ -4,6 +4,7 @@ import { notFound, redirect } from 'next/navigation';
 import type { User } from '@supabase/supabase-js';
 import { createClient, type Db } from './supabase/server.ts';
 import type { Tables } from './database.types.ts';
+import type { Notice } from './subprocessor-notices.ts';
 
 export type Organization = Tables<'organizations'>;
 export type Workspace = Tables<'workspaces'>;
@@ -246,16 +247,18 @@ export async function getOrganizationData(orgId: string) {
   const { db, user } = await session();
   assertId(orgId);
   const org = orFail(await db.from('organizations').select('*').eq('id', orgId).maybeSingle(), 'organization');
-  const [owner, limits, dpa, workspaces] = await Promise.all([
+  const [owner, limits, dpa, workspaces, notices] = await Promise.all([
     db.rpc('is_owner', { org: orgId }),
     planLimits(db, orgId),
     db.from('dpa_acceptances').select('*').eq('organization_id', orgId).order('accepted_at', { ascending: false }),
     db.from('workspaces').select('id, name').eq('organization_id', orgId).order('created_at'),
+    // Sub-processor changes that have not taken effect yet (public rows).
+    db.from('subprocessor_notices').select('*').gte('effective_on', new Date().toISOString().slice(0, 10)).order('effective_on'),
   ]);
   const wsRows = orFail(workspaces, 'workspaces');
   const runs = wsRows.length
     ? await db.from('runs').select('id', { count: 'exact', head: true }).in('workspace_id', wsRows.map((w) => w.id))
     : { count: 0, error: null };
   if (runs.error) throw new Error(`runs: ${runs.error.message}`);
-  return { org, isOwner: owner.data === true, limits, dpa: orFail(dpa, 'dpa acceptances'), workspaces: wsRows, runCount: runs.count ?? 0, email: user.email ?? '' };
+  return { org, isOwner: owner.data === true, limits, dpa: orFail(dpa, 'dpa acceptances'), workspaces: wsRows, runCount: runs.count ?? 0, email: user.email ?? '', upcoming: orFail(notices, 'subprocessor notices') as unknown as Notice[] };
 }

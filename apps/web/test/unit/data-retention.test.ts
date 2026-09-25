@@ -36,7 +36,7 @@ test('every legal text has sections, names the provider where it must, and has n
     assert.equal(doc.slug, slug);
     assert.ok(doc.sections.length >= 2, `${slug} has sections`);
     const all = [doc.title, doc.summary, ...doc.sections.flatMap((s) => [s.heading, ...texts(s.blocks)])];
-    for (const t of all) assert.ok(!t.includes('—'), `${slug}: no em dash in "${t.slice(0, 60)}"`);
+    for (const t of all) assert.ok(!t.includes('\u2014'), `${slug}: no em dash in "${t.slice(0, 60)}"`);
     for (const t of all) assert.ok(!/\[(company name|registered address)\]/.test(t), `${slug}: placeholders filled`);
     if (slug === 'dpa' || slug === 'privacy' || slug === 'terms') assert.ok(all.some((t) => t.includes('Skynappse Sp. z o.o.')), `${slug} names the provider`);
   }
