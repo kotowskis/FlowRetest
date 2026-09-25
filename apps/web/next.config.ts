@@ -7,21 +7,6 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), browsing-topics=()' },
-  {
-    key: 'Content-Security-Policy',
-    value: [
-      "default-src 'self'",
-      "img-src 'self' data:",
-      // Next needs inline scripts for hydration and eval in dev.
-      isProd ? "script-src 'self' 'unsafe-inline'" : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-      "style-src 'self' 'unsafe-inline'",
-      "connect-src 'self'",
-      "object-src 'none'",
-      "base-uri 'self'",
-      "form-action 'self'",
-      "frame-ancestors 'none'",
-    ].join('; '),
-  },
   ...(isProd ? [{ key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains' }] : []),
 ];
 
@@ -35,7 +20,12 @@ const nextConfig: NextConfig = {
   serverExternalPackages: ['@react-pdf/renderer'],
   outputFileTracingIncludes: { '/runs/[runId]/pdf': ['./assets/fonts/*.ttf'] },
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      { source: '/:path*', headers: securityHeaders },
+      // Pages get their Content-Security-Policy with a per-request nonce from proxy.ts (lib/csp.ts). API answers are
+      // not HTML and run nothing; a strict policy costs nothing there. Two policies on one page would both apply.
+      { source: '/api/:path*', headers: [{ key: 'Content-Security-Policy', value: "default-src 'none'; frame-ancestors 'none'" }] },
+    ];
   },
 };
 

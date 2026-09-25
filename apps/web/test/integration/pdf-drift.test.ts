@@ -61,7 +61,7 @@ test('the PDF record: refused below Agency, a named attachment on Agency, a 404 
   const res = await get(owner.cookie);
   assert.equal(res.status, 200);
   assert.equal(res.headers.get('content-type'), 'application/pdf');
-  assert.match(res.headers.get('content-disposition') ?? '', /^attachment; filename="flowretest-flow-pdf-wf-\d{4}-\d{2}-\d{2}-diff\.pdf"$/);
+  assert.match(res.headers.get('content-disposition') ?? '', /^attachment; filename="flowretest-flow-pdf-wf-\d{4}-\d{2}-\d{2}-diff\.pdf"; filename\*=UTF-8''flowretest-Flow%20pdf-wf-\d{4}-\d{2}-\d{2}-diff\.pdf$/);
   assert.equal(res.headers.get('cache-control'), 'private, no-store');
   const pdf = Buffer.from(await res.arrayBuffer());
   assert.equal(pdf.subarray(0, 5).toString('latin1'), '%PDF-');

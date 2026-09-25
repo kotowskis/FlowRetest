@@ -7,11 +7,20 @@ import { createOrganization } from '../actions.ts';
 
 export const metadata: Metadata = { title: 'Organizations' };
 
-export default async function OrganizationsPage() {
+/** GitHub sends people here when a callback carries no state of ours (?github=). */
+const GITHUB_MESSAGES: Record<string, string> = {
+  expired: 'The GitHub link expired or did not start here. Connect GitHub again from the workspace page.',
+  updated: 'The GitHub installation changed. To send checks to newly added repositories, an admin of them connects GitHub again from the workspace page.',
+};
+
+export default async function OrganizationsPage({ searchParams }: { searchParams: Promise<{ github?: string }> }) {
   const orgs = await listOrganizations();
+  const { github } = await searchParams;
+  const githubMessage = github ? GITHUB_MESSAGES[github] : undefined;
   return (
     <>
       <PageHeader crumbs={[{ label: 'Organizations' }]} title="Organizations" />
+      {githubMessage ? <p role="status" className="mb-6 text-sm text-muted">{githubMessage}</p> : null}
       <Section title="Your organizations">
         {orgs.length === 0 ? (
           <Empty>You are not in any organization yet. Create one below, or ask an owner to invite this email address.</Empty>

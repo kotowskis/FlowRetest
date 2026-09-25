@@ -45,5 +45,6 @@ export function runEmail(input: RunEmailInput): MailMessage {
     `<p><a href="${escapeHtml(input.url)}">Open the plan</a></p>`,
     `<p style="color:#6f6a62;font-size:12px">You get this email because you subscribed to ${escapeHtml(input.status)} runs of this workspace. <a href="${escapeHtml(input.settingsUrl)}">Change it</a>.</p>`,
   ].join('\n');
-  return { to: input.to, subject: `[FlowRetest] ${input.status}: ${input.workflowName} (${input.workspaceName})`, text: lines.join('\n'), html };
+  // The settings page is where a member turns these emails off; mail clients show it as an unsubscribe link.
+  return { to: input.to, subject: `[FlowRetest] ${input.status}: ${input.workflowName} (${input.workspaceName})`, text: lines.join('\n'), html, headers: { 'List-Unsubscribe': `<${input.settingsUrl}>` } };
 }

@@ -100,7 +100,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
       </div>
 
       <div id="github">
-        <Section title="GitHub" description="A check with the result and a link to the plan on the commit a CI run tested. To block merging on DIFF, make the check required in the branch protection rules.">
+        <Section title="GitHub" description="A check with the result and a link to the plan on the commit a CI run tested. To block merging on DIFF, make the check required in the branch protection rules. On a public repository the check text (node names, hosts, paths, value shapes) is public too.">
           {planNote}
           {githubMessage ? <p role="status" className={`mb-4 text-sm ${githubMessage.ok ? 'text-pass' : 'text-diff'}`}>{githubMessage.text}</p> : null}
           {!githubReady ? (

@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { adminRepositories, authorizeUrl, exchangeCode, githubConfig, signState, userInstallations, verifyState } from '@/lib/github.ts';
+import { adminRepositories, authorizeUrl, exchangeCode, revokeUserToken, githubConfig, signState, userInstallations, verifyState } from '@/lib/github.ts';
 import { ownerOfWorkspace } from '@/lib/github-link.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
 import { env } from '@/lib/env.ts';
@@ -16,7 +16,8 @@ export async function GET(request: NextRequest) {
   if (!config) return NextResponse.redirect(`${env.appUrl()}/orgs`);
   const params = request.nextUrl.searchParams;
   const state = verifyState(config.clientSecret, params.get('state'));
-  if (!state) return NextResponse.redirect(`${env.appUrl()}/orgs?github=expired`);
+  // Changing the repositories of an installation on GitHub also lands here, without our state.
+  if (!state) return NextResponse.redirect(`${env.appUrl()}/orgs?github=${params.get('setup_action') === 'update' ? 'updated' : 'expired'}`);
   const back = (result: string) => NextResponse.redirect(`${env.appUrl()}/w/${state.w}?github=${result}#github`);
 
   const who = await ownerOfWorkspace(state.w);
@@ -45,6 +46,7 @@ export async function GET(request: NextRequest) {
     // Seeing an installation needs read access to one of its repositories; posting checks needs admin rights on the
     // repository that gets them. Linking again refreshes the list after the app was added to more repositories.
     const repositories = await adminRepositories(config, token, installation.id);
+    await revokeUserToken(config, token);
     if (repositories.length === 0) return back('not-admin');
     const { error } = await admin
       .from('github_installations')

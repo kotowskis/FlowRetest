@@ -5,8 +5,10 @@ import { NextResponse, type NextRequest } from 'next/server';
 const PROTECTED = ['/orgs', '/o/', '/w/', '/runs/'];
 
 /** Refreshes the session cookie on every request and sends signed-out visitors of app pages to /login. */
-export async function updateSession(request: NextRequest): Promise<NextResponse> {
-  let response = NextResponse.next({ request });
+export async function updateSession(request: NextRequest, requestHeaders: Headers = request.headers): Promise<NextResponse> {
+  // requestHeaders carries the CSP nonce to the page render (proxy.ts).
+  const forward = () => NextResponse.next({ request: { headers: requestHeaders } });
+  let response = forward();
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   const path = request.nextUrl.pathname;
@@ -18,7 +20,9 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
       getAll: () => request.cookies.getAll(),
       setAll(list, headers) {
         for (const { name, value } of list) request.cookies.set(name, value);
-        response = NextResponse.next({ request });
+        // Refreshed cookies go to the render too: copy them into the forwarded headers.
+        requestHeaders.set('cookie', request.cookies.toString());
+        response = forward();
         for (const { name, value, options } of list) response.cookies.set(name, value, options);
         // A response that sets session cookies must never be cached for another visitor.
         for (const [k, v] of Object.entries(headers ?? {})) response.headers.set(k, v);

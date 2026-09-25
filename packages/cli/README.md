@@ -73,6 +73,13 @@ Nothing leaves your machine unless you run `upload`. The runner talks to two pla
 
 `upload` (and `run --upload`) sends only that redacted report: plan entries, field paths, counts, flags and shapes. Fixtures, call registers and the full `report.json` stay local. The CLI checks the file with the same schema and redaction guard the server uses and refuses to send a report that still carries values. A failed upload after a PASS exits with 4; after a DIFF or an ERROR the plan's own exit code stays.
 
+The hosted layer's address can live in `.flowretest/config.yml`; the token never does (environment or `.flowretest/secrets.env`, which `init` keeps out of git):
+
+```yaml
+cloud:
+  url: https://app.flowretest.example
+```
+
 Baselines (`.flowretest/<workflow>/baseline/`) are meant to be committed so CI can diff against them, and they hold the request bodies of the accepted run: real customer values. Commit them only to a repository that may hold that data; otherwise add `.flowretest/*/baseline/` to `.gitignore`. The GitHub Action posts the redacted plan as a pull request comment unless `values: 'true'` is set.
 
 ## Licensing
@@ -96,7 +103,7 @@ It does not judge new prompts or models (AI nodes are replayed from recordings),
 | `upgrade-check` | replay the same workflow on two n8n images; the plan opens with "Engine differences" (nodes that ran on one engine only, item counts, output keys, new errors) |
 | `redact` | redacted fixture copies for bug reports and shared catalogues |
 | `sync` | write baselines for acceptances made in the hosted report viewer, from the full local report of the accepted run; `pull` does it too unless `--no-sync` |
-| `upload` | send the redacted report of a run to the hosted report viewer (`FLOWRETEST_TOKEN`, `--url` or `cloud.url`); `run --upload` and `upgrade-check --upload` do it after the plan; in GitHub Actions it adds the repository and the tested commit, so the viewer can post a check |
+| `upload` | send the redacted report of a run to the hosted report viewer (`FLOWRETEST_TOKEN`, `--url`, `FLOWRETEST_URL` or `cloud.url` in `config.yml`; https only, http for localhost); `run --upload` and `upgrade-check --upload` do it after the plan; in GitHub Actions it adds the repository and the tested commit (elsewhere `FLOWRETEST_GIT_REPOSITORY` and `FLOWRETEST_GIT_SHA`), so the viewer can post a check |
 | `doctor` | check Docker, images and the sandbox seal |
 | `sandbox prune` | remove leftover sandbox containers |
 | `sandbox export --compose <dir>` | turn a sandbox kept with `run --keep` into a docker-compose file that opens its workflows and executions in the n8n editor on 127.0.0.1:5678, still without a route out |
@@ -125,7 +132,7 @@ expect:
 
 ## CI
 
-`run --format terminal,junit,md` writes `junit.xml` and `plan.md` into the run directory. The composite action in `action/` wraps init, pull and run, uploads the report and keeps one comment per workflow on the pull request up to date. By default the comment and the uploaded report are the redacted plan (shapes instead of values); set `values: 'true'` to post the values. `init` updates a committed `.flowretest/config.yml` in place, so `normalize.ignore` and run settings survive every job:
+`run --format terminal,junit,md` writes `junit.xml` and `plan.md` into the run directory. The composite action in `action/` wraps init, pull and run, uploads the report and keeps one comment per workflow on the pull request up to date. By default the comment is the redacted plan (shapes instead of values); set `values: 'true'` to post the values in the comment. With `upload-url` and `upload-token` the job also uploads the redacted report (always redacted) and sets the output `run-url`. `init` updates a committed `.flowretest/config.yml` in place, so `normalize.ignore` and run settings survive every job:
 
 ```yaml
 - uses: skynappse/flowretest/action@main
@@ -135,6 +142,8 @@ expect:
     workflow-id: 0GV9oevzsHwzQssT
     new-file: workflows/lead-intake.json
     engine: 2.40.5
+    upload-url: https://app.flowretest.example   # optional, hosted report viewer
+    upload-token: ${{ secrets.FLOWRETEST_TOKEN }}
 ```
 
 Before an n8n upgrade:

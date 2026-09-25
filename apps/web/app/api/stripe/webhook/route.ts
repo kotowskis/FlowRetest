@@ -23,15 +23,19 @@ export async function POST(request: NextRequest) {
   if (typeof event.id !== 'string' || typeof event.type !== 'string' || !event.data?.object) return NextResponse.json({ error: 'not a Stripe event' }, { status: 400 });
 
   const admin = createAdminClient();
-  const seen = await admin.from('stripe_events').select('id').eq('id', event.id).maybeSingle();
-  if (seen.data) return NextResponse.json({ received: true, duplicate: true });
+  // Claim the event before handling it: of two deliveries arriving together only one inserts the row and runs.
+  const claim = await admin.from('stripe_events').upsert({ id: event.id, type: event.type, detail: 'in progress' }, { onConflict: 'id', ignoreDuplicates: true }).select('id');
+  if (claim.error) return NextResponse.json({ error: 'could not record the event' }, { status: 500 });
+  if (!claim.data?.length) return NextResponse.json({ received: true, duplicate: true });
   let detail: string;
   try {
     detail = await handleStripeEvent(admin, config, event);
   } catch (e) {
     console.error(`[stripe] ${event.type} ${event.id} failed:`, e instanceof Error ? e.message : e);
+    // Released, so Stripe's retry of this delivery runs the handler again.
+    await admin.from('stripe_events').delete().eq('id', event.id);
     return NextResponse.json({ error: 'could not apply the event' }, { status: 500 });
   }
-  await admin.from('stripe_events').upsert({ id: event.id, type: event.type, detail: detail.slice(0, 500) });
+  await admin.from('stripe_events').update({ detail: detail.slice(0, 500) }).eq('id', event.id);
   return NextResponse.json({ received: true });
 }

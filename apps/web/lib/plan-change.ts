@@ -5,7 +5,7 @@
  */
 import type { createAdminClient } from './supabase/admin.ts';
 import { syncSubscription } from './billing.ts';
-import { changeSubscriptionPrice, createCheckoutSession, createCustomer, getSubscription, priceFor, type Interval, type PaidPlan, type StripeConfig } from './stripe.ts';
+import { changeSubscriptionPrice, createCheckoutSession, createCustomer, getSubscription, priceFor, StripeError, type Interval, type PaidPlan, type StripeConfig } from './stripe.ts';
 
 type Admin = ReturnType<typeof createAdminClient>;
 
@@ -62,14 +62,27 @@ export async function changePlan(admin: Admin, config: StripeConfig, input: { or
     return { kind: 'switched', ok: `Switched to ${target.name}, billed ${interval === 'month' ? 'monthly' : 'yearly'}. The prorated difference is on a new invoice.` };
   }
 
-  const customer = await customerFor(admin, config, orgId, input.email);
   const price = await priceFor(config, plan, interval);
-  const checkout = await createCheckoutSession(config, {
-    customer,
-    price: price.id,
-    organizationId: orgId,
-    successUrl: `${input.billingUrl}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-    cancelUrl: `${input.billingUrl}?checkout=cancelled`,
-  });
+  const session = (customer: string) =>
+    createCheckoutSession(config, {
+      customer,
+      price: price.id,
+      organizationId: orgId,
+      successUrl: `${input.billingUrl}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
+      cancelUrl: `${input.billingUrl}?checkout=cancelled`,
+    });
+  let checkout;
+  try {
+    checkout = await session(await customerFor(admin, config, orgId, input.email));
+  } catch (e) {
+    // The stored customer was deleted in Stripe (by hand, or a test account reset): give the organization a new one
+    // instead of failing every Checkout from now on. Only here, where no subscription is live.
+    if (!(e instanceof StripeError && e.code === 'resource_missing' && /customer/i.test(e.message))) throw e;
+    const { data: org } = await admin.from('organizations').select('name').eq('id', orgId).single();
+    const fresh = await createCustomer(config, { organizationId: orgId, name: org?.name ?? orgId, email: input.email, attempt: String(Date.now()) });
+    const saved = await admin.from('billing_accounts').update({ stripe_customer_id: fresh.id, stripe_subscription_id: null }).eq('organization_id', orgId);
+    if (saved.error) throw new Error(`billing_accounts: ${saved.error.message}`);
+    checkout = await session(fresh.id);
+  }
   return checkout.url ? { kind: 'checkout', url: checkout.url } : { kind: 'refused', error: 'Stripe returned no checkout page.' };
 }

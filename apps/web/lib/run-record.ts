@@ -113,6 +113,12 @@ export function recordCases(report: Pick<PlanReport, 'cases'>, limits: RecordLim
     });
 }
 
+/** The workflow's own name in the file name, for Content-Disposition filename*: no separators, quotes or control characters. */
+export function recordFileNameUtf8(workflowName: string, status: string, date: string): string {
+  const name = [...workflowName].filter((ch) => ch.charCodeAt(0) >= 0x20 && !'/\\:*?"<>|'.includes(ch)).join('').trim().slice(0, 80) || 'workflow';
+  return `flowretest-${name}-${date.slice(0, 10)}-${status.toLowerCase()}.pdf`;
+}
+
 /** flowretest-lead-intake-2026-09-25-diff.pdf: ASCII only, so every browser and mail client keeps the name. */
 export function recordFileName(workflowName: string, status: string, date: string): string {
   const slug = workflowName.normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/ł/g, 'l').replace(/Ł/g, 'L').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60) || 'workflow';

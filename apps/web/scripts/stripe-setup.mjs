@@ -106,9 +106,18 @@ if (hook > 0) {
     console.error('--webhook needs the https URL of /api/stripe/webhook');
     process.exit(2);
   }
-  const endpoint = await stripe('POST', '/v1/webhook_endpoints', { url, enabled_events: WEBHOOK_EVENTS, api_version: VERSION, description: 'FlowRetest billing' });
-  console.log(`webhook endpoint ${endpoint.id} for ${url}`);
-  console.log(`STRIPE_WEBHOOK_SECRET=${endpoint.secret}`);
+  // A second endpoint for the same URL would sign with a secret the app does not know and fail every delivery.
+  const existing = (await stripe('GET', '/v1/webhook_endpoints', { limit: 100 })).data.find((e) => e.url === url);
+  if (existing) {
+    const missing = WEBHOOK_EVENTS.filter((e) => !existing.enabled_events.includes(e) && !existing.enabled_events.includes('*'));
+    if (missing.length > 0) await stripe('POST', `/v1/webhook_endpoints/${existing.id}`, { enabled_events: [...new Set([...existing.enabled_events, ...WEBHOOK_EVENTS])] });
+    console.log(`webhook endpoint ${existing.id} for ${url} already exists${missing.length ? ` (added events: ${missing.join(', ')})` : ''}`);
+    console.log('Stripe shows its signing secret only at creation: keep the STRIPE_WEBHOOK_SECRET you saved, or roll the secret in the dashboard.');
+  } else {
+    const endpoint = await stripe('POST', '/v1/webhook_endpoints', { url, enabled_events: WEBHOOK_EVENTS, api_version: VERSION, description: 'FlowRetest billing' });
+    console.log(`webhook endpoint ${endpoint.id} for ${url}`);
+    console.log(`STRIPE_WEBHOOK_SECRET=${endpoint.secret}`);
+  }
 } else {
   console.log(`\nWebhook: add https://<domain>/api/stripe/webhook with these events (or rerun with --webhook <url>):\n  ${WEBHOOK_EVENTS.join('\n  ')}`);
 }

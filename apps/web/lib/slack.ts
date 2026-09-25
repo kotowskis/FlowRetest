@@ -12,7 +12,10 @@ export function validateSlackWebhook(value: string, extraHosts = process.env.SLA
     return { ok: false, error: 'Paste the full webhook URL from Slack (https://hooks.slack.com/services/...).' };
   }
   const extra = extraHosts.split(',').map((h) => h.trim()).filter(Boolean);
-  const slack = url.protocol === 'https:' && url.hostname === 'hooks.slack.com' && /^\/services\/[A-Za-z0-9]+\/[A-Za-z0-9]+\/[A-Za-z0-9]+$/.test(url.pathname) && !url.search;
+  // Incoming webhooks (/services/...) and Workflow Builder webhook triggers (/triggers/...); a trigger's workflow
+  // gets the message as its `text` variable.
+  const path = /^\/services\/[A-Za-z0-9]+\/[A-Za-z0-9]+\/[A-Za-z0-9]+$|^\/triggers\/[A-Za-z0-9]+\/[0-9]+\/[A-Za-z0-9]+$/;
+  const slack = url.protocol === 'https:' && url.hostname === 'hooks.slack.com' && path.test(url.pathname) && !url.search;
   if (!slack && !extra.includes(url.host)) return { ok: false, error: 'Only Slack incoming webhooks (https://hooks.slack.com/services/...) are accepted.' };
   const parts = url.pathname.split('/');
   const secret = parts.pop() ?? '';

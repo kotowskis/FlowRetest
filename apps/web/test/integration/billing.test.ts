@@ -101,13 +101,15 @@ test('uploads per 24 hours and workspaces beyond the limit after a downgrade are
   assert.equal(refused.error?.hint, 'workspace-over-limit');
   assert.ifError((await admin().rpc('ingest_run', ingestArgs(olderToken.hash))).error);
 
-  // Fill the Free plan's 50 uploads of the last 24 hours.
-  const run = await admin().from('runs').select('*').eq('workspace_id', older).limit(1).single();
-  const row = insertableRun(run.data!);
-  assert.ifError((await admin().from('runs').insert(Array.from({ length: 48 }, () => row))).error);
+  // Fill the Free plan's 50 uploads of the last 24 hours (uploads are counted in upload_events, not in runs).
+  const orgOf = (await admin().from('workspaces').select('organization_id').eq('id', older).single()).data!.organization_id;
+  assert.ifError((await admin().from('upload_events').insert(Array.from({ length: 48 }, () => ({ organization_id: orgOf })))).error);
   const full = await admin().rpc('ingest_run', ingestArgs(olderToken.hash));
   assert.equal(full.error?.code, '53400');
   assert.equal(full.error?.hint, 'uploads');
+  // Deleting the day's runs does not give the uploads back.
+  assert.ifError((await admin().from('runs').delete().eq('workspace_id', older)).error);
+  assert.equal((await admin().rpc('ingest_run', ingestArgs(olderToken.hash))).error?.hint, 'uploads');
 });
 
 test('retention: runs past the plan period are purged, with 30 days of grace after a paid plan ends', { skip }, async () => {
@@ -283,9 +285,9 @@ test('the upload API answers 402 for a workspace beyond the plan and 429 when up
   assert.match(((await over.json()) as { error: string }).error, /past the limit of the Free plan \(1 workspace, oldest first\).*Billing page/);
   const ok = await upload(older);
   assert.equal(ok.status, 201, await ok.clone().text());
-  const run = (await admin().from('runs').select('*').eq('workspace_id', older).limit(1).single()).data!;
-  const row = insertableRun(run);
-  await admin().from('runs').insert(Array.from({ length: 49 }, () => row));
+  const orgOf = (await admin().from('workspaces').select('organization_id').eq('id', older).single()).data!.organization_id;
+  await admin().from('upload_events').insert(Array.from({ length: 49 }, () => ({ organization_id: orgOf })));
   const full = await upload(older);
   assert.equal(full.status, 429);
+  assert.equal(full.headers.get('retry-after'), '3600');
 });

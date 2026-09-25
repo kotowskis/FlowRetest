@@ -27,7 +27,7 @@ const QUESTIONS: Array<[string, React.ReactNode]> = [
   [
     'What leaves our machines?',
     <>
-      Only the redacted report that <code className="font-mono">flowretest upload</code> writes: node names, methods, hosts, URL templates, field names, and each value as its type, length and a salted hash. Request bodies, recorded executions and credentials stay where the runner ran. The service refuses a report that still carries values.
+      Only the redacted report that <code className="font-mono">flowretest upload</code> writes: the workflow and node names, the version file name, methods, hosts, URL templates, field names, and each value as its type, length and a salted hash. Error messages come with emails, quoted text and long numbers replaced. From CI it also carries the repository, commit, branch and pull request number. Request bodies, recorded executions and credentials stay where the runner ran. The service refuses a report that still carries values.
     </>,
   ],
   ['What is a workspace?', 'One customer n8n instance. An agency with twelve customers on their own instances needs twelve workspaces, which is the Agency plan.'],

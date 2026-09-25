@@ -2,7 +2,7 @@ import { after, before, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { generateKeyPairSync, createHmac } from 'node:crypto';
 import {
-  appJwt, checkConclusion, checkSummary, createCheckRun, exchangeCode, githubConfig, installUrl, signState, userInstallations, verifyState, verifyWebhookSignature, type GitHubConfig,
+  appJwt, checkConclusion, checkSummary, createCheckRun, exchangeCode, forgetInstallationTokens, githubConfig, installUrl, signState, userInstallations, verifyState, verifyWebhookSignature, type GitHubConfig,
 } from '../../lib/github.ts';
 import { slackMessage, validateSlackWebhook } from '../../lib/slack.ts';
 // @ts-expect-error plain JS dev script without types
@@ -38,6 +38,8 @@ test('a check run is created with an installation token obtained with the app JW
   assert.equal(posted?.body.status, 'completed');
   assert.equal(posted?.body.details_url, 'http://app.test/runs/1');
   await assert.rejects(createCheckRun(config, 1001, { repository: 'someone-else/flows', sha: 'a'.repeat(40), name: 'x', conclusion: 'success', detailsUrl: 'u', externalId: 'r', title: 't', summary: 's' }), /403/);
+  // Installation tokens are cached for 50 minutes; a forged app key must be tried without one.
+  forgetInstallationTokens();
   const forged = { ...config, privateKey: generateKeyPairSync('rsa', { modulusLength: 2048 }).privateKey.export({ type: 'pkcs8', format: 'pem' }).toString() };
   await assert.rejects(createCheckRun(forged, 1001, { repository: 'acme-agency/flows', sha: 'a'.repeat(40), name: 'x', conclusion: 'success', detailsUrl: 'u', externalId: 'r', title: 't', summary: 's' }), /401/);
 });

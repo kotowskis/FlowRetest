@@ -37,7 +37,13 @@ export async function POST(request: NextRequest) {
   if (error) {
     if (isTokenError(error)) return fail(401, 'invalid or revoked workspace token');
     const limit = planLimitOf(error);
-    if (limit) return fail(limit === 'uploads' ? 429 : 402, `${error.message}; an owner can change the plan on the Billing page of the organization`);
+    if (limit === 'uploads') {
+      // The window is the last 24 hours; an hour is a fair first wait for a CI retry.
+      const res = fail(429, `${error.message}; an owner can change the plan on the Billing page of the organization`);
+      res.headers.set('retry-after', '3600');
+      return res;
+    }
+    if (limit) return fail(402, `${error.message}; an owner can change the plan on the Billing page of the organization`);
     console.error('[api/runs] ingest_run failed:', error.code, error.message);
     return fail(500, 'could not store the run');
   }

@@ -86,17 +86,45 @@ async function call<T>(url: string, init: { method?: string; auth?: string; body
   return (text ? JSON.parse(text) : {}) as T;
 }
 
+const tokens = new Map<string, { token: string; until: number }>();
+
 /**
  * A token of the installation limited to one repository (the name without the owner) and to writing checks, so a
  * mistake elsewhere in the app cannot reach the installation's other repositories or permissions.
  */
 export async function installationToken(config: GitHubConfig, installationId: number, repository: string): Promise<string> {
+  // Tokens live an hour; reused for 50 minutes per installation and repository instead of one request per check.
+  const key = `${config.apiUrl} ${installationId} ${repository}`;
+  const cached = tokens.get(key);
+  if (cached && cached.until > Date.now()) return cached.token;
   const json = await call<{ token: string }>(`${config.apiUrl}/app/installations/${installationId}/access_tokens`, {
     method: 'POST',
     auth: `Bearer ${appJwt(config)}`,
     body: { repositories: [repository], permissions: { checks: 'write' } },
   });
+  tokens.set(key, { token: json.token, until: Date.now() + 50 * 60_000 });
   return json.token;
+}
+
+/** Forgets cached installation tokens (a 401 means the installation changed); for tests too. */
+export function forgetInstallationTokens(): void {
+  tokens.clear();
+}
+
+/** Revokes a user token right after it proved which installations the person can use; it is not needed again. */
+export async function revokeUserToken(config: GitHubConfig, userToken: string): Promise<void> {
+  await fetch(`${config.apiUrl}/applications/${encodeURIComponent(config.clientId)}/token`, {
+    method: 'DELETE',
+    headers: {
+      accept: 'application/vnd.github+json',
+      'x-github-api-version': '2022-11-28',
+      'user-agent': 'flowretest-web',
+      authorization: `Basic ${Buffer.from(`${config.clientId}:${config.clientSecret}`).toString('base64')}`,
+      'content-type': 'application/json',
+    },
+    body: JSON.stringify({ access_token: userToken }),
+    signal: AbortSignal.timeout(10_000),
+  }).catch(() => undefined);
 }
 
 export interface CheckRunInput {
@@ -110,7 +138,24 @@ export interface CheckRunInput {
   summary: string;
 }
 
+/**
+ * Posts one completed check. One more attempt after a GitHub hiccup (5xx, a secondary rate limit) or an expired
+ * cached token; after that the failure is logged by the caller and nothing retries it.
+ */
 export async function createCheckRun(config: GitHubConfig, installationId: number, input: CheckRunInput): Promise<{ id: number; html_url: string }> {
+  try {
+    return await postCheckRun(config, installationId, input);
+  } catch (e) {
+    // A 403 is a secondary rate limit only when GitHub says so; "Resource not accessible" does not change on retry.
+    const limited = e instanceof GitHubError && (e.status === 429 || (e.status === 403 && /rate limit/i.test(e.message)));
+    if (!(e instanceof GitHubError) || !(limited || e.status === 401 || e.status >= 500)) throw e;
+    tokens.clear();
+    await new Promise((r) => setTimeout(r, limited ? 5000 : 1000));
+    return postCheckRun(config, installationId, input);
+  }
+}
+
+async function postCheckRun(config: GitHubConfig, installationId: number, input: CheckRunInput): Promise<{ id: number; html_url: string }> {
   const token = await installationToken(config, installationId, input.repository.split('/')[1] ?? '');
   return call<{ id: number; html_url: string }>(`${config.apiUrl}/repos/${input.repository}/check-runs`, {
     method: 'POST',

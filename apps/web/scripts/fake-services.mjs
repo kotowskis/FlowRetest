@@ -6,8 +6,8 @@
 //   node scripts/fake-services.mjs serve   # listen on 127.0.0.1:55390 (FAKE_SERVICES_PORT)
 //
 // Installations: 1001 belongs to the organization "acme-agency": "agency-dev" administers its repository "flows",
-// "contractor" reads it and administers nothing; 1002 belongs to "someone-else". OAuth codes are "code-<login>" and give the token "gho_<login>". GET /__calls lists every request
-// the fake received, DELETE /__calls clears the list.
+// "contractor" reads it and administers nothing; 1002 belongs to "someone-else". OAuth codes are "code-<login>" and
+// give the token "gho_<login>". GET /__calls lists every request the fake received, DELETE /__calls clears the list.
 import { createHmac, createPublicKey, createVerify, generateKeyPairSync } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
@@ -38,7 +38,8 @@ const PRICES = [
  * goes to cancel_url, ?deliver=0 skips the webhooks), subscriptions, invoices, the customer portal. Control endpoints:
  * POST /__stripe/subscriptions/<id> {status, cancel_at_period_end, cancel_at} changes a subscription as Stripe would
  * after a failed card or a cancellation (classic mode sets cancel_at_period_end, flexible mode cancel_at) and delivers
- * the event; POST /__stripe/customers/<id> {fail_payments} makes the customer's next charges fail, so a plan change
+ * the event; POST /__stripe/customers/<id> {fail_payments} makes the customer's next charges fail (and {deleted}
+ * deletes it), so a plan change
  * with payment_behavior=pending_if_incomplete stays pending; GET /__stripe dumps the state. As in Stripe, an
  * idempotency key reused with other parameters is refused.
  */
@@ -48,7 +49,7 @@ function fakeStripe({ appUrl, baseOf }) {
   // the same cus_/sub_ id twice.
   let n = Date.now();
   const now = () => Math.floor(Date.now() / 1000);
-  const err = (res, status, message) => json(res, status, { error: { message, type: 'invalid_request_error' } });
+  const err = (res, status, message, code) => json(res, status, { error: { message, type: 'invalid_request_error', ...(code ? { code } : {}) } });
 
   async function deliver(type, object) {
     const body = JSON.stringify({ id: `evt_${n++}`, object: 'event', type, created: now(), data: { object } });
@@ -101,7 +102,13 @@ function fakeStripe({ appUrl, baseOf }) {
     if (req.method === 'POST' && (m = /^\/__stripe\/customers\/([\w]+)$/.exec(path))) {
       const customer = state.customers.get(m[1]);
       if (!customer) return err(res, 404, 'No such customer');
-      customer.fail_payments = (raw ? JSON.parse(raw) : {}).fail_payments === true;
+      const change = raw ? JSON.parse(raw) : {};
+      // {deleted: true} plays a customer deleted in the Stripe dashboard.
+      if (change.deleted) {
+        state.customers.delete(m[1]);
+        return json(res, 200, { id: m[1], deleted: true });
+      }
+      customer.fail_payments = change.fail_payments === true;
       return json(res, 200, customer);
     }
     if ((m = /^\/stripe\/pay\/([\w]+)$/.exec(path)) && req.method === 'GET') {
@@ -159,7 +166,11 @@ function fakeStripe({ appUrl, baseOf }) {
     }
     if (req.method === 'POST' && api === '/v1/checkout/sessions') {
       if (form.mode !== 'subscription') return err(res, 400, 'mode must be subscription');
-      if (!state.customers.has(form.customer)) return err(res, 400, `No such customer: '${form.customer}'`);
+      if (!state.customers.has(form.customer)) return err(res, 400, `No such customer: '${form.customer}'`, 'resource_missing');
+      const key = req.headers['idempotency-key'];
+      const seen = key ? state.idempotency.get(key) : undefined;
+      if (seen && seen.params !== raw) return err(res, 400, 'Keys for idempotent requests can only be used with the same parameters they were first used with.');
+      if (seen) return json(res, 200, state.sessions.get(seen.id));
       if (!PRICES.some((p) => p.id === form['line_items[0][price]'])) return err(res, 400, `No such price: '${form['line_items[0][price]']}'`);
       if (!form.success_url || !form.cancel_url) return err(res, 400, 'success_url and cancel_url are required');
       const id = `cs_test_${n++}`;
@@ -169,6 +180,7 @@ function fakeStripe({ appUrl, baseOf }) {
         tax_id_collection: form['tax_id_collection[enabled]'] === 'true',
       };
       state.sessions.set(id, session);
+      if (key) state.idempotency.set(key, { id, params: raw });
       return json(res, 200, session);
     }
     if (req.method === 'GET' && (m = /^\/v1\/checkout\/sessions\/([\w]+)$/.exec(api))) {
@@ -278,6 +290,12 @@ export async function startFakeServices({ port = 0, publicKeyPem, appUrl }) {
         if (!/^[0-9a-f]{40}$/.test(body?.head_sha ?? '')) return json(res, 422, { message: 'Invalid head_sha' });
         const id = nextCheck++;
         return json(res, 201, { id, html_url: `http://fake/${m[1]}/${m[2]}/runs/${id}`, conclusion: body.conclusion });
+      }
+      if (req.method === 'DELETE' && url.pathname === `/api/applications/${FAKE.clientId}/token`) {
+        // Revoking a user token: GitHub answers 204 for the app's own client id and secret.
+        const basic = Buffer.from(`${FAKE.clientId}:${FAKE.clientSecret}`).toString('base64');
+        res.writeHead(req.headers.authorization === `Basic ${basic}` ? 204 : 401).end();
+        return;
       }
       if (req.method === 'GET' && url.pathname === '/api/user/installations') {
         const login = auth.startsWith('gho_') ? auth.slice(4) : undefined;

@@ -91,7 +91,11 @@ test('an installation is linked only for an owner whose GitHub account can acces
   assert.match(await link(owner.cookie, 'contractor'), /github=not-admin/);
   assert.equal((await owner.db.from('github_installations').select('installation_id').eq('workspace_id', workspaceId)).data?.length, 0);
 
+  await fetch(`${fakeUrl}/__calls`, { method: 'DELETE' });
   assert.match(await link(owner.cookie), /github=linked/);
+  // The user token only proved access; it is revoked right after.
+  const revoked = ((await (await fetch(`${fakeUrl}/__calls`)).json()) as Array<{ method: string; path: string }>).some((c) => c.method === 'DELETE' && c.path === '/api/applications/Iv1.fakeclient/token');
+  assert.ok(revoked, 'the OAuth token was not revoked');
   const rows = await owner.db.from('github_installations').select('installation_id, account_login, account_type, repositories').eq('workspace_id', workspaceId);
   assert.deepEqual(rows.data, [{ installation_id: 1001, account_login: 'acme-agency', account_type: 'Organization', repositories: ['acme-agency/flows'] }]);
   assert.equal((await outsider.db.from('github_installations').select('installation_id')).data?.length, 0);

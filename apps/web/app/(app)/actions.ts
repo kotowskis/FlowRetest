@@ -67,7 +67,7 @@ export async function inviteMember(_prev: FormState, form: FormData): Promise<Fo
   if (!input.success) return { error: firstIssue(input.error) };
   const { db, user } = await session();
   const { error } = await db.from('invitations').insert({ organization_id: input.data.orgId, email: input.data.email, invited_by: user.id });
-  if (error?.code === '23505') return { error: 'This address is already invited.' };
+  if (error?.code === '23505') return { error: error.hint === 'member' ? 'This person is already a member.' : 'This address is already invited.' };
   if (planLimitOf(error)) return { error: `${error?.message}. Change the plan on the Billing page or remove someone first.` };
   if (error) return { error: 'Only owners can invite people.' };
   revalidatePath(`/o/${input.data.orgId}`);

@@ -717,6 +717,32 @@ export type Database = {
         }
         Relationships: []
       }
+      upload_events: {
+        Row: {
+          at: string
+          id: number
+          organization_id: string
+        }
+        Insert: {
+          at?: string
+          id?: never
+          organization_id: string
+        }
+        Update: {
+          at?: string
+          id?: never
+          organization_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "upload_events_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       workflows: {
         Row: {
           created_at: string
@@ -872,6 +898,7 @@ export type Database = {
       }
       claim_invitations: { Args: never; Returns: number }
       create_organization: { Args: { p_name: string }; Returns: string }
+      drift_matrix_allowed: { Args: { ws: string }; Returns: boolean }
       ingest_run: {
         Args: {
           p_engine_image: string

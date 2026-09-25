@@ -3,7 +3,7 @@
  * Plain fetch with form-encoded bodies and a pinned API version; the base URL is configurable so tests and local
  * development run against scripts/fake-services.mjs.
  */
-import { createHmac, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, timingSafeEqual } from 'node:crypto';
 
 /** Pinned so a change of the account's default version cannot move fields (basil moved billing periods to items). */
 export const STRIPE_API_VERSION = '2026-02-25.clover';
@@ -173,9 +173,12 @@ export interface StripeEvent {
   data: { object: { id?: string; object?: string; customer?: string | null; subscription?: string | null } };
 }
 
-export function createCustomer(config: StripeConfig, input: { organizationId: string; name: string; email: string }): Promise<StripeCustomer> {
+export function createCustomer(config: StripeConfig, input: { organizationId: string; name: string; email: string; attempt?: string }): Promise<StripeCustomer> {
   // The idempotency key stops a double click from creating two customers for one organization (Stripe keeps keys 24 h).
-  return call(config, 'POST', '/v1/customers', { name: input.name, email: input.email, metadata: { organization_id: input.organizationId } }, `frt-customer-${input.organizationId}`);
+  // It covers the email too: Stripe refuses a key reused with other parameters, so two owners clicking at once would
+  // otherwise get an error; with the email in the key the second gets its own customer and the database keeps one.
+  const who = createHash('sha256').update(input.email).digest('hex').slice(0, 12);
+  return call(config, 'POST', '/v1/customers', { name: input.name, email: input.email, metadata: { organization_id: input.organizationId } }, `frt-customer-${input.organizationId}-${who}${input.attempt ? `-${input.attempt}` : ''}`);
 }
 
 export async function priceFor(config: StripeConfig, plan: PaidPlan, interval: Interval): Promise<StripePrice> {
@@ -189,6 +192,8 @@ export async function priceFor(config: StripeConfig, plan: PaidPlan, interval: I
 export function createCheckoutSession(
   config: StripeConfig,
   input: { customer: string; price: string; organizationId: string; successUrl: string; cancelUrl: string },
+  // A double click within ten seconds gets the same Checkout page instead of a second one.
+  idempotencyKey = `frt-checkout-${input.organizationId}-${input.price}-${Math.floor(Date.now() / 10_000)}`,
 ): Promise<CheckoutSession> {
   return call(config, 'POST', '/v1/checkout/sessions', {
     mode: 'subscription',
@@ -204,7 +209,7 @@ export function createCheckoutSession(
     tax_id_collection: { enabled: true },
     customer_update: { name: 'auto', address: 'auto' },
     automatic_tax: config.automaticTax ? { enabled: true } : undefined,
-  });
+  }, idempotencyKey);
 }
 
 export function getCheckoutSession(config: StripeConfig, id: string): Promise<CheckoutSession> {

@@ -34,7 +34,7 @@ inputs:
     description: Post the Markdown plan as a pull request comment (needs pull-requests write permission)
     default: 'true'
   values:
-    description: Show request values in the pull request comment and the uploaded report. The default 'false' posts and uploads the redacted plan (type, length and hash instead of values), because the fixtures are production data.
+    description: Show request values in the pull request comment. The default 'false' posts the redacted plan (type, length and hash instead of values), because the fixtures are production data. Uploads (upload-url) always send the redacted report, whatever this says.
     default: 'false'
   upload-url:
     description: Hosted FlowRetest URL. With upload-token, the redacted report is uploaded and the hosted layer posts a check on the tested commit (GitHub App linked to the workspace).

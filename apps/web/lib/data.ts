@@ -6,8 +6,6 @@ import { createClient, type Db } from './supabase/server.ts';
 import type { Tables } from './database.types.ts';
 
 export type Organization = Tables<'organizations'>;
-export type Member = Tables<'members'>;
-export type Invitation = Tables<'invitations'>;
 export type Workspace = Tables<'workspaces'>;
 export type Workflow = Tables<'workflows'>;
 export type Run = Tables<'runs'>;
@@ -196,10 +194,25 @@ export async function getRun(runId: string) {
   const ws = orFail(workspace, 'workspace');
   const [orgRow, limits] = await Promise.all([db.from('organizations').select('*').eq('id', ws.organization_id).single(), planLimits(db, ws.organization_id)]);
   const org = orFail(orgRow, 'organization');
-  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances'), check: checks.data?.[0], pdfExport: limits.pdf_export };
+  return { run, workflow: orFail(workflow, 'workflow'), workspace: ws, org, previous: orFail(neighbours, 'runs')[0], acceptances: orFail(acceptances, 'acceptances'), check: checks.data?.[0], pdfExport: limits.pdf_export, plan: limits.plan };
 }
 
 export type DriftCell = Tables<'latest_upgrade_runs'>;
+
+/**
+ * Every cell of the drift view for these workspaces. PostgREST returns at most max_rows (1000) rows per request and
+ * says nothing when it cuts, so the rows are read in pages.
+ */
+async function driftCells(db: Db, workspaceIds: string[]): Promise<DriftCell[]> {
+  const out: DriftCell[] = [];
+  const page = 1000;
+  for (let from = 0; ; from += page) {
+    const { data, error } = await db.from('latest_upgrade_runs').select('*').in('workspace_id', workspaceIds).order('id').range(from, from + page - 1);
+    if (error) throw new Error(`drift: ${error.message}`);
+    out.push(...(data ?? []));
+    if ((data ?? []).length < page) return out;
+  }
+}
 
 /** Drift matrix of one workspace: the latest upgrade-check of each workflow against each target engine. */
 export async function getWorkspaceDrift(workspaceId: string) {
@@ -208,11 +221,11 @@ export async function getWorkspaceDrift(workspaceId: string) {
   const workspace = orFail(await db.from('workspaces').select('*').eq('id', workspaceId).maybeSingle(), 'workspace');
   const [org, cells, workflows, limits] = await Promise.all([
     db.from('organizations').select('*').eq('id', workspace.organization_id).single(),
-    db.from('latest_upgrade_runs').select('*').eq('workspace_id', workspaceId),
+    driftCells(db, [workspaceId]),
     db.from('workflows').select('id, name, n8n_workflow_id').eq('workspace_id', workspaceId),
     planLimits(db, workspace.organization_id),
   ]);
-  return { workspace, org: orFail(org, 'organization'), cells: orFail(cells, 'drift') as DriftCell[], workflows: orFail(workflows, 'workflows'), limits };
+  return { workspace, org: orFail(org, 'organization'), cells, workflows: orFail(workflows, 'workflows'), limits };
 }
 
 /** Drift matrix of an organization: the same cells for every workspace, summed per workspace and target engine. */
@@ -222,6 +235,6 @@ export async function getOrganizationDrift(orgId: string) {
   const org = orFail(await db.from('organizations').select('*').eq('id', orgId).maybeSingle(), 'organization');
   const [workspaces, limits] = await Promise.all([db.from('workspaces').select('id, name, engine_tag').eq('organization_id', orgId).order('name'), planLimits(db, orgId)]);
   const wsRows = orFail(workspaces, 'workspaces');
-  const cells = wsRows.length ? orFail(await db.from('latest_upgrade_runs').select('*').in('workspace_id', wsRows.map((w) => w.id)), 'drift') : [];
-  return { org, workspaces: wsRows, cells: cells as DriftCell[], limits };
+  const cells = wsRows.length ? await driftCells(db, wsRows.map((w) => w.id)) : [];
+  return { org, workspaces: wsRows, cells, limits };
 }

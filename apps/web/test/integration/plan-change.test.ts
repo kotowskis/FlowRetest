@@ -45,6 +45,8 @@ async function pay(url: string): Promise<void> {
   assert.equal((await fetch(url, { redirect: 'manual' })).status, 302);
 }
 
+const form = (params: Record<string, string>) => ({ method: 'POST', headers: { authorization: `Bearer ${config.secretKey}`, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params) });
+
 const control = (path: string, body: unknown) => fetch(`${fakeBase}/__stripe/${path}`, { method: 'POST', body: JSON.stringify(body) });
 
 test('Checkout, then a switch that is paid at once, then one whose payment fails and stays pending', { skip }, async () => {
@@ -96,9 +98,14 @@ test('a subscription scheduled to end, unpaid or past due is sent to the portal,
 
 test('when the tracked subscription ends, a second live one of the same customer takes over', { skip }, async () => {
   const o = await org();
-  // Two Checkout tabs, both paid.
+  // A double click gets the same Checkout page.
   const a = (await change(o, 'team', 'month')) as { url: string };
-  const b = (await change(o, 'team', 'month')) as { url: string };
+  assert.equal(((await change(o, 'team', 'month')) as { url: string }).url, a.url);
+  // A second tab opened later is a second session; both get paid.
+  const customer = (await admin().from('billing_accounts').select('stripe_customer_id').eq('organization_id', o.id).single()).data!.stripe_customer_id;
+  const b = (await (await fetch(`${stripeUrl}/v1/checkout/sessions`, form({
+    mode: 'subscription', customer, 'line_items[0][price]': 'price_team_monthly', 'line_items[0][quantity]': '1', success_url: `${appUrl}/ok`, cancel_url: `${appUrl}/no`,
+  }))).json()) as { url: string };
   await pay(a.url);
   const tracked = (await account(o.id)).stripe_subscription_id as string;
   await pay(b.url);
@@ -112,7 +119,6 @@ test('when the tracked subscription ends, a second live one of the same customer
 
 test('a paid Checkout whose customer was never stored is applied through client_reference_id', { skip }, async () => {
   const o = await org();
-  const form = (params: Record<string, string>) => ({ method: 'POST', headers: { authorization: `Bearer ${config.secretKey}`, 'content-type': 'application/x-www-form-urlencoded' }, body: new URLSearchParams(params) });
   const customer = (await (await fetch(`${stripeUrl}/v1/customers`, form({ name: 'Lost', email: o.email }))).json()) as { id: string };
   const session = (await (await fetch(`${stripeUrl}/v1/checkout/sessions`, form({
     mode: 'subscription', customer: customer.id, client_reference_id: o.id, 'line_items[0][price]': 'price_team_monthly', 'line_items[0][quantity]': '1',
@@ -121,4 +127,18 @@ test('a paid Checkout whose customer was never stored is applied through client_
   await pay(session.url);
   const acc = await account(o.id);
   assert.deepEqual([acc.stripe_customer_id, acc.plan], [customer.id, 'team']);
+});
+
+test('a customer deleted in Stripe is replaced at the next Checkout instead of failing every time', { skip }, async () => {
+  const o = await org();
+  const first = (await change(o, 'team', 'month')) as { url: string };
+  assert.ok(first.url);
+  const old = (await account(o.id)).stripe_customer_id;
+  await control(`customers/${old}`, { deleted: true });
+  // A later click (a new idempotency window) for another price, so the old key is not replayed.
+  const again = await change(o, 'agency', 'month');
+  assert.equal(again.kind, 'checkout', JSON.stringify(again));
+  assert.notEqual((await account(o.id)).stripe_customer_id, old);
+  await pay((again as { url: string }).url);
+  assert.equal((await account(o.id)).plan, 'agency');
 });

@@ -25,6 +25,9 @@ jobs:
       # Plan: npm audit at level high; once, not per OS.
       - if: matrix.os == 'ubuntu-latest'
         run: npm audit --audit-level=high
+      # docs/formaty is generated from packages/schemas; a schema change without `npm run schemas` fails here.
+      - if: matrix.os == 'ubuntu-latest'
+        run: npx turbo build --filter=@flowretest/schemas && node scripts/export-schemas.mjs --check
 
   # Paid layer (apps/web): migrations on a local Supabase, generated types in sync, production build, then RLS and
   # API tests against the built app.

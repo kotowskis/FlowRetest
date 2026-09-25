@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import type { PlanReport } from '@flowretest/core';
-import { getRun, session } from '@/lib/data.ts';
+import { getRun } from '@/lib/data.ts';
 import { env } from '@/lib/env.ts';
-import { recordCases, recordFileName } from '@/lib/run-record.ts';
+import { recordCases, recordFileName, recordFileNameUtf8 } from '@/lib/run-record.ts';
 import { renderRunRecord } from '@/lib/pdf/run-record-pdf.ts';
 import type { RunSummary } from '@/lib/ingest.ts';
 
@@ -16,11 +16,9 @@ const utc = (value: string | null) => (value ? `${new Date(value).toISOString().
 export async function GET(_request: Request, { params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
   // getRun reads through RLS: a run of another organization is a 404 here as on the page.
-  const { run, workflow, workspace, org, acceptances } = await getRun(runId);
-  const { db } = await session();
-  const { data: plan } = await db.rpc('org_plan', { org: org.id });
-  if (plan?.[0]?.pdf_export !== true) {
-    return NextResponse.json({ error: `PDF export is not part of the ${plan?.[0]?.plan ?? 'current'} plan; see ${env.appUrl()}/o/${org.id}/billing` }, { status: 402 });
+  const { run, workflow, workspace, org, acceptances, pdfExport, plan } = await getRun(runId);
+  if (!pdfExport) {
+    return NextResponse.json({ error: `PDF export is not part of the ${plan} plan; see ${env.appUrl()}/o/${org.id}/billing` }, { status: 402 });
   }
   const report = run.report as unknown as PlanReport;
   const pdf = await renderRunRecord({
@@ -50,10 +48,12 @@ export async function GET(_request: Request, { params }: { params: Promise<{ run
     printedAt: utc(new Date().toISOString()),
   });
   const name = recordFileName(workflow.name, run.status, run.created_at);
+  const utf8 = recordFileNameUtf8(workflow.name, run.status, run.created_at);
   return new NextResponse(new Uint8Array(pdf), {
     headers: {
       'content-type': 'application/pdf',
-      'content-disposition': `attachment; filename="${name}"`,
+      // The ASCII name for every client, the workflow's own name (Polish letters, CJK) for those that read filename*.
+      'content-disposition': `attachment; filename="${name}"; filename*=UTF-8''${encodeURIComponent(utf8)}`,
       'cache-control': 'private, no-store',
     },
   });
