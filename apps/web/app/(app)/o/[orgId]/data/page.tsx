@@ -83,7 +83,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
             ))}
           </ul>
         )}
-        {isOwner && !current && legal.draft ? <div className="mt-6"><DraftNotice /></div> : null}
+        {isOwner && !current && legal.draft ? <div className="mt-6"><DraftNotice complete={legal.complete} /></div> : null}
         {isOwner && !current && dpaAcceptanceOpen(legal) ? (
           <div className="mt-6">
             <ActionForm action={acceptDpa} submit="Accept the DPA" pending="Recording…" className="grid gap-3 sm:grid-cols-2 sm:items-end">

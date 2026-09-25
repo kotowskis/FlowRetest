@@ -45,7 +45,7 @@ export default async function LegalPage({ params, searchParams }: Params) {
   return (
     <PublicShell>
       <main lang={lang} className="mx-auto max-w-3xl px-4 py-10">
-        {who.draft ? <DraftNotice lang={lang} /> : null}
+        {who.draft ? <DraftNotice lang={lang} complete={who.complete} /> : null}
         {doc === 'dpa' ? (
           <p className="mt-6 text-sm">
             {lang === 'en' ? <span className="font-medium">English</span> : <Link href="/legal/dpa" className="underline">English</Link>}

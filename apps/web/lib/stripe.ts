@@ -17,6 +17,11 @@ export interface StripeConfig {
   apiUrl: string;
   /** Stripe Tax on Checkout; needs tax registrations in the Stripe account first. */
   automaticTax: boolean;
+  /**
+   * A live key without an explicit STRIPE_AUTOMATIC_TAX. The pages say prices exclude VAT, so a live Checkout without
+   * a decision about VAT is refused instead of issuing invoices with none (audit of week 14, item 10).
+   */
+  taxUndecided?: boolean;
   /** Days of free trial for an organization's first subscription; 0 turns trials off. */
   trialDays: number;
 }
@@ -51,6 +56,7 @@ export function stripeConfig(env: StripeEnv = process.env as StripeEnv): StripeC
     webhookSecret,
     apiUrl: (env.STRIPE_API_URL || 'https://api.stripe.com').replace(/\/+$/, ''),
     automaticTax: env.STRIPE_AUTOMATIC_TAX === 'true',
+    taxUndecided: /^[rs]k_live_/.test(secretKey) && !['true', 'false'].includes(env.STRIPE_AUTOMATIC_TAX ?? ''),
     trialDays: trialDays(env),
   };
 }
@@ -214,6 +220,9 @@ export function createCheckoutSession(
   // A double click within ten seconds gets the same Checkout page instead of a second one.
   idempotencyKey = `frt-checkout-${input.organizationId}-${input.price}-${Math.floor(Date.now() / 10_000)}`,
 ): Promise<CheckoutSession> {
+  if (config.taxUndecided) {
+    return Promise.reject(new StripeError(500, 'STRIPE_AUTOMATIC_TAX is not set for a live Stripe key: set it to true once Stripe Tax has the VAT registrations, or to false for a provider that charges no VAT (and change the pages that say prices exclude VAT)'));
+  }
   return call(config, 'POST', '/v1/checkout/sessions', {
     mode: 'subscription',
     customer: input.customer,

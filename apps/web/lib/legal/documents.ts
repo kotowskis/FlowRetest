@@ -37,6 +37,8 @@ export function isLegalSlug(value: string): value is LegalSlug {
 export const PLAN_HISTORY_DAYS = { Free: 14, Team: 90, Agency: 365 } as const;
 export const GRACE_DAYS = 30;
 export const INVITATION_DAYS = 30;
+/** auth.audit_log_entries, purged by purge_expired_runs. */
+export const AUTH_LOG_DAYS = 30;
 
 export interface Subprocessor {
   name: string;
@@ -53,9 +55,9 @@ export interface Subprocessor {
  * before the draft banner goes.
  */
 export const SUBPROCESSORS: Subprocessor[] = [
-  { name: 'Supabase Inc.', purpose: 'Database and sign-in', data: 'Everything the service stores', location: 'EU (Frankfurt, AWS eu-central-1)', pl: { purpose: 'Baza danych i logowanie', data: 'Wszystko, co przechowuje usługa', location: 'UE (Frankfurt, AWS eu-central-1)' } },
-  { name: 'Vercel Inc.', purpose: 'Hosting of the web application', data: 'Requests to the application, including uploaded reports in transit; request logs', location: 'EU (Frankfurt) for functions; global edge network', pl: { purpose: 'Hosting aplikacji internetowej', data: 'Żądania do aplikacji, w tym przesyłane raporty; logi żądań', location: 'UE (Frankfurt) dla funkcji; globalna sieć brzegowa' } },
-  { name: 'Resend Inc.', purpose: 'Email delivery (sign-in codes, run notifications)', data: 'Email addresses; workflow and workspace names and run status in notifications', location: 'EU (Ireland, AWS eu-west-1)', pl: { purpose: 'Wysyłka poczty (kody logowania, powiadomienia o przebiegach)', data: "Adresy e-mail; nazwy workflow i workspace'ów oraz status przebiegu w powiadomieniach", location: 'UE (Irlandia, AWS eu-west-1)' } },
+  { name: 'Supabase Inc.', purpose: 'Database and sign-in', data: 'Everything the service stores', location: 'EU (Frankfurt, AWS eu-central-1); access from outside the EEA for support under the EU Standard Contractual Clauses', pl: { purpose: 'Baza danych i logowanie', data: 'Wszystko, co przechowuje usługa', location: 'UE (Frankfurt, AWS eu-central-1); dostęp spoza EOG na potrzeby wsparcia na podstawie standardowych klauzul umownych UE' } },
+  { name: 'Vercel Inc.', purpose: 'Hosting of the web application', data: 'Requests to the application, including uploaded reports in transit; request logs', location: 'EU (Frankfurt) for functions; global edge network; transfers under the EU-US Data Privacy Framework or the EU Standard Contractual Clauses', pl: { purpose: 'Hosting aplikacji internetowej', data: 'Żądania do aplikacji, w tym przesyłane raporty; logi żądań', location: 'UE (Frankfurt) dla funkcji; globalna sieć brzegowa; przekazywanie na podstawie EU-US Data Privacy Framework albo standardowych klauzul umownych UE' } },
+  { name: 'Resend Inc.', purpose: 'Email delivery (sign-in codes, run notifications)', data: 'Email addresses; workflow and workspace names and run status in notifications', location: 'EU (Ireland, AWS eu-west-1); access from outside the EEA for support under the EU Standard Contractual Clauses', pl: { purpose: 'Wysyłka poczty (kody logowania, powiadomienia o przebiegach)', data: "Adresy e-mail; nazwy workflow i workspace'ów oraz status przebiegu w powiadomieniach", location: 'UE (Irlandia, AWS eu-west-1); dostęp spoza EOG na potrzeby wsparcia na podstawie standardowych klauzul umownych UE' } },
   { name: 'Stripe Payments Europe Ltd.', purpose: 'Payments and invoices', data: 'Billing contact, address, VAT number, payment method', location: 'EU (Ireland), with transfers to Stripe Inc. under the EU Standard Contractual Clauses', pl: { purpose: 'Płatności i faktury', data: 'Kontakt rozliczeniowy, adres, numer VAT, metoda płatności', location: 'UE (Irlandia), z przekazywaniem do Stripe Inc. na podstawie standardowych klauzul umownych UE' } },
 ];
 
@@ -67,7 +69,7 @@ export interface RetentionRow {
 
 export const RETENTION_ROWS: RetentionRow[] = [
   {
-    what: 'Uploaded runs: redacted report, status, runner and engine, git repository, commit and pull request number',
+    what: 'Uploaded runs: redacted report, status, runner and engine, git repository, branch, commit and pull request number',
     kept: `The plan's history (Free ${PLAN_HISTORY_DAYS.Free} days, Team ${PLAN_HISTORY_DAYS.Team}, Agency ${PLAN_HISTORY_DAYS.Agency}) or a shorter period an owner sets`,
     removed: 'Every night at 03:17 UTC; at any time by an owner (run, workspace or organization)',
   },
@@ -92,6 +94,11 @@ export const RETENTION_ROWS: RetentionRow[] = [
     removed: 'When an owner removes them or they delete their account',
   },
   {
+    what: 'The email address of a person inside records they made: acceptances, DPA acceptances they signed, the notification log',
+    kept: 'As long as the record, also after the person leaves or deletes their account; the records show who approved what',
+    removed: 'With the record',
+  },
+  {
     what: 'Invitations: invited email address',
     kept: `Until accepted or cancelled, at most ${INVITATION_DAYS} days`,
     removed: 'On acceptance or cancellation; every night after 30 days',
@@ -100,6 +107,11 @@ export const RETENTION_ROWS: RetentionRow[] = [
     what: 'Account: email address, sign-in times',
     kept: 'Until the account is deleted',
     removed: 'On the Account page',
+  },
+  {
+    what: 'Sign-in log of the authentication service (email address, IP address, event such as sign-in or account deletion)',
+    kept: `${AUTH_LOG_DAYS} days, also after the account is deleted`,
+    removed: 'Every night',
   },
   {
     what: 'Sign-in attempts (email address, IP address), used to limit guessing of codes',
@@ -123,7 +135,7 @@ export const RETENTION_ROWS: RetentionRow[] = [
   },
   {
     what: 'Emails about sub-processor changes: owner address, organizations, result of sending',
-    kept: '1 year after the change takes effect; the announcement itself stays on the sub-processors page',
+    kept: '1 year after the change takes effect, also after the organization is deleted, as proof of the notice; the announcement itself stays on the sub-processors page',
     removed: 'Every night',
   },
   {
@@ -136,13 +148,22 @@ export const RETENTION_ROWS: RetentionRow[] = [
     kept: '7 days',
     removed: 'Overwritten by newer backups',
   },
+  {
+    what: 'Request logs of the hosting provider (IP address, path, time, status)',
+    kept: 'At most 30 days',
+    removed: 'By the hosting provider',
+  },
 ];
 
 export const LOCAL_ONLY =
   'The runner never uploads request bodies, recorded executions, fixtures, baselines or credentials. They stay in the .flowretest folder on the machine or CI runner where the runner ran.';
 
+/**
+ * What redaction keeps readable, as packages/core/src/redact.ts does it (ADR 0012 and 0018): the texts must not
+ * promise that every value is hidden, because small numbers and true/false stay.
+ */
 export const REDACTED =
-  'A redacted report holds workflow and node names, version labels, HTTP methods, hosts, URL templates, field names, and each value as its type, its length and a hash. The hash is keyed with a random secret that is created for each report on the runner and never uploaded, so the service cannot recompute it from a guessed value. Error messages come with email addresses, quoted text and long numbers replaced. The service refuses a report that still carries values.';
+  'A redacted report holds workflow and node names, version labels, HTTP methods, hosts, URL templates and field names. Every text value becomes its type, its length and a hash; objects and lists become their size. The hash is keyed with a random secret that is created for each report on the runner and never uploaded, so the service cannot recompute it from a guessed value. Numbers below one million, true, false and null stay readable, because they show what a change does to an amount, a count or a flag; larger numbers become their count of digits. Field names and path segments stay readable unless they contain an email address, a space or seven or more digits. Error messages come with email addresses, quoted text and long numbers replaced. The service refuses a report in which a text value, an email address or a long number is still readable. A field listed under normalize.ignore in .flowretest/config.yml is left out of the report entirely.';
 
 function dpa(p: Provider): LegalDocument {
   return {
@@ -172,18 +193,18 @@ function dpa(p: Provider): LegalDocument {
           {
             ul: [
               'Members and invited people of the Customer: email address, role, sign-in times, IP address of sign-in attempts, messages they write when accepting a run.',
-              'Clients of the Customer and their contacts, only in redacted form: types, lengths and keyed hashes of values that n8n workflows would send, plus names the Customer gave to workflows, nodes and workspaces.',
-              'Authors of commits, only as a repository name, commit hash and pull request number when the runner uploads from CI.',
+              'Clients of the Customer and their contacts, only in redacted form: types, lengths and keyed hashes of the text values that n8n workflows would send, the numbers below one million and true/false values among them, field names, plus names the Customer gave to workflows, nodes and workspaces.',
+              'Authors of commits, as a repository name, branch name, commit hash and pull request number when the runner uploads from CI, and the GitHub account name of a linked GitHub installation.',
             ],
           },
           { p: REDACTED },
-          { p: `${LOCAL_ONLY} The Customer must not put personal data into workflow, node or workspace names it uploads, and must upload only reports written by flowretest upload or flowretest redact --report.` },
+          { p: `${LOCAL_ONLY} The Customer must not put personal data into workflow, node, workspace or branch names it uploads, must list under normalize.ignore the fields whose numbers or true/false values alone would reveal a person or a special category of data, and must upload only reports written by flowretest upload or flowretest redact --report.` },
         ],
       },
       {
         heading: '4. Instructions',
         blocks: [
-          { p: 'The Customer\'s instructions are this agreement, the Terms of Service, and the settings its owners choose in the application (members, workspaces, integrations, retention). The Provider tells the Customer without delay if it believes an instruction breaks data protection law.' },
+          { p: 'The Provider processes the data only on the Customer\'s documented instructions, also as regards transfers outside the EEA, unless Union or Member State law requires otherwise; in that case the Provider tells the Customer before processing, unless that law forbids it. The Customer\'s instructions are this agreement, the Terms of Service, and the settings its owners choose in the application (members, workspaces, integrations, retention). The Provider tells the Customer without delay if it believes an instruction breaks data protection law.' },
         ],
       },
       {
@@ -195,15 +216,15 @@ function dpa(p: Provider): LegalDocument {
       {
         heading: '6. Sub-processors',
         blocks: [
-          { p: 'The Customer allows the Provider to use the sub-processors listed at /legal/subprocessors (Annex 3). The Provider binds each of them by a written contract with data protection obligations no weaker than these.' },
-          { p: 'The Provider announces a new or replaced sub-processor on that page and by email to the owners of the organization at least 30 days before it starts processing. The Customer may object in writing within those 30 days; if the parties find no solution, the Customer may terminate the affected paid plan and receives a refund of prepaid fees for the unused period.' },
+          { p: 'The Customer allows the Provider to use the sub-processors listed at /legal/subprocessors (Annex 3). The Provider binds each of them by a written contract with data protection obligations no weaker than these, and remains liable to the Customer for their work.' },
+          { p: 'The Provider announces a new or replaced sub-processor on that page and by email to the owners of the organization at least 30 days before it starts processing; the 30 days run from the day the email is sent. The Customer may object in writing within those 30 days; if the parties find no solution, the Customer may terminate the affected paid plan and receives a refund of prepaid fees for the unused period.' },
           { p: 'GitHub and Slack receive data only when an owner links a GitHub installation or adds a Slack webhook. They act on the Customer\'s instructions under the Customer\'s own agreements with them and are not sub-processors of the Provider.' },
         ],
       },
       {
         heading: '7. Transfers outside the EEA',
         blocks: [
-          { p: 'The Provider stores customer data in the European Union. A transfer outside the European Economic Area happens only to a sub-processor listed in Annex 3 and under an adequacy decision or the EU Standard Contractual Clauses.' },
+          { p: 'The Provider stores customer data in the European Union. Some sub-processors in Annex 3 belong to groups based in the United States and may reach the data from outside the European Economic Area for support and operations. Such a transfer happens only to a sub-processor listed in Annex 3 and under an adequacy decision, including the EU-US Data Privacy Framework for a certified company, or under the EU Standard Contractual Clauses in the sub-processor\'s data processing terms.' },
         ],
       },
       {
@@ -222,7 +243,8 @@ function dpa(p: Provider): LegalDocument {
         heading: '10. Deletion and return',
         blocks: [
           { p: 'Runs are deleted after the retention period of the plan or the shorter period an owner sets, as described at /legal/retention. An owner can export all data of the organization at any time (Data page of the organization).' },
-          { p: 'When the Customer deletes the organization, its data is removed from the live database at once and from backups within 7 days, unless law requires the Provider to keep a copy. Invoices are kept for as long as tax law requires.' },
+          { p: 'When the Customer deletes the organization, its data is removed from the live database at once and from backups within 7 days, unless law requires the Provider to keep a copy. Invoices are kept for as long as tax law requires. The record of sub-processor emails sent to the owners stays for one year after the change as proof of the notice (/legal/retention).' },
+          { p: 'When the Terms of Service end for any other reason, owners can export the data during the notice period, and the Provider deletes the organization and its data within 30 days after the end, unless law requires it to keep a copy.' },
         ],
       },
       {
@@ -246,9 +268,9 @@ function dpa(p: Provider): LegalDocument {
               rows: [
                 ['Subject', 'Hosting of redacted FlowRetest run reports and the approval history for the Customer'],
                 ['Duration', 'The term of the Terms of Service plus the deletion periods in section 10'],
-                ['Data subjects', 'Members and invited people of the Customer; clients of the Customer and their contacts in redacted form; commit authors as repository and commit ids'],
-                ['Data', 'Email addresses, roles, sign-in times and IP addresses of sign-in attempts, acceptance messages; types, lengths and keyed hashes of values; names given by the Customer'],
-                ['Special categories', 'None intended; values are never uploaded in clear text'],
+                ['Data subjects', 'Members and invited people of the Customer; clients of the Customer and their contacts in redacted form; commit authors as repository, branch and commit ids'],
+                ['Data', 'Email addresses, roles, sign-in times and IP addresses of sign-in attempts, acceptance messages; types, lengths and keyed hashes of text values, numbers below one million and true/false values; names given by the Customer; repository, branch and GitHub account names'],
+                ['Special categories', 'None intended. Text values are never uploaded in clear text; the Customer keeps fields whose numbers or true/false values would reveal a special category out of the report with normalize.ignore'],
                 ['Operations', 'Storage, display, comparison of runs, notifications, export, deletion'],
                 ['Retention', 'As listed at /legal/retention'],
               ],
@@ -261,7 +283,7 @@ function dpa(p: Provider): LegalDocument {
         blocks: [
           {
             ul: [
-              'Redaction on the Customer\'s side before upload, with a keyed hash whose key stays on the runner; the service refuses reports with values in them.',
+              'Redaction on the Customer\'s side before upload, with a keyed hash whose key stays on the runner; the service refuses reports with readable text values, email addresses or long numbers in them.',
               'TLS for every connection to the application and between the application and its database.',
               'Encryption at rest of the database and its backups by the hosting provider (AES-256).',
               'Row level security in the database: members read only their own organizations; only the server writes runs, after checking the report.',
@@ -297,7 +319,7 @@ function subprocessors(): LegalDocument {
       {
         heading: 'Changes',
         blocks: [
-          { p: 'A new or replaced sub-processor is announced here and by email to the owners of every organization that accepted the Data Processing Agreement, at least 30 days before it starts processing (section 6 of the DPA).' },
+          { p: 'A new or replaced sub-processor is announced here and by email to the owners of every organization, at least 30 days before it starts processing, counted from the day the email is sent (section 6 of the DPA).' },
           { p: 'GitHub and Slack are not on this list. They receive data only when an owner links them, and act under the organization\'s own agreements with them.' },
         ],
       },
@@ -318,7 +340,10 @@ function retention(): LegalDocument {
       },
       {
         heading: 'What the service stores and for how long',
-        blocks: [{ table: { head: ['Data', 'Kept', 'Deleted'], rows: RETENTION_ROWS.map((r) => [r.what, r.kept, r.removed]) } }],
+        blocks: [
+          { p: 'The nightly deletion runs at 03:17 UTC, so a record can stay up to one day longer than the period below.' },
+          { table: { head: ['Data', 'Kept', 'Deleted'], rows: RETENTION_ROWS.map((r) => [r.what, r.kept, r.removed]) } },
+        ],
       },
       {
         heading: 'Shorter history',
@@ -338,7 +363,7 @@ function retention(): LegalDocument {
           {
             ul: [
               'Owners export all data of the organization as one JSON Lines file from its Data page, on every plan.',
-              'Owners delete single runs, workspaces with all their runs and acceptances, or the whole organization. Deleting an organization with a running subscription is refused until the subscription is cancelled.',
+              'Owners delete single runs, workspaces with all their runs and acceptances, or the whole organization. Deleting an organization is refused while its subscription still renews; once the cancellation is scheduled on the Billing page, the organization can be deleted and nothing more is charged.',
               'Each person deletes their own account on the Account page. An owner who is the only owner of an organization with other members has to make someone else an owner first.',
               'Deleted data leaves the backups within 7 days.',
             ],
@@ -373,6 +398,8 @@ function privacy(p: Provider): LegalDocument {
                 ['Email address, sign-in times', 'Your account and sign-in by email code', 'Contract, Art. 6(1)(b)'],
                 ['Email address and IP address of sign-in attempts', 'Limiting guessing of sign-in codes', 'Legitimate interest in securing accounts, Art. 6(1)(f)'],
                 ['Billing contact, address, VAT number', 'Payments and invoices', 'Contract and tax law, Art. 6(1)(b) and (c)'],
+                ['Company, name, role and email of the person who accepts the DPA for an organization', 'Record of the agreement', 'Legal obligation to show compliance and legitimate interest, Art. 6(1)(c) and (f)'],
+                ['Email address of owners who got a notice of a sub-processor change', 'Proof that the notice was sent', 'Legitimate interest, Art. 6(1)(f)'],
                 ['Request logs of the hosting provider (IP address, path, time)', 'Running and securing the service', 'Legitimate interest, Art. 6(1)(f)'],
                 ['Emails you send us', 'Answering you', 'Legitimate interest, Art. 6(1)(f)'],
               ],
@@ -386,7 +413,7 @@ function privacy(p: Provider): LegalDocument {
       },
       {
         heading: 'Recipients',
-        blocks: [{ p: 'The sub-processors at /legal/subprocessors process data for us. We give data to authorities only when the law requires it.' }],
+        blocks: [{ p: 'The sub-processors at /legal/subprocessors process data for us. Stripe Payments Europe passes payment data to Stripe Inc. in the United States under the EU Standard Contractual Clauses; that page says for each sub-processor whether and on what basis data may leave the European Economic Area. We give data to authorities only when the law requires it.' }],
       },
       {
         heading: 'How long',
@@ -395,7 +422,7 @@ function privacy(p: Provider): LegalDocument {
       {
         heading: 'Your rights',
         blocks: [
-          { p: `You can ask for access to your data, a copy of it, its correction or deletion, a restriction of processing, and you can object to processing based on legitimate interest. Write to ${p.email}; we answer within one month. You can delete your account yourself on the Account page.` },
+          { p: `You can ask for access to your data, a copy of it in a machine-readable format (data portability), its correction or deletion, or a restriction of processing, and you can object to processing based on legitimate interest. Write to ${p.email}; we answer within one month. You can delete your account yourself on the Account page.` },
           { p: 'You can complain to the President of the Personal Data Protection Office (Prezes Urzędu Ochrony Danych Osobowych, ul. Stawki 2, 00-193 Warsaw, Poland) or to the authority where you live or work.' },
         ],
       },
@@ -426,7 +453,7 @@ function terms(p: Provider): LegalDocument {
       {
         heading: '3. Plans and payment',
         blocks: [
-          { p: 'The plans, their limits and prices are on the pricing page. Prices exclude VAT. Paid plans are billed in advance, monthly or yearly, by Stripe. A plan change takes effect at once and is charged or credited pro rata.' },
+          { p: 'The plans, their limits and prices are on the pricing page. Prices exclude VAT: a business in Poland pays Polish VAT on top, a business elsewhere in the EU gives its VAT number and pays under reverse charge. Paid plans are billed in advance, monthly or yearly, by Stripe. A plan change takes effect at once and is charged or credited pro rata.' },
           { p: 'The first paid plan of an organization may start with a free trial of the length shown on the pricing page. Stripe takes the card at the start and charges nothing during the trial. When the trial ends, the plan is billed like any other unless you cancelled before that day. An organization gets one trial.' },
           { p: 'You can cancel at any time on the billing page. The plan stays until the end of the paid period; we do not refund the remaining part of a period, except as stated in section 6 of the Data Processing Agreement.' },
           { p: 'If a payment fails and Stripe cannot collect it after its retries, the organization moves to the Free plan. Nothing is deleted on that day; the retention rules at /legal/retention apply.' },
@@ -461,6 +488,12 @@ function terms(p: Provider): LegalDocument {
         heading: '8. Changes to these terms, law and courts',
         blocks: [
           { p: 'We send changes to these terms to the owners by email at least 30 days before they take effect; if you do not accept them you can cancel before that date. Polish law applies. Disputes go to the court competent for our registered office.' },
+        ],
+      },
+      {
+        heading: '9. Term and termination',
+        blocks: [
+          { p: 'These terms apply to an organization from its creation until it is deleted. You end them at any time by deleting the organization on its Data page. We may end them with 30 days\' notice by email to the owners, or at once for a serious breach of section 5. During the notice the owners can export the data; we delete the organization and its data within 30 days after the end, as section 10 of the Data Processing Agreement says.' },
         ],
       },
     ],

@@ -9,7 +9,7 @@ const LOCAL_ONLY_PL =
   'Runner nigdy nie przesyła treści żądań, nagranych wykonań, fixture\'ów, baseline\'ów ani poświadczeń. Zostają one w katalogu .flowretest na komputerze albo w runnerze CI, na którym działał runner.';
 
 const REDACTED_PL =
-  'Raport po redakcji zawiera nazwy workflow i węzłów, etykiety wersji, metody HTTP, hosty, szablony adresów URL i nazwy pól. Każdą wartość zastępuje jej typ, długość i skrót. Skrót powstaje z kluczem losowanym dla każdego raportu na komputerze z runnerem; klucz nie jest przesyłany, więc usługa nie może odtworzyć skrótu ze zgadniętej wartości. W komunikatach błędów adresy e-mail, cytowany tekst i długie liczby są zastąpione. Usługa odrzuca raport, w którym zostały wartości.';
+  'Raport po redakcji zawiera nazwy workflow i węzłów, etykiety wersji, metody HTTP, hosty, szablony adresów URL oraz nazwy pól. Każdą wartość tekstową zastępuje jej typ, długość i skrót, a obiekty i listy zastępuje ich rozmiar. Skrót powstaje z kluczem losowanym dla każdego raportu na komputerze z runnerem; klucz nie jest przesyłany, więc usługa nie może odtworzyć skrótu ze zgadniętej wartości. Liczby mniejsze niż milion, wartości logiczne true i false oraz null zostają czytelne, bo pokazują, jak zmiana wpływa na kwotę, licznik albo flagę; większe liczby zastępuje liczba ich cyfr. Nazwy pól i segmenty ścieżek zostają czytelne, chyba że zawierają adres e-mail, spację albo co najmniej siedem cyfr z rzędu. W komunikatach błędów adresy e-mail, cytowany tekst i długie liczby są zastąpione. Usługa odrzuca raport, w którym czytelna została wartość tekstowa, adres e-mail albo długa liczba. Pole wpisane w normalize.ignore w pliku .flowretest/config.yml w ogóle nie trafia do raportu.';
 
 export function dpaPl(p: Provider, version: string, subprocessorRows: string[][]): LegalDocument {
   return {
@@ -21,7 +21,7 @@ export function dpaPl(p: Provider, version: string, subprocessorRows: string[][]
       {
         heading: '1. Strony i zakres',
         blocks: [
-          { p: `Umowę zawierają organizacja, która ją akceptuje (Klient), oraz ${p.name}, ${p.address}, ${p.companyId} (Dostawca). Umowa dotyczy danych osobowych, które Dostawca przetwarza dla Klienta, świadcząc usługę hostowaną FlowRetest na podstawie Regulaminu.` },
+          { p: `Umowę zawierają organizacja, która ją akceptuje (Klient), oraz ${p.name}, ${p.address}, ${p.companyId} (Dostawca). Umowa dotyczy danych osobowych, które Dostawca przetwarza dla Klienta, świadcząc usługę hostowaną FlowRetest na podstawie Regulaminu (Terms of Service, dostępnego po angielsku).` },
           { p: 'Klient działa jako administrator albo jako podmiot przetwarzający dla własnych klientów. Gdy Klient jest podmiotem przetwarzającym, Dostawca jest jego dalszym podmiotem przetwarzającym, a Klient przenosi na Dostawcę obowiązki z własnej umowy, które dotyczą usługi.' },
           { p: 'Runner open source (CLI flowretest i GitHub Action) działa na komputerach Klienta i nie jest objęty tą umową. Dostawca nie ma dostępu do danych, które runner czyta albo przechowuje.' },
         ],
@@ -39,18 +39,18 @@ export function dpaPl(p: Provider, version: string, subprocessorRows: string[][]
           {
             ul: [
               'Członkowie Klienta i osoby zaproszone: adres e-mail, rola, czasy logowania, adres IP prób logowania, wiadomości wpisane przy akceptacji przebiegu.',
-              'Klienci Klienta i ich kontakty, wyłącznie po redakcji: typy i długości wartości, które wysłałyby workflow n8n, oraz ich skróty z kluczem, a także nazwy, które Klient nadał workflow i węzłom oraz workspace\'om.',
-              'Autorzy commitów, wyłącznie jako nazwa repozytorium, skrót commita i numer pull requesta, gdy runner przesyła raport z CI.',
+              'Klienci Klienta i ich kontakty, wyłącznie po redakcji: typy i długości wartości tekstowych, które wysłałyby workflow n8n, oraz ich skróty z kluczem, a także liczby mniejsze niż milion i wartości logiczne spośród tych wartości, nazwy pól oraz nazwy, które Klient nadał workflow i węzłom oraz workspace\'om.',
+              'Autorzy commitów jako nazwa repozytorium, nazwa gałęzi, skrót commita i numer pull requesta, gdy runner przesyła raport z CI, oraz nazwa konta GitHub podłączonej instalacji GitHub.',
             ],
           },
           { p: REDACTED_PL },
-          { p: `${LOCAL_ONLY_PL} Klient nie umieszcza danych osobowych w przesyłanych nazwach workflow, węzłów ani workspace'ów i przesyła wyłącznie raporty zapisane przez flowretest upload albo flowretest redact --report.` },
+          { p: `${LOCAL_ONLY_PL} Klient nie może umieszczać danych osobowych w przesyłanych nazwach workflow, węzłów, workspace'ów ani gałęzi. Musi wpisać w normalize.ignore pola, których liczby albo wartości logiczne same ujawniłyby osobę albo szczególną kategorię danych, a przesyłać może wyłącznie raporty zapisane przez flowretest upload albo flowretest redact --report.` },
         ],
       },
       {
         heading: '4. Polecenia',
         blocks: [
-          { p: 'Poleceniami Klienta są ta umowa, Regulamin oraz ustawienia wybrane przez właścicieli organizacji w aplikacji (członkowie, workspace\'y, integracje, retencja). Dostawca niezwłocznie informuje Klienta, jeśli uzna, że polecenie narusza przepisy o ochronie danych.' },
+          { p: 'Dostawca przetwarza dane wyłącznie na udokumentowane polecenie Klienta, także w sprawie przekazywania poza EOG, chyba że obowiązek przetwarzania nakłada na niego prawo Unii lub państwa członkowskiego; wtedy informuje Klienta przed rozpoczęciem przetwarzania, o ile to prawo tego nie zabrania. Poleceniami Klienta są ta umowa, Regulamin oraz ustawienia wybrane przez właścicieli organizacji w aplikacji (członkowie, workspace\'y, integracje, retencja). Dostawca niezwłocznie informuje Klienta, jeśli uzna, że polecenie narusza przepisy o ochronie danych.' },
         ],
       },
       {
@@ -62,15 +62,15 @@ export function dpaPl(p: Provider, version: string, subprocessorRows: string[][]
       {
         heading: '6. Dalsze podmioty przetwarzające',
         blocks: [
-          { p: 'Klient zgadza się, żeby Dostawca korzystał z dalszych podmiotów przetwarzających wymienionych na stronie /legal/subprocessors (Załącznik 3). Dostawca wiąże każdy z nich pisemną umową z obowiązkami ochrony danych nie słabszymi niż w tej umowie.' },
-          { p: 'O nowym albo zmienionym dalszym podmiocie przetwarzającym Dostawca informuje na tej stronie oraz mailem do właścicieli organizacji co najmniej 30 dni przed rozpoczęciem przetwarzania. Klient może w tym terminie zgłosić sprzeciw na piśmie. Jeśli strony nie znajdą rozwiązania, Klient może wypowiedzieć plan płatny, którego zmiana dotyczy, i otrzymuje zwrot opłaty za niewykorzystany okres.' },
+          { p: 'Klient zgadza się, żeby Dostawca korzystał z dalszych podmiotów przetwarzających wymienionych na stronie /legal/subprocessors (Załącznik 3). Dostawca wiąże każdy z nich pisemną umową z obowiązkami ochrony danych nie słabszymi niż w tej umowie i odpowiada wobec Klienta za ich działania.' },
+          { p: 'O nowym albo zastąpionym dalszym podmiocie przetwarzającym Dostawca informuje na tej stronie oraz mailem do właścicieli organizacji co najmniej 30 dni przed rozpoczęciem przetwarzania; termin liczy się od dnia wysłania maila. Klient może w tym terminie zgłosić sprzeciw na piśmie. Jeśli strony nie znajdą rozwiązania, Klient może wypowiedzieć plan płatny, którego zmiana dotyczy, i otrzymuje zwrot opłaty za niewykorzystany okres.' },
           { p: 'GitHub i Slack otrzymują dane tylko wtedy, gdy właściciel podłączy instalację GitHub albo doda webhook Slacka. Działają na polecenie Klienta na podstawie jego własnych umów z nimi i nie są dalszymi podmiotami przetwarzającymi Dostawcy.' },
         ],
       },
       {
         heading: '7. Przekazywanie poza EOG',
         blocks: [
-          { p: 'Dostawca przechowuje dane Klienta w Unii Europejskiej. Przekazanie poza Europejski Obszar Gospodarczy następuje tylko do dalszego podmiotu z Załącznika 3, na podstawie decyzji stwierdzającej odpowiedni stopień ochrony albo standardowych klauzul umownych UE.' },
+          { p: 'Dostawca przechowuje dane Klienta w Unii Europejskiej. Część dalszych podmiotów przetwarzających z Załącznika 3 należy do grup z siedzibą w Stanach Zjednoczonych i może mieć dostęp do danych spoza Europejskiego Obszaru Gospodarczego na potrzeby wsparcia i utrzymania usług. Takie przekazanie następuje tylko do dalszego podmiotu przetwarzającego z Załącznika 3, na podstawie decyzji stwierdzającej odpowiedni stopień ochrony, w tym EU-US Data Privacy Framework dla firmy z certyfikacją, albo standardowych klauzul umownych UE zawartych w warunkach przetwarzania danych tego podmiotu.' },
         ],
       },
       {
@@ -89,7 +89,8 @@ export function dpaPl(p: Provider, version: string, subprocessorRows: string[][]
         heading: '10. Usunięcie i zwrot danych',
         blocks: [
           { p: 'Przebiegi są usuwane po okresie przechowywania z planu albo po krótszym okresie ustawionym przez właściciela, zgodnie z opisem na stronie /legal/retention. Właściciel może w każdej chwili wyeksportować wszystkie dane organizacji (strona Data organizacji).' },
-          { p: 'Gdy Klient usuwa organizację, jej dane znikają z bazy od razu, a z kopii zapasowych w ciągu 7 dni, chyba że przepisy wymagają od Dostawcy zachowania kopii. Faktury są przechowywane tak długo, jak wymagają tego przepisy podatkowe.' },
+          { p: 'Gdy Klient usuwa organizację, jej dane znikają z bazy od razu, a z kopii zapasowych w ciągu 7 dni, chyba że przepisy wymagają od Dostawcy zachowania kopii. Faktury są przechowywane tak długo, jak wymagają tego przepisy podatkowe. Rejestr maili o zmianach dalszych podmiotów przetwarzających wysłanych do właścicieli zostaje przez rok po zmianie jako dowód zawiadomienia (/legal/retention).' },
+          { p: 'Gdy Regulamin przestaje obowiązywać z innego powodu, właściciele mogą wyeksportować dane w okresie wypowiedzenia, a Dostawca usuwa organizację i jej dane w ciągu 30 dni od zakończenia, chyba że przepisy wymagają zachowania kopii.' },
         ],
       },
       {
@@ -113,9 +114,9 @@ export function dpaPl(p: Provider, version: string, subprocessorRows: string[][]
               rows: [
                 ['Przedmiot', 'Przechowywanie raportów przebiegów FlowRetest po redakcji oraz historii akceptacji Klienta'],
                 ['Czas trwania', 'Okres obowiązywania Regulaminu oraz terminy usunięcia z punktu 10'],
-                ['Osoby, których dane dotyczą', 'Członkowie Klienta i osoby zaproszone; klienci Klienta i ich kontakty po redakcji; autorzy commitów jako identyfikatory repozytorium i commita'],
-                ['Dane', 'Adresy e-mail, role, czasy logowania i adresy IP prób logowania, wiadomości przy akceptacjach; typy i długości wartości oraz ich skróty z kluczem; nazwy nadane przez Klienta'],
-                ['Szczególne kategorie danych', 'Nie są przewidziane; wartości nigdy nie są przesyłane jawnym tekstem'],
+                ['Osoby, których dane dotyczą', 'Członkowie Klienta i osoby zaproszone; klienci Klienta i ich kontakty po redakcji; autorzy commitów jako identyfikatory repozytorium, gałęzi oraz commita'],
+                ['Dane', 'Adresy e-mail, role, czasy logowania i adresy IP prób logowania, wiadomości przy akceptacjach; typy i długości wartości tekstowych oraz ich skróty z kluczem, liczby mniejsze niż milion i wartości logiczne; nazwy nadane przez Klienta; nazwy repozytoriów oraz gałęzi, nazwy kont GitHub'],
+                ['Szczególne kategorie danych', 'Nie są przewidziane. Wartości tekstowe nigdy nie są przesyłane jawnym tekstem; pola, których liczby albo wartości logiczne ujawniałyby szczególną kategorię danych, Klient wyłącza z raportu przez normalize.ignore'],
                 ['Operacje', 'Przechowywanie, wyświetlanie, porównywanie przebiegów, powiadomienia, eksport, usuwanie'],
                 ['Okres przechowywania', 'Zgodnie z listą na stronie /legal/retention'],
               ],
@@ -128,7 +129,7 @@ export function dpaPl(p: Provider, version: string, subprocessorRows: string[][]
         blocks: [
           {
             ul: [
-              'Redakcja po stronie Klienta przed przesłaniem, ze skrótem z kluczem, który zostaje przy runnerze; usługa odrzuca raporty zawierające wartości.',
+              'Redakcja po stronie Klienta przed przesłaniem, ze skrótem z kluczem, który zostaje przy runnerze; usługa odrzuca raporty, w których czytelne zostały wartości tekstowe, adresy e-mail albo długie liczby.',
               'TLS dla każdego połączenia z aplikacją oraz między aplikacją a jej bazą danych.',
               'Szyfrowanie bazy danych i jej kopii zapasowych w spoczynku przez dostawcę hostingu (AES-256).',
               'Zabezpieczenia na poziomie wierszy w bazie: członkowie czytają tylko własne organizacje; przebiegi zapisuje tylko serwer, po sprawdzeniu raportu.',

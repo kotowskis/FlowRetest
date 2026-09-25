@@ -33,12 +33,15 @@ function BlockView({ block }: { block: Block }) {
   );
 }
 
-export function DraftNotice({ lang = 'en' }: { lang?: 'en' | 'pl' }) {
+/** `complete`: the company details are set and only the legal review is missing. */
+export function DraftNotice({ lang = 'en', complete = false }: { lang?: 'en' | 'pl'; complete?: boolean }) {
+  const pl = complete
+    ? 'Wersja robocza. Tekst czeka na przegląd prawny.'
+    : 'Wersja robocza. Tekst czeka na przegląd prawny, a dane firmy nie są jeszcze uzupełnione.';
+  const en = complete ? 'Draft. This text is waiting for legal review.' : 'Draft. This text is waiting for legal review and the company details are not filled in yet.';
   return (
     <p role="note" className="rounded-md border border-diff/40 bg-diff/10 px-4 py-3 text-sm">
-      {lang === 'pl'
-        ? 'Wersja robocza. Tekst czeka na przegląd prawny, a dane firmy nie są jeszcze uzupełnione. Opisuje, jak usługa działa dziś, ale nie jest jeszcze ofertą do podpisania.'
-        : 'Draft. This text is waiting for legal review and the company details are not filled in yet. It describes how the service works today, but it is not an offer to sign.'}
+      {lang === 'pl' ? `${pl} Opisuje, jak usługa działa dziś, ale nie jest jeszcze ofertą do podpisania.` : `${en} It describes how the service works today, but it is not an offer to sign.`}
     </p>
   );
 }

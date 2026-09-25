@@ -35,7 +35,7 @@ function statusLine(account: { status: string | null; current_period_end: string
   if (account.status === 'trialing' && account.trial_end) {
     return (
       <p className="text-sm text-muted">
-        Free trial until <Time value={account.trial_end} />. Then the card is charged{price ? ` ${price}` : ''} unless you cancel in the payment details before that day.
+        Free trial until <Time value={account.trial_end} />. Then the card is charged{price ? ` ${price} plus VAT where due` : ''} unless you cancel in the payment details before that day.
       </p>
     );
   }

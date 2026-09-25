@@ -11,6 +11,8 @@ export interface Provider {
   email: string;
   /** True until the lawyer-reviewed texts and the company details are in place. */
   draft: boolean;
+  /** Every company detail is set (the draft may still wait for LEGAL_FINAL). */
+  complete: boolean;
 }
 
 export function provider(source: Record<string, string | undefined> = process.env): Provider {
@@ -24,6 +26,7 @@ export function provider(source: Record<string, string | undefined> = process.en
     companyId: companyId || '[company registration and VAT number]',
     email: email || '[privacy contact email]',
     draft: !(name && address && companyId && email && source.LEGAL_FINAL === 'true'),
+    complete: Boolean(name && address && companyId && email),
   };
 }
 

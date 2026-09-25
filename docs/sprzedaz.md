@@ -1,6 +1,6 @@
 # Start sprzedaży
 
-Stan na 2026-09-25, koniec tygodnia 14 planu. Technicznie sprzedaż może ruszyć. Działa strona główna z cennikiem, plany rozlicza Stripe (na razie atrapa), a właściciel organizacji przyjmuje DPA w aplikacji i tam eksportuje albo usuwa dane. DPA ma tłumaczenie na polski, a zmianę podprocesora ogłasza skrypt z mailem do właścicieli (ADR 0016). Nie może ruszyć, dopóki założyciel nie zamknie pięciu decyzji z listy niżej. Każda z nich blokuje pierwszą fakturę.
+Stan na 2026-09-25, koniec tygodnia 14 planu. Technicznie sprzedaż może ruszyć. Działa strona główna z cennikiem, plany rozlicza Stripe (na razie atrapa), a właściciel organizacji przyjmuje DPA w aplikacji i tam eksportuje albo usuwa dane. DPA ma tłumaczenie na polski, a zmianę podprocesora ogłasza skrypt z mailem do właścicieli (ADR 0016). Nie może ruszyć, dopóki założyciel nie zamknie ośmiu decyzji z listy niżej. Każda z nich blokuje pierwszą fakturę.
 
 ## Blokery
 
@@ -11,8 +11,11 @@ Stan na 2026-09-25, koniec tygodnia 14 planu. Technicznie sprzedaż może ruszy�
 | 3 | konto Stripe z danymi firmy, ceny przez `scripts/stripe-setup.mjs`, portal klienta (ADR 0010) | bez tego nie ma płatności ani faktur | pół dnia |
 | 4 | przegląd prawny DPA, regulaminu i polityki prywatności, dane firmy w zmiennych `LEGAL_*` (ADR 0015) | teksty mają baner „Draft” i akceptacja DPA jest zablokowana na produkcji | kilka godzin kancelarii |
 | 5 | mail do license@n8n.io o Sustainable Use License (notatka, sekcja 10) | odpowiedź wymagająca umowy OEM kończy warstwę płatną | koszt zero, czas odpowiedzi nieznany |
+| 6 | fakturowanie w Polsce z księgową: KSeF dla faktur polskim firmom (faktury Stripe przez niego nie przechodzą), faktura za wdrożenie 1 000 do 2 500 EUR poza Stripe, kupon Stripe na „6 miesięcy Team w cenie” | pierwsza faktura to najpewniej wdrożenie dla agencji z Polski; bez ustalonej ścieżki nie da się jej wystawić zgodnie z prawem | rozmowa z księgową, potem pół dnia |
+| 7 | VAT: rejestracja w Stripe Tax i `STRIPE_AUTOMATIC_TAX=true` albo, przy zwolnieniu z VAT, `false` i zmiana tekstów, które mówią o cenach netto (ADR 0018) | Checkout z kluczem produkcyjnym bez tej decyzji kończy się błędem | godzina po decyzji |
+| 8 | repozytorium `skynappse/flowretest` na GitHubie (dziś kod jest w `kotowskis/FlowRetest`) albo zmiana adresu w `components/public-shell.tsx` i `packages/cli/package.json` | link „GitHub” na stronie głównej i w nagłówku daje 404 | 1 godzina |
 
-Kolejność: 5 i 4 od razu, bo czekają na kogoś z zewnątrz. Potem 1, bo pilotaż i odpowiedzi na forum potrzebują działającej paczki niezależnie od warstwy płatnej. Na końcu 2 i 3.
+Kolejność: 5, 4 i 6 od razu, bo czekają na kogoś z zewnątrz. Potem 1, bo pilotaż i odpowiedzi na forum potrzebują działającej paczki niezależnie od warstwy płatnej. Na końcu 2 i 3.
 
 ## Oferta
 
@@ -89,3 +92,14 @@ Po angielsku, bo tak piszą agencje z forum i z experts.n8n.io. Każdą wiadomo�
 6. DPA ma wersję angielską i polską, a punkt 12 mówi, że przy rozbieżności rozstrzyga angielska. Czy wobec klienta z Polski to działa, czy wiążąca powinna być wersja polska?
 7. Powiadomienie o zmianie podprocesora idzie mailem do właścicieli organizacji, które przyjęły DPA, 30 dni przed zmianą, z adresem do sprzeciwu. Czy to wystarcza jako „informowanie” z art. 28 ust. 2 RODO?
 8. Sustainable Use License: czy warstwa hostowana, która nie uruchamia n8n i pokazuje tylko wyniki runnera działającego u klienta, mieści się w licencji (to samo pytanie co w mailu do n8n)?
+
+Pytania z audytu tygodnia 14 (`docs/audyt-tydzien-14-2026-09-25.md`):
+
+9. DPA punkt 6 mówi, że GitHub i Slack nie są podprocesorami. GitHub App należy jednak do nas i wysyła do GitHuba (USA) raport po redakcji. Czy GitHub powinien być na liście?
+10. Dane konta i logowania są w DPA danymi przetwarzanymi dla klienta, a w informacji o prywatności jesteśmy ich administratorem. Która rola jest właściwa?
+11. Czy punkt 7 DPA (dostęp spoza EOG na podstawie SCC w umowach Supabase, Vercela i Resend, dla Vercela też Data Privacy Framework) zgadza się z umowami powierzenia tych firm?
+12. Czy 48 godzin na zgłoszenie naruszenia i warunki audytu (raz w roku, na koszt klienta, najpierw dokumenty) wystarczą wobec art. 28 ust. 3 lit. h?
+13. Czy dowód akceptacji DPA powinien przeżyć usunięcie organizacji? Dziś znika razem z nią, a rejestr powiadomień zostaje rok.
+14. Porzucone organizacje Free: czy regulamin powinien je usuwać po okresie bez logowania, skoro DPA wiąże usunięcie z końcem regulaminu?
+15. Limit odpowiedzialności do opłat z 12 miesięcy wynosi 0 na planie Free. Usługa jest tylko dla firm, ale nic tego nie sprawdza. Czy to wystarcza?
+16. Kopie faktur znikają z organizacją, a oryginały trzyma Stripe. Czy to spełnia obowiązek przechowywania przez 5 lat?

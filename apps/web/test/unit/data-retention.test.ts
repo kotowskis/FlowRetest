@@ -1,7 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { writeFileSync } from 'node:fs';
-import { DPA_VERSION, LEGAL_SLUGS, RETENTION_ROWS, SUBPROCESSORS, dpaAcceptanceOpen, dpaDocument, legalDocument, type Block } from '../../lib/legal/documents.ts';
+import { shapeOf } from '@flowretest/core';
+import { DPA_VERSION, LEGAL_SLUGS, REDACTED, RETENTION_ROWS, SUBPROCESSORS, dpaAcceptanceOpen, dpaDocument, legalDocument, type Block } from '../../lib/legal/documents.ts';
+import { createCheckoutSession, stripeConfig } from '../../lib/stripe.ts';
 import { contactEmail, provider } from '../../lib/legal/provider.ts';
 import { accountDeletionPlan } from '../../lib/account.ts';
 import { exportFileName, exportLine } from '../../lib/export.ts';
@@ -112,4 +114,29 @@ test('the DPA copy renders with Polish names and the whole agreement', async () 
   const pages = pdf.toString('latin1').match(/\/Type \/Page\b/g)?.length ?? 0;
   assert.ok(pages >= 3, `${pages} pages`);
   if (process.env.DPA_RECORD_OUT) writeFileSync(process.env.DPA_RECORD_OUT, pdf);
+});
+
+test('the legal texts describe what redaction keeps readable, as the runner does it', () => {
+  // Audit of week 14, item 1: the DPA promised that every value is hidden, while small numbers and true/false stay.
+  assert.equal(shapeOf(34, { salt: 's' }), 34);
+  assert.equal(shapeOf(true, { salt: 's' }), true);
+  assert.match(String(shapeOf(1_000_000, { salt: 's' })), /^<digits 7>$/);
+  assert.match(String(shapeOf('Jan Kowalski', { salt: 's' })), /^<string 12 #[0-9a-f]{8}>$/);
+  assert.match(REDACTED, /Numbers below one million, true, false and null stay readable/);
+  assert.match(REDACTED, /normalize\.ignore/);
+  const dpa = dpaDocument(DPA_VERSION, provider({ ...COMPANY, LEGAL_FINAL: 'true' }))!;
+  const all = dpa.sections.flatMap((s) => texts(s.blocks)).join('\n');
+  assert.doesNotMatch(all, /never uploaded in clear text'?$|each value as its type/m);
+  assert.match(all, /branch name/);
+  assert.match(all, /GitHub account name/);
+});
+
+test('a live Stripe key needs a decision about VAT before Checkout', async () => {
+  const base = { STRIPE_SECRET_KEY: 'sk_live_x', STRIPE_WEBHOOK_SECRET: 'w', STRIPE_API_URL: 'http://127.0.0.1:9' };
+  const undecided = stripeConfig(base)!;
+  assert.equal(undecided.taxUndecided, true);
+  await assert.rejects(createCheckoutSession(undecided, { customer: 'c', price: 'p', organizationId: 'o', successUrl: 's', cancelUrl: 'c' }), /STRIPE_AUTOMATIC_TAX is not set/);
+  assert.equal(stripeConfig({ ...base, STRIPE_AUTOMATIC_TAX: 'true' })!.taxUndecided, false);
+  assert.equal(stripeConfig({ ...base, STRIPE_AUTOMATIC_TAX: 'false' })!.taxUndecided, false);
+  assert.equal(stripeConfig({ ...base, STRIPE_SECRET_KEY: 'sk_test_x' })!.taxUndecided, false);
 });

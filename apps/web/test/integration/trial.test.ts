@@ -72,7 +72,7 @@ test('the first Checkout starts a trial: the plan applies at once, nothing is ch
   // Text only: dates sit in <time> elements, and React separates text nodes with <!-- -->.
   const page = (await (await fetch(`${appUrl}/o/${o.id}/billing`, { headers: { cookie: o.owner.cookie } })).text()).replace(/<[^>]*>/g, '');
   assert.match(page, /Free trial until \d{4}-\d{2}-\d{2}/);
-  assert.match(page, /the card is charged 79 EUR a month unless you cancel/);
+  assert.match(page, /the card is charged 79 EUR a month plus VAT where due unless you cancel/);
   assert.doesNotMatch(page, /Try Agency free/, 'no second trial is offered');
 });
 

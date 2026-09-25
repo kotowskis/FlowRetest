@@ -29,7 +29,7 @@ const QUESTIONS: Array<[string, React.ReactNode]> = [
   [
     'What leaves our machines?',
     <>
-      Only the redacted report that <code className="font-mono">flowretest upload</code> writes: the workflow and node names, the version file name, methods, hosts, URL templates, field names, and each value as its type, length and a salted hash. Error messages come with emails, quoted text and long numbers replaced. From CI it also carries the repository, commit, branch and pull request number. Request bodies, recorded executions and credentials stay where the runner ran. The service refuses a report that still carries values.
+      Only the redacted report that <code className="font-mono">flowretest upload</code> writes: the workflow and node names, the version file name, methods, hosts, URL templates and field names. Each text value becomes its type, length and a keyed hash; numbers below one million and true/false stay readable so you see what changed in an amount or a flag, and <code className="font-mono">normalize.ignore</code> leaves a field out entirely. Error messages come with emails, quoted text and long numbers replaced. From CI it also carries the repository, commit, branch and pull request number. Request bodies, recorded executions and credentials stay where the runner ran. The service refuses a report with a readable text value, email address or long number.
     </>,
   ],
   ['What is a workspace?', 'One customer n8n instance. An agency with twelve customers on their own instances needs twelve workspaces, which is the Agency plan.'],
@@ -37,7 +37,7 @@ const QUESTIONS: Array<[string, React.ReactNode]> = [
     'What happens when we downgrade or stop paying?',
     'Nothing is deleted on the day. The oldest workspaces up to the new limit keep taking uploads, the newer ones refuse them. Run history follows the new plan after 30 days of grace.',
   ],
-  ['How do invoices and VAT work?', 'Stripe charges the card and issues the invoices. Prices exclude VAT; a business in the EU adds its VAT id at checkout and pays under reverse charge.'],
+  ['How do invoices and VAT work?', 'Stripe charges the card and issues the invoices. Prices exclude VAT. A business in Poland pays Polish VAT on top; a business elsewhere in the EU adds its VAT id at checkout and pays under reverse charge.'],
   [
     'Do you sign a data processing agreement?',
     <>

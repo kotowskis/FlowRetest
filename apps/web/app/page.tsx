@@ -89,7 +89,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         <section className="mx-auto max-w-6xl px-4 py-10">
           <h2 className="text-xl font-semibold">For agencies with many customer instances</h2>
           <p className="mt-3 max-w-3xl text-sm text-muted">
-            The runner is free and needs no account. The hosted layer keeps the redacted reports of your team and your customers in one place. Team is 79 EUR a month, Agency 199 EUR{trial ? `, both with ${trial} days free to start` : ''}.
+            The runner is free and needs no account. The hosted layer keeps the redacted reports of your team and your customers in one place. Team is 79 EUR a month, Agency 199 EUR, excluding VAT{trial ? `, both with ${trial} days free to start` : ''}.
           </p>
           <ul className="mt-5 grid gap-2 text-sm md:grid-cols-2">
             {HOSTED.map((h) => (
@@ -112,7 +112,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ a
         <section className="mx-auto max-w-6xl px-4 py-10">
           <h2 className="text-xl font-semibold">What leaves your machine</h2>
           <p className="mt-3 max-w-3xl text-sm text-muted">
-            Nothing, unless you run <code className="font-mono text-ink">flowretest upload</code>. Then only a redacted report: names, hosts, URL templates, field names, and each value as its type, length and a hash keyed with a secret that stays with you. Request bodies, fixtures and credentials stay in <code className="font-mono text-ink">.flowretest/</code>. See <Link href="/legal/retention" className="underline">data retention</Link> and the <Link href="/legal/dpa" className="underline">DPA</Link>.
+            Nothing, unless you run <code className="font-mono text-ink">flowretest upload</code>. Then only a redacted report: names, hosts, URL templates, field names, and each text value as its type, length and a hash keyed with a secret that stays with you. Small numbers and true/false stay readable; <code className="font-mono text-ink">normalize.ignore</code> leaves a field out. Request bodies, fixtures and credentials stay in <code className="font-mono text-ink">.flowretest/</code>. See <Link href="/legal/retention" className="underline">data retention</Link> and the <Link href="/legal/dpa" className="underline">DPA</Link>.
           </p>
         </section>
       </main>
