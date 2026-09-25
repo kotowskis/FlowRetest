@@ -21,3 +21,10 @@ export function exportFileName(orgName: string, at: Date): string {
     .slice(0, 60);
   return `flowretest-${slug || 'organization'}-${at.toISOString().slice(0, 10)}.jsonl`;
 }
+
+/** `items` in slices of `size`: the export and the Data page keep `in` filters short enough for a URL. */
+export function chunks<T>(items: T[], size: number): T[][] {
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+  return out;
+}

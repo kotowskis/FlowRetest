@@ -6,6 +6,7 @@ import { createClient, type Db } from './supabase/server.ts';
 import type { Tables } from './database.types.ts';
 import type { Notice } from './subprocessor-notices.ts';
 import { INVITATION_DAYS } from './legal/documents.ts';
+import { chunks } from './export.ts';
 
 export type Organization = Tables<'organizations'>;
 export type Workspace = Tables<'workspaces'>;
@@ -209,12 +210,15 @@ export type DriftCell = Tables<'latest_upgrade_runs'>;
 async function driftCells(db: Db, workspaceIds: string[]): Promise<DriftCell[]> {
   const out: DriftCell[] = [];
   const page = 1000;
-  for (let from = 0; ; from += page) {
-    const { data, error } = await db.from('latest_upgrade_runs').select('*').in('workspace_id', workspaceIds).order('id').range(from, from + page - 1);
-    if (error) throw new Error(`drift: ${error.message}`);
-    out.push(...(data ?? []));
-    if ((data ?? []).length < page) return out;
+  for (const ids of chunks(workspaceIds, 100)) {
+    for (let from = 0; ; from += page) {
+      const { data, error } = await db.from('latest_upgrade_runs').select('*').in('workspace_id', ids).order('id').range(from, from + page - 1);
+      if (error) throw new Error(`drift: ${error.message}`);
+      out.push(...(data ?? []));
+      if ((data ?? []).length < page) break;
+    }
   }
+  return out;
 }
 
 /** Drift matrix of one workspace: the latest upgrade-check of each workflow against each target engine. */
@@ -258,9 +262,12 @@ export async function getOrganizationData(orgId: string) {
     db.from('subprocessor_notices').select('*').gte('effective_on', new Date().toISOString().slice(0, 10)).order('effective_on'),
   ]);
   const wsRows = orFail(workspaces, 'workspaces');
-  const runs = wsRows.length
-    ? await db.from('runs').select('id', { count: 'exact', head: true }).in('workspace_id', wsRows.map((w) => w.id))
-    : { count: 0, error: null };
-  if (runs.error) throw new Error(`runs: ${runs.error.message}`);
-  return { org, isOwner: owner.data === true, limits, dpa: orFail(dpa, 'dpa acceptances'), workspaces: wsRows, runCount: runs.count ?? 0, email: user.email ?? '', upcoming: orFail(notices, 'subprocessor notices') as unknown as Notice[] };
+  // Counted per 100 workspaces: an `in` filter with every id of a large Agency organization makes the URL too long.
+  let runCount = 0;
+  for (const ids of chunks(wsRows.map((w) => w.id), 100)) {
+    const runs = await db.from('runs').select('id', { count: 'exact', head: true }).in('workspace_id', ids);
+    if (runs.error) throw new Error(`runs: ${runs.error.message}`);
+    runCount += runs.count ?? 0;
+  }
+  return { org, isOwner: owner.data === true, limits, dpa: orFail(dpa, 'dpa acceptances'), workspaces: wsRows, runCount, email: user.email ?? '', upcoming: orFail(notices, 'subprocessor notices') as unknown as Notice[] };
 }

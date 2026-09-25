@@ -164,11 +164,43 @@ test('export: owners get every row as JSON Lines; members 403, outsiders 404, vi
   assert.ok(lines.every((l) => l.type !== 'error'));
   assert.ok(!lines.some((l) => l.type === 'workspace_token' && 'token_hash' in l.data), 'token hashes never leave');
   assert.ok(lines.find((l) => l.type === 'run')!.data.report, 'runs carry their redacted report');
+  const billing = lines.find((l) => l.type === 'billing_account')!.data;
+  assert.ok('trial_end' in billing && 'plan_changed_at' in billing, 'the billing row has every date');
+  assert.ok(!('stripe_customer_id' in billing), 'no Stripe ids');
+  assert.ok(count('upload_event') >= 1, 'the upload counter');
+  const last = lines[lines.length - 1]!;
+  assert.deepEqual(last, { type: 'end', data: { lines: lines.length - 1 } }, 'the file ends with the line count');
 
   assert.equal((await get(member.cookie)).status, 403);
   assert.equal((await get(outsider.cookie)).status, 404);
   const visitor = await get();
   assert.ok([302, 307].includes(visitor.status) && (visitor.headers.get('location') ?? '').includes('/login'));
+});
+
+test('export and Data page of a large organization: 260 workspaces, 1100 acceptances, nothing cut at 1000 rows', { skip: skipApp }, async () => {
+  // Audit of week 14, items 7 and 8: every table stopped at PostgREST's 1000 rows, and all workspace ids in one URL failed.
+  const big = await user('big-owner');
+  const org = (await big.db.rpc('create_organization', { p_name: `Big ${randomUUID().slice(0, 6)}` })).data as string;
+  await setPlan(org, 'agency');
+  const ws = (await admin().from('workspaces').insert(Array.from({ length: 260 }, (_, i) => ({ organization_id: org, name: `client ${i}` }))).select('id')).data!;
+  assert.equal(ws.length, 260);
+  const wf = (await admin().from('workflows').insert({ workspace_id: ws[0]!.id, n8n_workflow_id: 'wf-big', name: 'Big' }).select('id').single()).data!;
+  const acceptances = Array.from({ length: 1100 }, (_, i) => ({ workspace_id: ws[0]!.id, workflow_id: wf.id, case_ids: [`c${i}`], accepted_by_email: big.email }));
+  assert.ifError((await admin().from('acceptances').insert(acceptances)).error);
+  try {
+    const res = await fetch(`${appUrl}/o/${org}/export`, { headers: { cookie: big.cookie } });
+    assert.equal(res.status, 200);
+    const lines = (await res.text()).trim().split('\n').map((l) => JSON.parse(l) as { type: string });
+    const count = (type: string) => lines.filter((l) => l.type === type).length;
+    assert.equal(count('error'), 0);
+    assert.equal(count('workspace'), 260);
+    assert.equal(count('acceptance'), 1100);
+    assert.equal(lines[lines.length - 1]!.type, 'end');
+    assert.equal((await fetch(`${appUrl}/o/${org}/data`, { headers: { cookie: big.cookie } })).status, 200, 'the Data page counts runs in slices');
+  } finally {
+    await admin().from('billing_accounts').update({ status: 'canceled', ended_at: new Date().toISOString() }).eq('organization_id', org);
+    assert.ifError((await admin().from('organizations').delete().eq('id', org)).error);
+  }
 });
 
 test('DPA copy: a PDF for members, 404 for outsiders', { skip: skipApp }, async () => {

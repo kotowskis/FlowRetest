@@ -40,3 +40,12 @@ Wersja DPA zostaje `2026-09-25`. Tekst jest wersją roboczą, nikt nie przyjął
 Test integracyjny nie sprawdza już czyszczenia rejestru wysyłki po roku, bo ogłoszenia nie da się teraz cofnąć w czasie przez API. Sprawdzone w SQL z wyłączonymi wyzwalaczami (`session_replication_role = replica`): rejestr ogłoszenia sprzed 400 dni znika, samo ogłoszenie zostaje.
 
 Po wdrożeniu na projekt Supabase w chmurze trzeba jeden raz sprawdzić, że `select public.purge_expired_runs()` nie zgłasza ostrzeżenia o `auth.audit_log_entries`. Jeśli zgłasza, zostaje wyłączenie zapisu dziennika do bazy w ustawieniach Auth projektu albo zmiana tekstu retencji.
+
+## Eksport
+
+| # | Temat | Decyzja | Powód |
+|---|---|---|---|
+| 7 | Limit 1000 wierszy | każda tabela czytana stronami po 1000 z pełnym porządkiem, przebiegi dalej kluczem `id` | PostgREST ucinał tabelę po cichu |
+| 8 | Duże organizacje | filtry `in` po 100 workspace'ów, na stronie Data i w macierzy dryfu też | około 250 identyfikatorów w adresie dawało błąd |
+| 25 | Urwany plik | ostatni wiersz `{"type":"end","data":{"lines":N}}`; po 270 s wiersz `error` z liczbą wierszy i prośbą o kontakt; 5 przebiegów na zapytanie zamiast 20 | bez wiersza końcowego plik ucięty przez limit czasu wyglądał na pełny; 20 raportów po 5 MB podnosiło pamięć o 300 MB |
+| 26 | Brakujące dane | licznik uploadów, maile o podprocesorach wysłane do właścicieli organizacji, wszystkie daty z `billing_accounts` (bez identyfikatorów Stripe); format eksportu `2` | strona obiecuje wszystko, co usługa trzyma |

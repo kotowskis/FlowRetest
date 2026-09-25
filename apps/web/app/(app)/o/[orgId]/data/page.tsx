@@ -130,7 +130,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
 
       <Section
         title="Export"
-        description={`Everything the service keeps for this organization as one JSON Lines file: members, invitations, ${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'}, ${runCount} run${runCount === 1 ? '' : 's'} with their redacted reports, acceptances, checks, notifications, DPA acceptances and invoices.`}
+        description={`Everything the service keeps for this organization as one JSON Lines file: members, invitations, ${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'}, ${runCount} run${runCount === 1 ? '' : 's'} with their redacted reports, acceptances, checks, notifications, DPA acceptances, invoices, the upload counter and the sub-processor emails sent to its owners. The last line counts the lines before it, so a download cut short shows.`}
       >
         {isOwner ? (
           <a href={`/o/${org.id}/export`} className="inline-block rounded-md border border-line px-3 py-2 text-sm hover:bg-bg">Download export</a>
