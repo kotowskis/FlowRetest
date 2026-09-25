@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { assertId, session } from '@/lib/data.ts';
 import { dpaDocument, isDpaLang } from '@/lib/legal/documents.ts';
-import { provider } from '@/lib/legal/provider.ts';
+import { acceptedProvider, provider } from '@/lib/legal/provider.ts';
 import { exportFileName } from '@/lib/export.ts';
 import { renderDpaRecord } from '@/lib/pdf/dpa-pdf.ts';
 
@@ -22,11 +22,13 @@ export async function GET(request: Request, { params }: { params: Promise<{ orgI
     db.from('dpa_acceptances').select('*').eq('id', acceptanceId).eq('organization_id', orgId).maybeSingle(),
   ]);
   if (!org || !row) return NextResponse.json({ error: 'not found' }, { status: 404 });
-  const doc = dpaDocument(row.version, provider(), asked);
+  // The copy prints the provider and the draft flag the owner saw when accepting, not today's settings.
+  const who = acceptedProvider(row.provider, row.draft, provider());
+  const doc = dpaDocument(row.version, who, asked);
   if (!doc) return NextResponse.json({ error: `the text of DPA version ${row.version} is not available` }, { status: 410 });
   const pdf = await renderDpaRecord({
     doc,
-    provider: provider(),
+    provider: who,
     acceptance: {
       id: row.id,
       organizationName: org.name,

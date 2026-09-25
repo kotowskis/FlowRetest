@@ -34,3 +34,20 @@ export function provider(source: Record<string, string | undefined> = process.en
 export function contactEmail(source: Record<string, string | undefined> = process.env): string | undefined {
   return source.SALES_EMAIL?.trim() || source.LEGAL_EMAIL?.trim() || undefined;
 }
+
+/** The provider's details as a DPA acceptance keeps them (dpa_acceptances.provider). */
+export function providerSnapshot(p: Provider): { name: string; address: string; companyId: string; email: string } {
+  return { name: p.name, address: p.address, companyId: p.companyId, email: p.email };
+}
+
+/**
+ * The provider an acceptance was made with, for its PDF copy; acceptances from before the snapshot existed fall back
+ * to today's values.
+ */
+export function acceptedProvider(snapshot: unknown, draft: boolean, today: Provider): Provider {
+  const s = snapshot as Partial<Record<'name' | 'address' | 'companyId' | 'email', unknown>> | null;
+  const str = (v: unknown, fallback: string) => (typeof v === 'string' && v ? v : fallback);
+  if (!s || typeof s !== 'object') return { ...today, draft: draft || today.draft };
+  const p = { name: str(s.name, today.name), address: str(s.address, today.address), companyId: str(s.companyId, today.companyId), email: str(s.email, today.email) };
+  return { ...p, draft, complete: !/^\[.*\]$/.test(p.name) && !/^\[.*\]$/.test(p.address) && !/^\[.*\]$/.test(p.companyId) && !/^\[.*\]$/.test(p.email) };
+}

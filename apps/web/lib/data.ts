@@ -5,6 +5,7 @@ import type { User } from '@supabase/supabase-js';
 import { createClient, type Db } from './supabase/server.ts';
 import type { Tables } from './database.types.ts';
 import type { Notice } from './subprocessor-notices.ts';
+import { INVITATION_DAYS } from './legal/documents.ts';
 
 export type Organization = Tables<'organizations'>;
 export type Workspace = Tables<'workspaces'>;
@@ -76,7 +77,8 @@ export async function getOrganization(orgId: string) {
   const [workspaces, members, invitations, limits] = await Promise.all([
     db.from('workspaces').select('*').eq('organization_id', orgId).order('created_at'),
     db.from('members').select('*').eq('organization_id', orgId).order('created_at'),
-    db.from('invitations').select('*').eq('organization_id', orgId).order('created_at'),
+    // Invitations older than 30 days no longer work (claim_invitations skips them) and wait for the nightly purge.
+    db.from('invitations').select('*').eq('organization_id', orgId).gt('created_at', new Date(Date.now() - INVITATION_DAYS * 86_400_000).toISOString()).order('created_at'),
     planLimits(db, orgId),
   ]);
   const memberRows = orFail(members, 'members');

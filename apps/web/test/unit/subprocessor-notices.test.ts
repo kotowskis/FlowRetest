@@ -4,7 +4,7 @@ import { writeFileSync } from 'node:fs';
 import { DPA_VERSION, dpaDocument, isDpaLang, SUBPROCESSORS, type Block, type LegalDocument } from '../../lib/legal/documents.ts';
 import { provider } from '../../lib/legal/provider.ts';
 import { renderDpaRecord } from '../../lib/pdf/dpa-pdf.ts';
-import { NoticeInputSchema, changeLine, earliestEffectiveOn, noticeEmail, type Notice } from '../../lib/subprocessor-notices.ts';
+import { NoticeInputSchema, changeLine, daysLeft, earliestEffectiveOn, noticeEmail, type Notice } from '../../lib/subprocessor-notices.ts';
 
 const P = provider({ LEGAL_NAME: 'Skynappse Sp. z o.o.', LEGAL_ADDRESS: 'ul. Testowa 1, 00-001 Warszawa', LEGAL_COMPANY_ID: 'NIP PL0000000000', LEGAL_EMAIL: 'privacy@example.com', LEGAL_FINAL: 'true' });
 
@@ -70,9 +70,12 @@ const NOTICE: Notice = {
   ],
 };
 
-test('a notice can take effect 30 days after the announcement at the earliest', () => {
-  assert.equal(earliestEffectiveOn(new Date('2026-09-25T23:30:00Z')), '2026-10-25');
-  assert.equal(earliestEffectiveOn(new Date('2026-12-15T00:00:00Z')), '2027-01-14');
+test('a notice takes effect after 30 full days at the earliest, and is sent only while 30 days are left', () => {
+  // Announced late on the 25th, the 26th of the next month is the first day with 30 full days in between.
+  assert.equal(earliestEffectiveOn(new Date('2026-09-25T23:30:00Z')), '2026-10-26');
+  assert.equal(earliestEffectiveOn(new Date('2026-12-15T00:00:00Z')), '2027-01-15');
+  assert.equal(daysLeft('2026-10-26', new Date('2026-09-25T23:30:00Z')), 30);
+  assert.equal(daysLeft('2026-10-26', new Date('2026-09-26T00:30:00Z')), 29);
   assert.ok(NoticeInputSchema.safeParse({ effectiveOn: '2026-10-25', summary: 'x', changes: [{ action: 'add', name: 'A' }] }).success);
   assert.ok(!NoticeInputSchema.safeParse({ effectiveOn: '25.10.2026', summary: 'x', changes: [{ action: 'add', name: 'A' }] }).success);
   assert.ok(!NoticeInputSchema.safeParse({ effectiveOn: '2026-10-25', summary: 'x', changes: [] }).success);
@@ -93,6 +96,8 @@ test('the notice email names the date, the changes, the organizations and where 
   assert.ok(!mail.text.includes('\u2014'));
   const plain = noticeEmail({ to: 'o@x.example', organizationNames: ['A'], notice: NOTICE, appUrl: 'https://app.example' });
   assert.equal(plain.headers, undefined);
+  assert.match(mail.idempotencyKey ?? '', /^subprocessor-notice\/n1\/[0-9a-f]{24}$/);
+  assert.notEqual(mail.idempotencyKey, plain.idempotencyKey, 'one key per address');
   assert.match(plain.text, /write to us before 2026-10-25/);
   assert.equal(changeLine({ action: 'change', name: 'Supabase Inc.', purpose: '', data: '', location: 'EU (Frankfurt)' }), 'Changed: Supabase Inc. (location: EU (Frankfurt))');
 });

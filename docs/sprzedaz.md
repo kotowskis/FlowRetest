@@ -90,7 +90,7 @@ Po angielsku, bo tak piszą agencje z forum i z experts.n8n.io. Każdą wiadomo�
 4. Regulamin: limit odpowiedzialności do opłat z 12 miesięcy, prawo polskie, sąd właściwy dla siedziby. Czy to działa wobec klientów spoza Polski?
 5. Czy Stripe powinien być na liście podprocesorów, skoro przetwarza dane rozliczeniowe jako osobny administrator?
 6. DPA ma wersję angielską i polską, a punkt 12 mówi, że przy rozbieżności rozstrzyga angielska. Czy wobec klienta z Polski to działa, czy wiążąca powinna być wersja polska?
-7. Powiadomienie o zmianie podprocesora idzie mailem do właścicieli organizacji, które przyjęły DPA, 30 dni przed zmianą, z adresem do sprzeciwu. Czy to wystarcza jako „informowanie” z art. 28 ust. 2 RODO?
+7. Powiadomienie o zmianie podprocesora idzie mailem do właścicieli wszystkich organizacji co najmniej 30 dni przed zmianą, liczonych od wysłania maila, z adresem do sprzeciwu. Czy to wystarcza jako „informowanie” z art. 28 ust. 2 RODO?
 8. Sustainable Use License: czy warstwa hostowana, która nie uruchamia n8n i pokazuje tylko wyniki runnera działającego u klienta, mieści się w licencji (to samo pytanie co w mailu do n8n)?
 
 Pytania z audytu tygodnia 14 (`docs/audyt-tydzien-14-2026-09-25.md`):

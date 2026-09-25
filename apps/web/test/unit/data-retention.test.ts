@@ -21,6 +21,8 @@ test('the provider stays a draft until every company detail is set and LEGAL_FIN
   assert.equal(provider({ ...COMPANY, LEGAL_EMAIL: ' ', LEGAL_FINAL: 'true' }).draft, true);
   assert.equal(dpaAcceptanceOpen(provider({})), false, 'nobody accepts a draft in production');
   assert.equal(dpaAcceptanceOpen(provider({}), { LEGAL_ALLOW_DRAFT_ACCEPTANCE: 'true' }), true);
+  assert.equal(dpaAcceptanceOpen(provider({}), { LEGAL_ALLOW_DRAFT_ACCEPTANCE: 'true', APP_URL: 'http://localhost:3101' }), true);
+  assert.equal(dpaAcceptanceOpen(provider({}), { LEGAL_ALLOW_DRAFT_ACCEPTANCE: 'true', APP_URL: 'https://app.flowretest.com' }), false, 'a copied .env.local does not open drafts on a public server');
   assert.equal(dpaAcceptanceOpen(final, {}), true);
   assert.equal(contactEmail({ SALES_EMAIL: 'hello@example.com', LEGAL_EMAIL: 'privacy@example.com' }), 'hello@example.com');
   assert.equal(contactEmail({ LEGAL_EMAIL: 'privacy@example.com' }), 'privacy@example.com');

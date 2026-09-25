@@ -11,6 +11,40 @@ import { acceptDpa, deleteOrganization, setRetention } from './actions.ts';
 
 export const metadata: Metadata = { title: 'Data' };
 
+/** The acceptance form; a second acceptance of the same version corrects the details of the first. */
+function acceptForm(orgId: string) {
+  return (
+    <ActionForm action={acceptDpa} submit="Accept the DPA" pending="Recording…" className="grid gap-3 sm:grid-cols-2 sm:items-end">
+      <input type="hidden" name="orgId" value={orgId} />
+      <input type="hidden" name="version" value={DPA_VERSION} />
+      <label className="flex flex-col gap-1 text-sm">
+        Company name
+        <input name="companyName" required maxLength={200} placeholder="Acme Automation Sp. z o.o." className={inputClass} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        <span>Registration or VAT number <span className="text-xs text-muted">· optional</span></span>
+        <input name="companyId" maxLength={100} placeholder="PL1234567890" className={inputClass} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm sm:col-span-2">
+        Registered address
+        <input name="companyAddress" required maxLength={500} placeholder="ul. Przykładowa 1, 00-001 Warszawa, Poland" className={inputClass} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        Your name
+        <input name="signerName" required maxLength={200} className={inputClass} />
+      </label>
+      <label className="flex flex-col gap-1 text-sm">
+        Your role
+        <input name="signerRole" required maxLength={200} placeholder="Managing director" className={inputClass} />
+      </label>
+      <label className="flex items-start gap-2 text-sm sm:col-span-2">
+        <input name="authority" type="checkbox" required className="mt-1" />
+        <span>I have read the DPA and may accept agreements for this company.</span>
+      </label>
+    </ActionForm>
+  );
+}
+
 export default async function OrganizationDataPage({ params }: { params: Promise<{ orgId: string }> }) {
   const { orgId } = await params;
   const { org, isOwner, limits, dpa, workspaces, runCount, upcoming } = await getOrganizationData(orgId);
@@ -48,7 +82,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
         title="Data Processing Agreement"
         description={
           <>
-            The <Link href="/legal/dpa" className="underline">DPA</Link> (version of {DPA_VERSION}, also <Link href="/legal/dpa?lang=pl" className="underline">in Polish</Link>) sets how FlowRetest processes personal data for this organization. An owner accepts it for the company; each acceptance is kept with a PDF copy. Owners of organizations that accepted it get an email 30 days before a sub-processor changes.
+            The <Link href="/legal/dpa" className="underline">DPA</Link> (version of {DPA_VERSION}, also <Link href="/legal/dpa?lang=pl" className="underline">in Polish</Link>) sets how FlowRetest processes personal data for this organization. An owner accepts it for the company; each acceptance is kept with a PDF copy. Owners of every organization get an email at least 30 days before a sub-processor changes.
           </>
         }
       >
@@ -72,7 +106,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
               <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <span>
                   <span className="font-medium">{a.company_name}</span>
-                  <span className="text-muted"> · {a.signer_name}, {a.signer_role} · version {a.version}{a.version === DPA_VERSION ? '' : ' (older)'}</span>
+                  <span className="text-muted"> · {a.signer_name}, {a.signer_role} · version {a.version}{a.version !== DPA_VERSION ? ' (older)' : a.id === current?.id ? '' : ' (replaced by a later acceptance)'}</span>
                 </span>
                 <span className="flex items-center gap-3 text-xs text-muted">
                   <Time value={a.accepted_at} />
@@ -84,38 +118,14 @@ export default async function OrganizationDataPage({ params }: { params: Promise
           </ul>
         )}
         {isOwner && !current && legal.draft ? <div className="mt-6"><DraftNotice complete={legal.complete} /></div> : null}
-        {isOwner && !current && dpaAcceptanceOpen(legal) ? (
-          <div className="mt-6">
-            <ActionForm action={acceptDpa} submit="Accept the DPA" pending="Recording…" className="grid gap-3 sm:grid-cols-2 sm:items-end">
-              <input type="hidden" name="orgId" value={org.id} />
-              <input type="hidden" name="version" value={DPA_VERSION} />
-              <label className="flex flex-col gap-1 text-sm">
-                Company name
-                <input name="companyName" required maxLength={200} placeholder="Acme Automation Sp. z o.o." className={inputClass} />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                <span>Registration or VAT number <span className="text-xs text-muted">· optional</span></span>
-                <input name="companyId" maxLength={100} placeholder="PL1234567890" className={inputClass} />
-              </label>
-              <label className="flex flex-col gap-1 text-sm sm:col-span-2">
-                Registered address
-                <input name="companyAddress" required maxLength={500} placeholder="ul. Przykładowa 1, 00-001 Warszawa, Poland" className={inputClass} />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Your name
-                <input name="signerName" required maxLength={200} className={inputClass} />
-              </label>
-              <label className="flex flex-col gap-1 text-sm">
-                Your role
-                <input name="signerRole" required maxLength={200} placeholder="Managing director" className={inputClass} />
-              </label>
-              <label className="flex items-start gap-2 text-sm sm:col-span-2">
-                <input name="authority" type="checkbox" required className="mt-1" />
-                <span>I have read the DPA and may accept agreements for this company.</span>
-              </label>
-            </ActionForm>
-          </div>
+        {isOwner && current && dpaAcceptanceOpen(legal) ? (
+          // Acceptances are never edited; a typo in the company name is fixed by a new acceptance, which becomes current.
+          <details className="mt-4 text-sm">
+            <summary className="cursor-pointer text-muted underline">Wrong company or signer details? Accept again with the right ones</summary>
+            <div className="mt-4">{acceptForm(org.id)}</div>
+          </details>
         ) : null}
+        {isOwner && !current && dpaAcceptanceOpen(legal) ? <div className="mt-6">{acceptForm(org.id)}</div> : null}
       </Section>
 
       <Section

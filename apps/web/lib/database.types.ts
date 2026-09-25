@@ -182,8 +182,10 @@ export type Database = {
           company_address: string
           company_id: string | null
           company_name: string
+          draft: boolean
           id: string
           organization_id: string
+          provider: Json | null
           signer_email: string
           signer_name: string
           signer_role: string
@@ -195,8 +197,10 @@ export type Database = {
           company_address: string
           company_id?: string | null
           company_name: string
+          draft?: boolean
           id?: string
           organization_id: string
+          provider?: Json | null
           signer_email: string
           signer_name: string
           signer_role: string
@@ -208,8 +212,10 @@ export type Database = {
           company_address?: string
           company_id?: string | null
           company_name?: string
+          draft?: boolean
           id?: string
           organization_id?: string
+          provider?: Json | null
           signer_email?: string
           signer_name?: string
           signer_role?: string
@@ -1015,9 +1021,12 @@ export type Database = {
           p_company_address: string
           p_company_id: string
           p_company_name: string
+          p_draft: boolean
           p_org: string
+          p_provider: Json
           p_signer_name: string
           p_signer_role: string
+          p_user: string
           p_version: string
         }
         Returns: string
@@ -1027,6 +1036,14 @@ export type Database = {
         Returns: string
       }
       claim_invitations: { Args: never; Returns: number }
+      claim_notice_delivery: {
+        Args: {
+          p_email: string
+          p_notice: string
+          p_organization_ids: string[]
+        }
+        Returns: boolean
+      }
       create_organization: { Args: { p_name: string }; Returns: string }
       drift_matrix_allowed: { Args: { ws: string }; Returns: boolean }
       ingest_run: {
@@ -1112,6 +1129,7 @@ export type Database = {
       }
       subscription_gives_plan: { Args: { p_status: string }; Returns: boolean }
       token_workspace: { Args: { p_token_hash: string }; Returns: string }
+      valid_notice_changes: { Args: { c: Json }; Returns: boolean }
       workspace_org: { Args: { ws: string }; Returns: string }
       workspace_over_limit: { Args: { ws: string }; Returns: boolean }
     }

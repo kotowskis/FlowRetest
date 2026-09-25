@@ -102,17 +102,38 @@ test('invitations expire after 30 days: not claimable, purged at night', { skip:
   assert.deepEqual(left, [fresh]);
 });
 
-test('DPA acceptances: owners only, members read them, outsiders see nothing, rows cannot be edited', { skip: skipDb }, async () => {
-  const args = { p_org: orgId, p_version: DPA_VERSION, p_company_name: 'Data Agency Sp. z o.o.', p_company_address: 'ul. Złota 44, Warszawa', p_company_id: '', p_signer_name: 'Anna Nowak', p_signer_role: 'CEO' };
-  assert.equal((await member.db.rpc('accept_dpa', args)).error?.code, '42501');
-  assert.equal((await outsider.db.rpc('accept_dpa', args)).error?.code, '42501');
-  assert.equal((await anon().rpc('accept_dpa', args)).error?.code, '42501');
-  assert.equal((await owner.db.rpc('accept_dpa', { ...args, p_version: 'latest' })).error?.code, '23514', 'versions are dates');
-  const id = (await owner.db.rpc('accept_dpa', args)).data as string;
+test('an expired invitation is no seat and the address can be invited again at once', { skip: skipDb }, async () => {
+  // Audit of week 14, item 21: until the nightly purge the expired row filled a Free seat and blocked a new invitation.
+  const org = (await owner.db.rpc('create_organization', { p_name: `Seats ${randomUUID().slice(0, 6)}` })).data as string;
+  const email = `again-${randomUUID().slice(0, 8)}@it.flowretest.test`;
+  assert.ifError((await admin().from('invitations').insert({ organization_id: org, email, created_at: new Date(Date.now() - 31 * DAY).toISOString() })).error);
+  const seats = async () => (await admin().rpc('org_plan', { org })).data?.[0]?.seats_used;
+  assert.equal(await seats(), 1, 'the owner only');
+  assert.ifError((await owner.db.from('invitations').insert({ organization_id: org, email, invited_by: owner.id })).error);
+  assert.equal(await seats(), 2);
+  const rows = (await admin().from('invitations').select('created_at').eq('organization_id', org)).data!;
+  assert.equal(rows.length, 1);
+  assert.ok(Date.parse(rows[0]!.created_at) > Date.now() - DAY, 'the new invitation replaced the expired one');
+  assert.ifError((await admin().from('organizations').delete().eq('id', org)).error);
+});
+
+test('DPA acceptances: written by the server for owners only, members read them, outsiders see nothing, rows cannot be edited', { skip: skipDb }, async () => {
+  const provider = { name: 'Skynappse Sp. z o.o.', address: 'ul. Testowa 1', companyId: 'NIP PL0000000000', email: 'privacy@example.com' };
+  const args = { p_user: owner.id, p_org: orgId, p_version: DPA_VERSION, p_company_name: 'Data Agency Sp. z o.o.', p_company_address: 'ul. Złota 44, Warszawa', p_company_id: '', p_signer_name: 'Anna Nowak', p_signer_role: 'CEO', p_provider: provider, p_draft: true };
+  // Audit of week 14, item 2: nobody with the public key calls accept_dpa, not even an owner for their own organization.
+  for (const db of [owner.db, member.db, outsider.db, anon()]) assert.equal((await db.rpc('accept_dpa', args)).error?.code, '42501');
+  assert.equal((await admin().rpc('accept_dpa', { ...args, p_user: member.id })).error?.code, '42501', 'the user must own the organization');
+  assert.equal((await admin().rpc('accept_dpa', { ...args, p_version: 'latest' })).error?.code, '23514', 'versions are dates');
+  const id = (await admin().rpc('accept_dpa', args)).data as string;
   assert.ok(id);
+  assert.equal((await admin().rpc('accept_dpa', args)).data, id, 'a double submit gets the same row');
+  const corrected = (await admin().rpc('accept_dpa', { ...args, p_company_name: 'Data Agency Sp. z o.o. (corrected)' })).data as string;
+  assert.notEqual(corrected, id, 'other details make a new acceptance');
   const row = (await member.db.from('dpa_acceptances').select('*').eq('id', id).single()).data!;
-  assert.equal(row.signer_email, owner.email, 'the signer is the signed-in owner, not a form field');
+  assert.equal(row.signer_email, owner.email, 'the signer is the owner the server named, not a form field');
   assert.equal(row.company_id, null);
+  assert.deepEqual(row.provider, provider, 'the provider the owner saw');
+  assert.equal(row.draft, true);
   assert.equal((await outsider.db.from('dpa_acceptances').select('id').eq('organization_id', orgId)).data?.length, 0);
   assert.equal((await owner.db.from('dpa_acceptances').update({ company_name: 'Other' }).eq('id', id).select('id')).error?.code, '42501', 'no update grant');
   assert.equal((await owner.db.from('dpa_acceptances').delete().eq('id', id).select('id')).error?.code, '42501', 'no delete grant');
@@ -152,7 +173,7 @@ test('export: owners get every row as JSON Lines; members 403, outsiders 404, vi
 
 test('DPA copy: a PDF for members, 404 for outsiders', { skip: skipApp }, async () => {
   const { data } = await admin().from('dpa_acceptances').select('id').eq('organization_id', orgId).limit(1).single();
-  const id = data?.id ?? ((await owner.db.rpc('accept_dpa', { p_org: orgId, p_version: DPA_VERSION, p_company_name: 'X', p_company_address: 'Y', p_company_id: '', p_signer_name: 'Z', p_signer_role: 'W' })).data as string);
+  const id = data?.id ?? ((await admin().rpc('accept_dpa', { p_user: owner.id, p_org: orgId, p_version: DPA_VERSION, p_company_name: 'X', p_company_address: 'Y', p_company_id: '', p_signer_name: 'Z', p_signer_role: 'W', p_provider: { name: 'P', address: 'A', companyId: 'C', email: 'e@example.com' }, p_draft: false })).data as string);
   const get = (cookie: string) => fetch(`${appUrl}/o/${orgId}/dpa/${id}/pdf`, { headers: { cookie }, redirect: 'manual' });
   const res = await get(member.cookie);
   assert.equal(res.status, 200);

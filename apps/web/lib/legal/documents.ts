@@ -522,9 +522,21 @@ export function dpaDocument(version: string, p: Provider, lang: DpaLang = 'en'):
   return DPA_TEXTS[version]?.[lang](p);
 }
 
-/** Owners may accept only a reviewed text, except where LEGAL_ALLOW_DRAFT_ACCEPTANCE is set (local stack, CI). */
+/**
+ * Owners may accept only a reviewed text, except where LEGAL_ALLOW_DRAFT_ACCEPTANCE is set on a server that runs on
+ * localhost (local stack, CI). `npm run db:env` writes the flag into .env.local, and `next start` reads that file, so
+ * a server with a public APP_URL ignores it (audit of week 14, item 38).
+ */
 export function dpaAcceptanceOpen(p: Provider, source: Record<string, string | undefined> = process.env): boolean {
-  return !p.draft || source.LEGAL_ALLOW_DRAFT_ACCEPTANCE === 'true';
+  if (!p.draft) return true;
+  if (source.LEGAL_ALLOW_DRAFT_ACCEPTANCE !== 'true') return false;
+  let host = '127.0.0.1';
+  try {
+    host = new URL(source.APP_URL || 'http://127.0.0.1:3100').hostname;
+  } catch {
+    return false;
+  }
+  return host === 'localhost' || host === '127.0.0.1' || host === '[::1]';
 }
 
 export function legalDocument(slug: LegalSlug, p: Provider): LegalDocument {

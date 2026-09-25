@@ -1,15 +1,20 @@
 /**
  * Sub-processor change notices (DPA section 6, ADR 0016). The founder announces a change with
  * scripts/subprocessor-notice.ts at least 30 days ahead; the database refuses a shorter notice. The notice shows on
- * /legal/subprocessors and goes by email to the owners of every organization that accepted the DPA, one email per
- * person. Sending is safe to repeat: addresses that already got the email are skipped, failed ones are tried again.
+ * /legal/subprocessors and goes by email to the owners of every organization, one email per person. Sending is safe to
+ * repeat and to run twice at once: each address is claimed in the database before its email goes out, addresses that
+ * got it are skipped, failed ones are tried again. It refuses once fewer than 30 days are left before the change,
+ * because the DPA counts the 30 days from the email (audit of week 14, items 4, 5, 17 and 18).
  */
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database.types.ts';
 import type { MailMessage, MailResult } from './mail.ts';
 
 export const NOTICE_DAYS = 30;
+/** Days between the announcement date and the earliest effective date: 30 full days after the day of the announcement. */
+const EARLIEST_AFTER = NOTICE_DAYS + 1;
 
 export const SubprocessorChangeSchema = z.object({
   action: z.enum(['add', 'remove', 'change']),
@@ -38,7 +43,7 @@ export interface Notice {
 
 /** The first day a change may take effect when announced at `now`. */
 export function earliestEffectiveOn(now: Date): string {
-  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + NOTICE_DAYS));
+  const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + EARLIEST_AFTER));
   return d.toISOString().slice(0, 10);
 }
 
@@ -80,7 +85,7 @@ export function noticeEmail(input: NoticeEmailInput): MailMessage {
     '',
     `The current list and all announced changes: ${page}`,
     '',
-    `You get this email as an owner of ${orgs}, which accepted the FlowRetest Data Processing Agreement.`,
+    `You get this email as an owner of ${orgs} in FlowRetest; section 6 of the FlowRetest Data Processing Agreement promises this notice.`,
   ].join('\n');
   const html = [
     `<p>FlowRetest will change its sub-processors on <strong>${escapeHtml(notice.effective_on)}</strong>.</p>`,
@@ -88,7 +93,7 @@ export function noticeEmail(input: NoticeEmailInput): MailMessage {
     `<ul>${notice.changes.map((c) => `<li>${escapeHtml(changeLine(c))}</li>`).join('')}</ul>`,
     `<p>${escapeHtml(object)}</p>`,
     `<p><a href="${escapeHtml(page)}">The current list and all announced changes</a></p>`,
-    `<p style="color:#6f6a62;font-size:12px">You get this email as an owner of ${escapeHtml(orgs)}, which accepted the FlowRetest Data Processing Agreement.</p>`,
+    `<p style="color:#6f6a62;font-size:12px">You get this email as an owner of ${escapeHtml(orgs)} in FlowRetest; section 6 of the FlowRetest Data Processing Agreement promises this notice.</p>`,
   ].join('\n');
   return {
     to: input.to,
@@ -96,6 +101,8 @@ export function noticeEmail(input: NoticeEmailInput): MailMessage {
     text,
     html,
     ...(input.contact ? { headers: { 'Reply-To': input.contact } } : {}),
+    // Resend drops a second message with the same key within 24 hours: a retry after a timeout sends nothing twice.
+    idempotencyKey: `subprocessor-notice/${notice.id}/${createHash('sha256').update(input.to).digest('hex').slice(0, 24)}`,
   };
 }
 
@@ -111,36 +118,67 @@ export async function announceNotice(db: Db, input: NoticeInput): Promise<Notice
 export interface SendReport {
   sent: number;
   failed: number;
+  /** Got the email already, or another run is sending it right now. */
   skipped: number;
   recipients: number;
+}
+
+/** Whole days from `now` to the start (00:00 UTC) of the effective date. */
+export function daysLeft(effectiveOn: string, now: Date): number {
+  return Math.floor((Date.parse(`${effectiveOn}T00:00:00Z`) - now.getTime()) / 86_400_000);
+}
+
+const PAGE = 1000;
+
+/** Every row of a PostgREST read, page by page: a single read stops at max_rows (1000) without an error. */
+async function all<T>(page: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>, what: string): Promise<T[]> {
+  const out: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await page(from, from + PAGE - 1);
+    if (error) throw new Error(`${what}: ${error.message}`);
+    out.push(...(data ?? []));
+    if ((data ?? []).length < PAGE) return out;
+  }
 }
 
 /** Emails the notice to every recipient who has not got it yet; `dryRun` only counts. */
 export async function sendNotice(
   db: Db,
   noticeId: string,
-  options: { send: (message: MailMessage) => Promise<MailResult>; appUrl: string; contact?: string; dryRun?: boolean },
+  options: { send: (message: MailMessage) => Promise<MailResult>; appUrl: string; contact?: string; dryRun?: boolean; now?: Date },
 ): Promise<SendReport> {
   const { data: notice, error } = await db.from('subprocessor_notices').select('*').eq('id', noticeId).maybeSingle();
   if (error || !notice) throw new Error(`notice ${noticeId} not found${error ? `: ${error.message}` : ''}`);
-  const [{ data: recipients, error: rError }, { data: done, error: dError }] = await Promise.all([
-    db.rpc('subprocessor_notice_recipients'),
-    db.from('subprocessor_notice_deliveries').select('email').eq('notice_id', noticeId).eq('ok', true),
-  ]);
-  if (rError || dError) throw new Error(`recipients: ${(rError ?? dError)?.message}`);
-  const already = new Set((done ?? []).map((d) => d.email));
-  const report: SendReport = { sent: 0, failed: 0, skipped: 0, recipients: recipients?.length ?? 0 };
-  for (const r of recipients ?? []) {
-    if (already.has(r.email)) {
+  const left = daysLeft(notice.effective_on, options.now ?? new Date());
+  if (left < NOTICE_DAYS) {
+    throw new Error(`only ${Math.max(left, 0)} days are left before ${notice.effective_on}, and the DPA promises ${NOTICE_DAYS} from the email; announce the change again with an effective date of ${earliestEffectiveOn(options.now ?? new Date())} or later`);
+  }
+  const recipients = await all((from, to) => db.rpc('subprocessor_notice_recipients').range(from, to), 'recipients');
+  const report: SendReport = { sent: 0, failed: 0, skipped: 0, recipients: recipients.length };
+  if (options.dryRun) {
+    const done = await all((from, to) => db.from('subprocessor_notice_deliveries').select('email').eq('notice_id', noticeId).eq('ok', true).order('email').range(from, to), 'deliveries');
+    const already = new Set(done.map((d) => d.email));
+    report.skipped = recipients.filter((r) => already.has(r.email)).length;
+    return report;
+  }
+  for (const r of recipients) {
+    // The claim is the lock: a second run, or this address already sent, gets false and skips it.
+    const { data: claimed, error: cError } = await db.rpc('claim_notice_delivery', { p_notice: noticeId, p_email: r.email, p_organization_ids: r.organization_ids });
+    if (cError) throw new Error(`claim of ${r.email}: ${cError.message}`);
+    if (!claimed) {
       report.skipped += 1;
       continue;
     }
-    if (options.dryRun) continue;
     const result = await options.send(noticeEmail({ to: r.email, organizationNames: r.organization_names, notice: notice as unknown as Notice, appUrl: options.appUrl, contact: options.contact }));
-    const row = { notice_id: noticeId, email: r.email, organization_ids: r.organization_ids, ok: result.ok, detail: `${result.transport}: ${result.detail ?? ''}`.slice(0, 500), sent_at: new Date().toISOString() };
-    const { error: wError } = await db.from('subprocessor_notice_deliveries').upsert(row);
+    // Without a transport sendMail only logs the message; for a legal notice that is not a delivery.
+    const ok = result.ok && result.transport !== 'log';
+    const { error: wError } = await db
+      .from('subprocessor_notice_deliveries')
+      .update({ ok, detail: `${result.transport}: ${result.detail ?? ''}`.slice(0, 500), sent_at: new Date().toISOString() })
+      .eq('notice_id', noticeId)
+      .eq('email', r.email);
     if (wError) throw new Error(`delivery of ${r.email}: ${wError.message}`);
-    if (result.ok) report.sent += 1;
+    if (ok) report.sent += 1;
     else report.failed += 1;
   }
   return report;

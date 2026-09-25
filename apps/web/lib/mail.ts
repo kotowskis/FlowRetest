@@ -10,6 +10,8 @@ export interface MailMessage {
   html: string;
   /** Extra headers, e.g. List-Unsubscribe. */
   headers?: Record<string, string>;
+  /** Resend's Idempotency-Key: the same key within 24 hours sends nothing a second time. */
+  idempotencyKey?: string;
 }
 
 export interface MailResult {
@@ -46,7 +48,7 @@ export async function sendMail(input: MailMessage, env: MailEnv = process.env as
   const message = { ...input, subject: input.subject.replace(/[\r\n]+/g, ' ') };
   const from = env.MAIL_FROM || DEFAULT_FROM;
   if (env.RESEND_API_KEY) {
-    const r = await post('https://api.resend.com/emails', { authorization: `Bearer ${env.RESEND_API_KEY}` }, { from, to: [message.to], subject: message.subject, text: message.text, html: message.html, ...(message.headers ? { headers: message.headers } : {}) });
+    const r = await post('https://api.resend.com/emails', { authorization: `Bearer ${env.RESEND_API_KEY}`, ...(message.idempotencyKey ? { 'idempotency-key': message.idempotencyKey } : {}) }, { from, to: [message.to], subject: message.subject, text: message.text, html: message.html, ...(message.headers ? { headers: message.headers } : {}) });
     return { ok: r.ok, transport: 'resend', detail: r.detail };
   }
   if (env.MAILPIT_URL) {
