@@ -3,8 +3,8 @@ import Link from 'next/link';
 import { getWorkspace } from '@/lib/data.ts';
 import { env } from '@/lib/env.ts';
 import { githubConfig } from '@/lib/github.ts';
-import { ActionForm, TokenForm } from '@/components/forms.tsx';
-import { Empty, PageHeader, Section, StatusBadge, Time, buttonClass, inputClass, quietButtonClass } from '@/components/ui.tsx';
+import { ActionForm, ConfirmButton, TokenForm } from '@/components/forms.tsx';
+import { Empty, PageHeader, Section, StatusBadge, Time, WorkspaceNav, buttonClass, inputClass, secondaryButtonClass } from '@/components/ui.tsx';
 import { addSlackWebhook, createToken, deleteWorkspace, removeSlackWebhook, revokeToken, setSubscription, unlinkGitHub } from '../../actions.ts';
 
 export const metadata: Metadata = { title: 'Workspace' };
@@ -39,12 +39,12 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
       <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name, href: `/o/${org.id}` }, { label: workspace.name }]} title={workspace.name}>
         <span className="flex flex-wrap items-center gap-4 text-sm text-muted">
           {subtitle ? <span className="font-mono">{subtitle}</span> : null}
-          <Link href={`/w/${workspace.id}/drift`} className="hover:text-ink hover:underline">Engine drift</Link>
         </span>
       </PageHeader>
+      <WorkspaceNav workspaceId={workspace.id} current="overview" />
 
       {overLimit ? (
-        <p role="alert" className="mb-8 rounded-md border border-error/40 bg-error/10 px-4 py-3 text-sm text-error">
+        <p role="alert" className="mb-10 rounded-md border border-error/45 bg-error/10 px-4 py-3 text-sm leading-6 text-error">
           This workspace is beyond the {limits.workspaces} workspace{limits.workspaces === 1 ? '' : 's'} of the {limits.plan} plan, so uploads to it are refused. Existing runs stay readable.{' '}
           <Link href={billing} className="underline">Change the plan</Link> or delete a newer workspace.
         </p>
@@ -57,7 +57,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
           </Empty>
         ) : (
           <div className="overflow-x-auto rounded-md border border-line bg-panel">
-            <table className="w-full text-sm">
+            <table className="ledger text-sm">
               <thead className="border-b border-line text-left text-xs text-muted">
                 <tr>
                   <th className="px-4 py-2 font-medium">Workflow</th>
@@ -66,7 +66,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
                   <th className="px-4 py-2 font-medium">Status</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody>
                 {workflows.map((w) => (
                   <tr key={w.id} className="hover:bg-bg">
                     <td className="px-4 py-2">
@@ -94,7 +94,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
                 {s}
               </label>
             ))}
-            <button className={buttonClass}>Save</button>
+            <button className={secondaryButtonClass}>Save</button>
           </form>
         </Section>
       </div>
@@ -108,7 +108,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
           ) : (
             <>
               {installations.length > 0 ? (
-                <ul className="mb-4 divide-y divide-line rounded-md border border-line bg-panel">
+                <ul className="mb-4 record-list">
                   {installations.map((i) => (
                     <li key={i.installation_id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                       <span>
@@ -120,7 +120,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
                         <form action={unlinkGitHub}>
                           <input type="hidden" name="workspaceId" value={workspace.id} />
                           <input type="hidden" name="installationId" value={i.installation_id} />
-                          <button className={quietButtonClass}>Unlink</button>
+                          <ConfirmButton confirm={`Unlink ${i.account_login}`}>Unlink</ConfirmButton>
                         </form>
                       ) : null}
                     </li>
@@ -128,7 +128,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
                 </ul>
               ) : null}
               {isOwner ? (
-                <a href={`/api/github/install?workspace=${workspace.id}`} className={`${buttonClass} inline-block`}>
+                <a href={`/api/github/install?workspace=${workspace.id}`} className={buttonClass}>
                   {installations.length ? 'Connect another GitHub account' : 'Connect GitHub'}
                 </a>
               ) : installations.length === 0 ? (
@@ -142,7 +142,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
       <Section title="Slack" description="An incoming webhook gets the status, counts and a link for runs with the chosen statuses.">
         {planNote}
         {slackHooks.length > 0 ? (
-          <ul className="mb-4 divide-y divide-line rounded-md border border-line bg-panel">
+          <ul className="mb-4 record-list">
             {slackHooks.map((h) => (
               <li key={h.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <code className="font-mono text-xs break-all">{h.url_hint}</code>
@@ -152,7 +152,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
                     <form action={removeSlackWebhook}>
                       <input type="hidden" name="workspaceId" value={workspace.id} />
                       <input type="hidden" name="webhookId" value={h.id} />
-                      <button className={quietButtonClass}>Remove</button>
+                      <ConfirmButton confirm="Remove webhook">Remove</ConfirmButton>
                     </form>
                   ) : null}
                 </span>
@@ -165,7 +165,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
             <input type="hidden" name="workspaceId" value={workspace.id} />
             <label className="flex min-w-72 flex-1 flex-col gap-1 text-sm">
               Webhook URL
-              <input name="url" type="url" required placeholder="https://hooks.slack.com/services/…" className="rounded-md border border-line px-3 py-2 text-sm" />
+              <input name="url" type="url" required placeholder="https://hooks.slack.com/services/…" className={inputClass} />
             </label>
             <fieldset className="flex items-center gap-3 pb-2">
               {(['DIFF', 'ERROR', 'BLOCKED', 'PASS'] as const).map((s) => (
@@ -184,7 +184,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
       <Section title="Tokens" description="FLOWRETEST_TOKEN for this workspace. The CLI sends only the redacted report; fixtures and the full report stay on the machine that ran it.">
         <TokenForm action={createToken} workspaceId={workspace.id} appUrl={env.appUrl()} />
         {tokens.length > 0 ? (
-          <ul className="mt-6 divide-y divide-line rounded-md border border-line bg-panel">
+          <ul className="mt-6 record-list">
             {tokens.map((t) => (
               <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <span className={t.revoked_at ? 'text-muted line-through' : ''}>
@@ -198,7 +198,7 @@ export default async function WorkspacePage({ params, searchParams }: { params: 
                     <form action={revokeToken}>
                       <input type="hidden" name="workspaceId" value={workspace.id} />
                       <input type="hidden" name="tokenId" value={t.id} />
-                      <button className={quietButtonClass}>Revoke</button>
+                      <ConfirmButton confirm={`Revoke ${t.name}`}>Revoke</ConfirmButton>
                     </form>
                   )}
                 </span>

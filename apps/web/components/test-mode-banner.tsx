@@ -8,7 +8,7 @@ export function TestModeBanner() {
   }
   const mailpit = process.env.MAILPIT_URL;
   return (
-    <div role="note" className="border-b border-diff/40 bg-diff/10 px-4 py-1.5 text-center text-xs text-ink">
+    <div role="note" className="border-b border-diff/45 bg-diff/10 px-4 py-1.5 text-center text-xs leading-5 text-ink">
       <strong className="font-semibold text-diff">Test mode.</strong> Seeded test data; Stripe, GitHub and Slack are local fakes
       {mailpit ? (
         <>

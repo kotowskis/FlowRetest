@@ -29,7 +29,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ works
           <Empty>No runs uploaded for this workflow.</Empty>
         ) : (
           <div className="overflow-x-auto rounded-md border border-line bg-panel">
-            <table className="w-full text-sm">
+            <table className="ledger text-sm">
               <thead className="border-b border-line text-left text-xs text-muted">
                 <tr>
                   <th className="px-4 py-2 font-medium">Uploaded</th>
@@ -41,7 +41,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ works
                   <th className="px-4 py-2 font-medium"><span className="sr-only">Compare</span></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-line">
+              <tbody>
                 {runs.map((r, i) => {
                   const summary = r.summary as unknown as RunSummary;
                   // Runs are newest first, so the previous run is the next row.
@@ -49,7 +49,7 @@ export default async function WorkflowPage({ params }: { params: Promise<{ works
                   return (
                     <tr key={r.id} className="hover:bg-bg">
                       <td className="px-4 py-2 whitespace-nowrap">
-                        <Link href={`/runs/${r.id}`} className="hover:underline"><Time value={r.created_at} /></Link>
+                        <Link href={`/runs/${r.id}`} className="font-semibold underline decoration-line hover:decoration-ink"><Time value={r.created_at} /></Link>
                       </td>
                       <td className="px-4 py-2"><StatusBadge status={r.status} /></td>
                       <td className="px-4 py-2 font-mono text-xs">

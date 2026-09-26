@@ -17,11 +17,11 @@ function BlockView({ block }: { block: Block }) {
   }
   return (
     <div className="mt-3 overflow-x-auto rounded-md border border-line">
-      <table className="w-full min-w-[36rem] text-left text-sm">
-        <thead className="bg-bg text-xs text-muted">
+      <table className="ledger min-w-[36rem] text-sm">
+        <thead>
           <tr>{block.table.head.map((h) => <th key={h} className="px-3 py-2 font-medium">{h}</th>)}</tr>
         </thead>
-        <tbody className="divide-y divide-line">
+        <tbody>
           {block.table.rows.map((row) => (
             <tr key={row.join('|')} className="align-top">
               {row.map((cell, i) => <td key={i} className="px-3 py-2">{linked(cell)}</td>)}
@@ -48,10 +48,10 @@ export function DraftNotice({ lang = 'en', complete = false }: { lang?: 'en' | '
 
 export function LegalText({ doc }: { doc: LegalDocument }) {
   return (
-    <div className="text-sm leading-relaxed">
+    <div className="max-w-[70ch] text-[0.9375rem] leading-7">
       {doc.sections.map((s) => (
-        <section key={s.heading} className="mt-8">
-          <h2 className="text-base font-semibold">{s.heading}</h2>
+        <section key={s.heading} className="mt-10">
+          <h2 className="text-lg font-bold tracking-tight">{s.heading}</h2>
           {s.blocks.map((b, i) => <BlockView key={i} block={b} />)}
         </section>
       ))}

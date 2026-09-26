@@ -6,7 +6,7 @@ import { stripeConfig } from '@/lib/stripe.ts';
 import { trialFor } from '@/lib/plan-change.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
 import { PlanChoice } from '@/components/forms.tsx';
-import { Empty, PageHeader, Section, Time, money, quietButtonClass } from '@/components/ui.tsx';
+import { Empty, Notice, OrgNav, PageHeader, Section, Time, money, secondaryButtonClass } from '@/components/ui.tsx';
 import { choosePlan, openBillingPortal } from './actions.ts';
 
 export const metadata: Metadata = { title: 'Billing' };
@@ -78,7 +78,8 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
   return (
     <>
       <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name, href: `/o/${org.id}` }, { label: 'Billing' }]} title="Billing" />
-      {message ? <p role="status" className={`mb-6 text-sm ${message.ok ? 'text-pass' : 'text-diff'}`}>{message.text}</p> : null}
+      <OrgNav orgId={org.id} current="billing" />
+      {message ? <Notice tone={message.ok ? 'ok' : 'warn'}>{message.text}</Notice> : null}
 
       <Section title={`Current plan: ${current?.name ?? limits.plan}`}>
         {statusLine(account, limits, currentPrice)}
@@ -100,7 +101,7 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
         {isOwner && account && config ? (
           <form action={openBillingPortal} className="mt-4">
             <input type="hidden" name="orgId" value={org.id} />
-            <button className={quietButtonClass}>Payment details, VAT id and cancelling (Stripe)</button>
+            <button className={secondaryButtonClass}>Payment details, VAT id and cancelling (Stripe)</button>
           </form>
         ) : null}
       </Section>
@@ -110,7 +111,7 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
         description={`Prices without VAT. Yearly billing costs 20% less than twelve months.${trial ? ` Your first paid plan starts with ${trial} days free: Stripe asks for a card and charges it only when the trial ends, so cancelling before then costs nothing.` : ''} The runner and everything that stays on your machines are free and open source.`}
       >
         {!config ? <p className="mb-4 text-sm text-diff">This server does not take payments yet.</p> : null}
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {plans.map((p) => {
             const isCurrent = p.id === limits.plan;
             return (
@@ -152,7 +153,7 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
             <Empty>No invoices yet.</Empty>
           ) : (
             <div className="overflow-x-auto rounded-md border border-line bg-panel">
-              <table className="w-full text-sm">
+              <table className="ledger text-sm">
                 <thead className="border-b border-line text-left text-xs text-muted">
                   <tr>
                     <th className="px-4 py-2 font-medium">Number</th>
@@ -162,7 +163,7 @@ export default async function BillingPage({ params, searchParams }: { params: Pr
                     <th className="px-4 py-2 font-medium"><span className="sr-only">Links</span></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-line">
+                <tbody>
                   {invoices.map((i) => (
                     <tr key={i.id}>
                       <td className="px-4 py-2 font-mono text-xs">{i.number ?? i.id}</td>

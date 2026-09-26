@@ -6,7 +6,7 @@ import { provider } from '@/lib/legal/provider.ts';
 import { changeLine } from '@/lib/subprocessor-notices.ts';
 import { DraftNotice } from '@/components/legal.tsx';
 import { ActionForm } from '@/components/forms.tsx';
-import { Empty, PageHeader, Section, Time, inputClass } from '@/components/ui.tsx';
+import { Empty, OrgNav, PageHeader, Section, Time, inputClass, secondaryButtonClass } from '@/components/ui.tsx';
 import { acceptDpa, deleteOrganization, setRetention } from './actions.ts';
 
 export const metadata: Metadata = { title: 'Data' };
@@ -55,6 +55,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
   return (
     <>
       <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name, href: `/o/${org.id}` }, { label: 'Data' }]} title="Data and privacy" />
+      <OrgNav orgId={org.id} current="data" />
 
       <Section
         title="Run history"
@@ -87,7 +88,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
         }
       >
         {upcoming.length > 0 ? (
-          <div role="note" className="mb-4 rounded-md border border-diff/40 bg-diff/10 px-4 py-3 text-sm">
+          <div role="note" className="mb-4 rounded-md border border-diff/45 bg-diff/10 px-4 py-3 text-sm leading-6">
             <p className="font-medium">Announced sub-processor changes</p>
             <ul className="mt-1 list-disc pl-5">
               {upcoming.map((n) => (
@@ -101,7 +102,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
         {dpa.length === 0 ? (
           <Empty>Not accepted yet.</Empty>
         ) : (
-          <ul className="divide-y divide-line rounded-md border border-line bg-panel">
+          <ul className="record-list">
             {dpa.map((a) => (
               <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
                 <span>
@@ -133,7 +134,7 @@ export default async function OrganizationDataPage({ params }: { params: Promise
         description={`Everything the service keeps for this organization as one JSON Lines file: members, invitations, ${workspaces.length} workspace${workspaces.length === 1 ? '' : 's'}, ${runCount} run${runCount === 1 ? '' : 's'} with their redacted reports, acceptances, checks, notifications, DPA acceptances, invoices, the upload counter and the sub-processor emails sent to its owners. The last line counts the lines before it, so a download cut short shows.`}
       >
         {isOwner ? (
-          <a href={`/o/${org.id}/export`} className="inline-block rounded-md border border-line px-3 py-2 text-sm hover:bg-bg">Download export</a>
+          <a href={`/o/${org.id}/export`} className={secondaryButtonClass}>Download export</a>
         ) : (
           <p className="text-sm text-muted">Owners can download the export.</p>
         )}

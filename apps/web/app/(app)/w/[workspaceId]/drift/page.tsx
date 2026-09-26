@@ -1,7 +1,7 @@
 import type { Metadata } from 'next';
 import { getWorkspaceDrift } from '@/lib/data.ts';
 import { DriftHowTo, DriftLocked, WorkflowDriftTable } from '@/components/drift.tsx';
-import { PageHeader, Section } from '@/components/ui.tsx';
+import { PageHeader, Section, WorkspaceNav } from '@/components/ui.tsx';
 
 export const metadata: Metadata = { title: 'Engine drift' };
 
@@ -16,6 +16,7 @@ export default async function WorkspaceDriftPage({ params }: { params: Promise<{
       >
         {workspace.engine_tag ? <span className="font-mono text-sm text-muted">runs n8n {workspace.engine_tag}</span> : null}
       </PageHeader>
+      <WorkspaceNav workspaceId={workspace.id} current="drift" />
       <Section title="What changes after an n8n upgrade" description="The latest upgrade-check of each workflow against each target version: PASS means the new engine sends the same calls; DIFF, ERROR and BLOCKED link to the plan.">
         {!limits.drift_matrix ? <DriftLocked plan={limits.plan} billingHref={`/o/${org.id}/billing`} /> : cells.length === 0 ? <DriftHowTo /> : <WorkflowDriftTable cells={cells} workflows={workflows} />}
       </Section>

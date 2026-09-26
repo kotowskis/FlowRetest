@@ -2,7 +2,7 @@ import type { Metadata } from 'next';
 import Link from 'next/link';
 import { listOrganizations } from '@/lib/data.ts';
 import { ActionForm } from '@/components/forms.tsx';
-import { Empty, PageHeader, Section, inputClass } from '@/components/ui.tsx';
+import { Empty, Notice, PageHeader, Section, inputClass } from '@/components/ui.tsx';
 import { createOrganization } from '../actions.ts';
 
 export const metadata: Metadata = { title: 'Organizations' };
@@ -20,17 +20,17 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
   return (
     <>
       <PageHeader crumbs={[{ label: 'Organizations' }]} title="Organizations" />
-      {githubMessage ? <p role="status" className="mb-6 text-sm text-muted">{githubMessage}</p> : null}
+      {githubMessage ? <Notice>{githubMessage}</Notice> : null}
       <Section title="Your organizations">
         {orgs.length === 0 ? (
           <Empty>You are not in any organization yet. Create one below, or ask an owner to invite this email address.</Empty>
         ) : (
-          <ul className="divide-y divide-line rounded-md border border-line bg-panel">
+          <ul className="record-list">
             {orgs.map((o) => (
               <li key={o.id}>
-                <Link href={`/o/${o.id}`} className="flex items-center justify-between px-4 py-3 hover:bg-bg">
-                  <span className="font-medium">{o.name}</span>
-                  <span className="text-xs text-muted">{o.role}</span>
+                <Link href={`/o/${o.id}`} className="flex items-center justify-between px-4 py-3.5 hover:bg-bg">
+                  <span className="font-bold">{o.name}</span>
+                  <span className="eyebrow">{o.role}</span>
                 </Link>
               </li>
             ))}
@@ -38,13 +38,13 @@ export default async function OrganizationsPage({ searchParams }: { searchParams
         )}
       </Section>
       <Section title="New organization" description="Usually one per agency. Each customer instance becomes a workspace inside it.">
-        <ActionForm action={createOrganization} submit="Create organization" pending="Creating…">
-          <label className="flex flex-col gap-1 text-sm">
+        <ActionForm action={createOrganization} submit="Create organization" pending="Creating…" className="grid max-w-md justify-items-start gap-4">
+          <label className="flex w-full flex-col gap-1.5 text-sm font-bold">
             Name
-            <input name="name" required maxLength={100} placeholder="Acme Automation" className={inputClass} />
+            <input name="name" required maxLength={100} placeholder="Acme Automation" className={`${inputClass} font-normal`} />
           </label>
-          <label className="flex items-start gap-2 text-sm">
-            <input name="terms" type="checkbox" required className="mt-1" />
+          <label className="flex items-start gap-2.5 text-sm leading-6">
+            <input name="terms" type="checkbox" required className="mt-1 size-4 shrink-0" />
             <span>
               I accept the <Link href="/legal/terms" className="underline">Terms of Service</Link>, with the <Link href="/legal/dpa" className="underline">DPA</Link> as part of them, for this organization.
             </span>

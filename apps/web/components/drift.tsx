@@ -37,14 +37,14 @@ export function WorkflowDriftTable({ cells: all, workflows }: { cells: DriftCell
   const rows = workflows.filter((w) => cells.some((c) => c.workflow_id === w.id)).sort((a, b) => a.name.localeCompare(b.name));
   return (
     <div className="overflow-x-auto rounded-md border border-line bg-panel">
-      <table className="w-full text-sm">
+      <table className="ledger text-sm">
         <thead className="border-b border-line text-left text-xs text-muted">
           <tr>
             <th className="px-4 py-2 font-medium">Workflow</th>
             {tags.map((t) => <th key={t} className="px-4 py-2 font-mono font-medium">{`n8n ${t}`}</th>)}
           </tr>
         </thead>
-        <tbody className="divide-y divide-line">
+        <tbody>
           {rows.map((w) => (
             <tr key={w.id} className="align-top">
               <td className="px-4 py-2">
@@ -81,14 +81,14 @@ export function WorkspaceDriftTable({ cells: all, workspaces }: { cells: DriftCe
   const rows = workspaces.filter((w) => cells.some((c) => c.workspace_id === w.id));
   return (
     <div className="overflow-x-auto rounded-md border border-line bg-panel">
-      <table className="w-full text-sm">
+      <table className="ledger text-sm">
         <thead className="border-b border-line text-left text-xs text-muted">
           <tr>
             <th className="px-4 py-2 font-medium">Workspace</th>
             {tags.map((t) => <th key={t} className="px-4 py-2 font-mono font-medium">{`n8n ${t}`}</th>)}
           </tr>
         </thead>
-        <tbody className="divide-y divide-line">
+        <tbody>
           {rows.map((w) => (
             <tr key={w.id} className="align-top">
               <td className="px-4 py-2">

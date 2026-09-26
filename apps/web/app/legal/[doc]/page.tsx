@@ -52,7 +52,7 @@ export default async function LegalPage({ params, searchParams }: Params) {
   const today = new Date().toISOString().slice(0, 10);
   return (
     <PublicShell>
-      <main lang={lang} className="mx-auto max-w-3xl px-4 py-10">
+      <main lang={lang} className="mx-auto max-w-3xl px-4 py-12 sm:px-6 sm:py-16">
         {who.draft ? <DraftNotice lang={lang} complete={who.complete} /> : null}
         {doc === 'dpa' ? (
           <p className="mt-6 text-sm">
@@ -61,8 +61,8 @@ export default async function LegalPage({ params, searchParams }: Params) {
             {lang === 'pl' ? <span className="font-medium">Polski</span> : <Link href="/legal/dpa?lang=pl" className="underline">Polski</Link>}
           </p>
         ) : null}
-        <h1 className="mt-6 text-3xl font-semibold">{t.title}</h1>
-        <p className="mt-2 text-sm text-muted">
+        <h1 className="mt-6 text-4xl leading-tight font-bold tracking-tight">{t.title}</h1>
+        <p className="mt-3 max-w-[70ch] leading-7 text-muted">
           {t.summary} {lang === 'pl' ? `Wersja z ${t.version}.` : `Version of ${t.version}.`}
         </p>
         {doc === 'dpa' ? (

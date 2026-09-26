@@ -1,8 +1,8 @@
 import type { Metadata } from 'next';
 import Link from 'next/link';
 import { getOrganization } from '@/lib/data.ts';
-import { ActionForm } from '@/components/forms.tsx';
-import { Empty, PageHeader, Section, Time, inputClass, quietButtonClass } from '@/components/ui.tsx';
+import { ActionForm, ConfirmButton } from '@/components/forms.tsx';
+import { Empty, OrgNav, PageHeader, Section, Time, inputClass, secondaryButtonClass } from '@/components/ui.tsx';
 import { TERMS_VERSION } from '@/lib/legal/documents.ts';
 import { acceptTerms, cancelInvitation, createWorkspace, inviteMember, makeOwner, removeMember } from '../../actions.ts';
 
@@ -16,24 +16,21 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
   return (
     <>
       <PageHeader crumbs={[{ label: 'Organizations', href: '/orgs' }, { label: org.name }]} title={org.name}>
-        <span className="flex flex-wrap items-center gap-4 text-sm text-muted">
-          <Link href={`/o/${org.id}/drift`} className="hover:text-ink hover:underline">Engine drift</Link>
-          <Link href={`/o/${org.id}/data`} className="hover:text-ink hover:underline">Data and DPA</Link>
-          <Link href={`/o/${org.id}/billing`} className="hover:text-ink hover:underline">
-            {planName} plan · Billing
-          </Link>
-        </span>
+        <Link href={`/o/${org.id}/billing`} className="eyebrow rounded-sm border border-line px-2 py-1 hover:border-ink hover:text-ink">
+          {planName} plan
+        </Link>
       </PageHeader>
+      <OrgNav orgId={org.id} current="overview" />
 
       {isOwner && org.terms_version !== TERMS_VERSION ? (
-        <form action={acceptTerms} role="note" className="mb-6 flex flex-wrap items-center justify-between gap-3 rounded-md border border-diff/40 bg-diff/10 px-4 py-3 text-sm">
+        <form action={acceptTerms} role="note" className="mb-10 flex flex-wrap items-center justify-between gap-3 rounded-md border border-diff/45 bg-diff/10 px-4 py-3 text-sm leading-6">
           <input type="hidden" name="orgId" value={org.id} />
           <input type="hidden" name="version" value={TERMS_VERSION} />
           <span>
             {org.terms_version ? `The Terms of Service changed since this organization accepted the version of ${org.terms_version}.` : 'This organization has not accepted the Terms of Service yet.'}{' '}
             <Link href="/legal/terms" className="underline">Read the terms</Link>, with the <Link href="/legal/dpa" className="underline">DPA</Link> as part of them.
           </span>
-          <button className="rounded-md border border-line bg-panel px-3 py-1.5">Accept for {org.name}</button>
+          <button className={secondaryButtonClass}>Accept for {org.name}</button>
         </form>
       ) : null}
 
@@ -44,12 +41,12 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
         {workspaces.length === 0 ? (
           <Empty>No workspaces yet.</Empty>
         ) : (
-          <ul className="divide-y divide-line rounded-md border border-line bg-panel">
+          <ul className="record-list">
             {/* Oldest first: after a downgrade, the workspaces past the limit are the newest ones. */}
             {workspaces.map((w, i) => (
               <li key={w.id}>
-                <Link href={`/w/${w.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 hover:bg-bg">
-                  <span className="font-medium">
+                <Link href={`/w/${w.id}`} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3.5 hover:bg-bg">
+                  <span className="font-bold">
                     {w.name}
                     {limits.workspaces !== null && i >= limits.workspaces ? <span className="ml-2 text-xs font-normal text-error">over the plan limit, uploads refused</span> : null}
                   </span>
@@ -79,7 +76,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
       </Section>
 
       <Section title="Members" description={`${isOwner ? 'Invited people join when they next sign in with the invited address; invitations expire after 30 days. ' : ''}Seats: ${count(limits.seats_used, limits.seats)}, counting invitations.`}>
-        <ul className="divide-y divide-line rounded-md border border-line bg-panel">
+        <ul className="record-list">
           {members.map((m) => (
             <li key={m.user_id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 text-sm">
               <span>{m.email || m.user_id}</span>
@@ -89,14 +86,14 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
                   <form action={makeOwner}>
                     <input type="hidden" name="orgId" value={org.id} />
                     <input type="hidden" name="userId" value={m.user_id} />
-                    <button className={quietButtonClass}>Make owner</button>
+                    <ConfirmButton confirm={`Make ${m.email || 'them'} an owner`}>Make owner</ConfirmButton>
                   </form>
                 ) : null}
                 {isOwner && m.user_id !== userId ? (
                   <form action={removeMember}>
                     <input type="hidden" name="orgId" value={org.id} />
                     <input type="hidden" name="userId" value={m.user_id} />
-                    <button className={quietButtonClass}>Remove</button>
+                    <ConfirmButton confirm={`Remove ${m.email || 'member'}`}>Remove</ConfirmButton>
                   </form>
                 ) : null}
               </span>
@@ -111,7 +108,7 @@ export default async function OrganizationPage({ params }: { params: Promise<{ o
                   <form action={cancelInvitation}>
                     <input type="hidden" name="orgId" value={org.id} />
                     <input type="hidden" name="invitationId" value={i.id} />
-                    <button className={quietButtonClass}>Cancel</button>
+                    <ConfirmButton confirm="Cancel invitation">Cancel</ConfirmButton>
                   </form>
                 ) : null}
               </span>

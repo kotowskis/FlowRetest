@@ -3,12 +3,15 @@ import Link from 'next/link';
 import type { PlanReport } from '@flowretest/core';
 import { getRun } from '@/lib/data.ts';
 import { ReportView } from '@/components/report-view.tsx';
-import { AcceptanceList, PageHeader, Section, StatusBadge, Time, quietButtonClass } from '@/components/ui.tsx';
+import { AcceptanceList, PageHeader, Section, Time, secondaryButtonClass } from '@/components/ui.tsx';
+import { ConfirmButton } from '@/components/forms.tsx';
 import { deleteRun } from '../../actions.ts';
 import { AcceptForm, type AcceptableCase } from '@/components/acceptance.tsx';
 import { acceptRun } from '../../actions.ts';
 
 export const metadata: Metadata = { title: 'Run' };
+
+const STAMP: Record<string, string> = { PASS: 'text-pass', DIFF: 'text-diff', ERROR: 'text-error', BLOCKED: 'text-blocked', SKIPPED: 'text-blocked' };
 
 export default async function RunPage({ params }: { params: Promise<{ runId: string }> }) {
   const { runId } = await params;
@@ -32,8 +35,8 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
           { label: 'run' },
         ]}
         title={
-          <span className="flex flex-wrap items-center gap-3">
-            <StatusBadge status={run.status} />
+          <span className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+            <span className={`font-dot text-[2.75rem] leading-none font-black ${STAMP[run.status ?? ''] ?? 'text-muted'}`}>{run.status}</span>
             {workflow.name}
           </span>
         }
@@ -46,41 +49,41 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
           ) : null}
           {pdfExport ? (
             // A plain link: the route answers with a file, not a page.
-            <a href={`/runs/${run.id}/pdf`} className="rounded-md border border-line px-2 py-1 text-xs hover:text-ink">Download PDF record</a>
+            <a href={`/runs/${run.id}/pdf`} className={secondaryButtonClass}>Download PDF record</a>
           ) : (
-            <Link href={`/o/${org.id}/billing`} className="text-xs text-muted hover:text-ink hover:underline" title="The PDF record of what this run would send comes with the Agency plan">
+            <Link href={`/o/${org.id}/billing`} className="text-sm text-muted hover:text-ink hover:underline" title="The PDF record of what this run would send comes with the Agency plan">
               PDF record comes with Agency
             </Link>
           )}
           {isOwner ? (
             <form action={deleteRun}>
               <input type="hidden" name="runId" value={run.id} />
-              <button className={quietButtonClass} title="Deletes this run now; its acceptances stay in the history">Delete run</button>
+              <ConfirmButton confirm="Delete this run" title="Deletes this run now; its acceptances stay in the history">Delete run</ConfirmButton>
             </form>
           ) : null}
         </span>
       </PageHeader>
-      <dl className="mb-8 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr]">
-        <dt className="text-muted">Compared</dt>
+      <dl className="mb-10 grid gap-x-8 gap-y-2 rounded-md border border-line px-5 py-4 text-sm sm:grid-cols-[max-content_minmax(0,1fr)] [&>dt]:eyebrow [&>dt]:pt-0.5">
+        <dt>Compared</dt>
         <dd className="font-mono break-all">{run.mode === 'upgrade' ? `${run.old_label} → ${run.new_label}` : `old: ${run.old_label} → new: ${run.new_label}`}</dd>
         {run.workflow_version_id ? (
           <>
-            <dt className="text-muted">Workflow version</dt>
+            <dt>Workflow version</dt>
             <dd className="font-mono break-all">{run.workflow_version_id}</dd>
           </>
         ) : null}
-        <dt className="text-muted">Engine</dt>
+        <dt>Engine</dt>
         <dd className="font-mono break-all">{run.engine_image}</dd>
-        <dt className="text-muted">Generated</dt>
+        <dt>Generated</dt>
         <dd>
           <Time value={run.generated_at} /> by FlowRetest {run.runner}
           {run.local_run ? <span className="text-muted"> · local run <code className="font-mono">{run.local_run}</code></span> : null}
         </dd>
-        <dt className="text-muted">Uploaded</dt>
+        <dt>Uploaded</dt>
         <dd><Time value={run.created_at} /></dd>
         {run.git_repository && run.git_sha ? (
           <>
-            <dt className="text-muted">Commit</dt>
+            <dt>Commit</dt>
             <dd className="font-mono break-all">
               {run.git_repository}@{run.git_sha.slice(0, 7)}
               {run.pull_request ? <span className="text-muted"> · pull request #{run.pull_request}</span> : null}
@@ -106,7 +109,7 @@ export default async function RunPage({ params }: { params: Promise<{ runId: str
           </Section>
         ) : null}
       </div>
-      <p className="mt-10 text-xs text-muted">
+      <p className="mt-10 max-w-3xl text-xs leading-5 text-muted">
         Values appear as shapes: type, length and a hash that is equal only for equal values inside this report. The full report stays on the machine that ran it
         {run.local_run ? <> (<code className="font-mono">.flowretest/{workflow.n8n_workflow_id}/runs/{run.local_run}/report.json</code>)</> : null}.
       </p>

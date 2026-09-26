@@ -5,7 +5,7 @@ import type { PlanReport } from '@flowretest/core';
 import { getRunPair } from '@/lib/data.ts';
 import { compareRuns, type CaseCounts } from '@/lib/compare-runs.ts';
 import { OP_LABEL } from '@/lib/run-record.ts';
-import { Empty, PageHeader, Section, StatusBadge, Time } from '@/components/ui.tsx';
+import { Empty, PageHeader, Section, StatusBadge, Time, inputClass, secondaryButtonClass } from '@/components/ui.tsx';
 
 export const metadata: Metadata = { title: 'Compare runs' };
 
@@ -35,14 +35,14 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
         {(['a', 'b'] as const).map((side) => (
           <label key={side} className="flex flex-col gap-1">
             <span className="text-xs text-muted">{side === 'a' ? 'Earlier run' : 'Later run'}</span>
-            <select name={side} defaultValue={side === 'a' ? before.id : after.id} className="max-w-full rounded-md border border-line bg-panel px-2 py-1">
+            <select name={side} defaultValue={side === 'a' ? before.id : after.id} className={`${inputClass} max-w-full`}>
               {runs.map((r) => (
                 <option key={r.id} value={r.id}>{`${new Date(r.created_at).toISOString().slice(0, 19).replace('T', ' ')} UTC · ${r.status}`}</option>
               ))}
             </select>
           </label>
         ))}
-        <button className="rounded-md border border-line px-3 py-1 hover:bg-bg">Compare</button>
+        <button className={secondaryButtonClass}>Compare</button>
       </form>
 
       <dl className="mb-8 grid gap-x-6 gap-y-1 text-sm sm:grid-cols-[max-content_1fr_1fr]">
@@ -69,7 +69,7 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
         ) : (
           <ul className="space-y-4">
             {differing.map((c) => (
-              <li key={c.caseId} className="rounded-md border border-line bg-panel px-4 py-3 text-sm">
+              <li key={c.caseId} className="rounded-md border border-line bg-panel px-4 py-4 text-sm">
                 <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
                   <span className="font-medium">Case {c.caseId}</span>
                   <span className="text-muted">earlier: {c.before ? <><StatusBadge status={c.before.status} /> {numbers(c.before)}</> : 'not in this run'}</span>
@@ -85,7 +85,7 @@ export default async function ComparePage({ params, searchParams }: { params: Pr
                           <th className="py-1 font-medium">Later</th>
                         </tr>
                       </thead>
-                      <tbody className="divide-y divide-line">
+                      <tbody>
                         {c.calls.map((k) => (
                           <tr key={k.call} className="align-top">
                             <td className="py-1 pr-4 font-mono break-all">{k.call}</td>
