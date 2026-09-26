@@ -329,3 +329,18 @@ Wnioski:
 - zmiana ogłoszeń na niezmienne wyłączyła test czyszczenia rejestru po roku przez API; ten przypadek sprawdza teraz SQL z `session_replication_role = replica` (ADR 0018).
 
 Do decyzji założyciela: nowe pozycje 6 do 8 i pytania 9 do 16 w `docs/sprzedaz.md`, sprawdzenie czyszczenia dziennika auth na projekcie w chmurze (ADR 0018).
+
+## Tryb testowy (2026-09-26)
+
+Założyciel poprosił o flagę, która uruchamia aplikację na danych testowych bez konfiguracji produkcyjnej (Supabase w chmurze, Stripe, GitHub App, dostawca maili, dane firmy). Decyzje w ADR 0019.
+
+Zrobione:
+
+- `npm run test-mode` (`apps/web/scripts/test-mode.ts`): Docker, lokalna Supabase, atrapa GitHub, Slacka i Stripe'a, `next dev` z `FLOWRETEST_TEST_MODE=true`, seed i podsumowanie z kontami i tokenami; `--reset`, `--port`, `--fake-port`;
+- `lib/test-mode.ts`: flaga działa tylko na localhost, cztery konta testowe; logowanie jednym kliknięciem na stronie logowania, baner na każdej stronie, maile nigdy przez Resend;
+- `scripts/test-mode-seed.ts`: Acme Agency (Agency przez Checkout atrapy, DPA, członek, zaproszenie, dwa workspace'y, 15 przebiegów, akceptacja, GitHub Check, Slack) i Solo Studio (Free);
+- atrapa Stripe z `FAKE_SERVICES_STATE` zapisuje stan w pliku, `fakeEnv` i `ensureKeys` wspólne dla `init` i trybu testowego.
+
+Sprawdzone: start od pustej bazy, logowanie jako właściciel i jako osoba zaproszona, strony organizacji, workspace'u, macierzy dryfu i Billing, restart z zachowaniem danych; testy jednostkowe web 53 z 53, integracyjne 72 z 72 przeciw aplikacji w trybie testowym.
+
+Wniosek: pierwsza próba padła w połowie seeda (atrapa zapisywała stan do nieistniejącego katalogu), a skrypt przy następnym starcie uznał niepełne dane za gotowe. Znacznikiem kompletności jest teraz organizacja zapisywana na końcu; dane częściowe zatrzymują start z prośbą o `--reset`.

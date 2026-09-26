@@ -1,3 +1,5 @@
+import { testMode } from './test-mode.ts';
+
 /**
  * Outgoing mail. The production provider is not chosen yet (ADR 0008), so the transport is picked from the
  * environment: Resend when RESEND_API_KEY is set, the local Mailpit when MAILPIT_URL is set, otherwise the message is
@@ -22,6 +24,10 @@ export interface MailResult {
 
 export interface MailEnv {
   RESEND_API_KEY?: string;
+  /** Test mode (lib/test-mode.ts) never mails real people, whatever .env.local holds; it needs these three. */
+  FLOWRETEST_TEST_MODE?: string;
+  APP_URL?: string;
+  NEXT_PUBLIC_SUPABASE_URL?: string;
   MAILPIT_URL?: string;
   MAIL_FROM?: string;
 }
@@ -47,7 +53,7 @@ export async function sendMail(input: MailMessage, env: MailEnv = process.env as
   // A workflow name with a line break must not start a new header line, whatever the provider does with it.
   const message = { ...input, subject: input.subject.replace(/[\r\n]+/g, ' ') };
   const from = env.MAIL_FROM || DEFAULT_FROM;
-  if (env.RESEND_API_KEY) {
+  if (env.RESEND_API_KEY && !testMode(env as Record<string, string | undefined>)) {
     const r = await post('https://api.resend.com/emails', { authorization: `Bearer ${env.RESEND_API_KEY}`, ...(message.idempotencyKey ? { 'idempotency-key': message.idempotencyKey } : {}) }, { from, to: [message.to], subject: message.subject, text: message.text, html: message.html, ...(message.headers ? { headers: message.headers } : {}) });
     return { ok: r.ok, transport: 'resend', detail: r.detail };
   }

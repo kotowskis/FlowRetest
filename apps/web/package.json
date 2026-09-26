@@ -14,7 +14,8 @@
     "db:stop": "supabase stop",
     "db:reset": "supabase db reset",
     "db:types": "node scripts/db-types.mjs",
-    "db:env": "node scripts/env-local.mjs"
+    "db:env": "node scripts/env-local.mjs",
+    "test-mode": "node scripts/test-mode.ts"
   },
   "dependencies": {
     "@flowretest/core": "*",

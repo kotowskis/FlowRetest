@@ -7,6 +7,7 @@ import { createClient } from '@/lib/supabase/server.ts';
 import { createAdminClient } from '@/lib/supabase/admin.ts';
 import { env } from '@/lib/env.ts';
 import { safeNext } from '@/lib/paths.ts';
+import { isTestAccount, testMode } from '@/lib/test-mode.ts';
 
 export interface LoginState {
   step: 'email' | 'code';
@@ -52,6 +53,22 @@ export async function verifyCode(_prev: LoginState, form: FormData): Promise<Log
   const supabase = await createClient();
   const { error } = await supabase.auth.verifyOtp({ email: email.data, token, type: 'email' });
   if (error) return { step: 'code', email: email.data, error: 'That code is wrong or expired. Request a new one.' };
+  await supabase.rpc('claim_invitations');
+  redirect(safeNext(form.get('next')));
+}
+
+/**
+ * Test mode only (lib/test-mode.ts): signs in as one of the seeded accounts without an email, through the same
+ * token_hash verification as the emailed link. Any other address, or a server outside test mode, gets the login page.
+ */
+export async function signInAsTestAccount(form: FormData): Promise<void> {
+  const email = String(form.get('email') ?? '');
+  if (!testMode() || !isTestAccount(email)) redirect('/login');
+  const link = await createAdminClient().auth.admin.generateLink({ type: 'magiclink', email });
+  if (link.error) redirect('/login?error=test-account');
+  const supabase = await createClient();
+  const { error } = await supabase.auth.verifyOtp({ token_hash: link.data.properties.hashed_token, type: 'email' });
+  if (error) redirect('/login?error=test-account');
   await supabase.rpc('claim_invitations');
   redirect(safeNext(form.get('next')));
 }

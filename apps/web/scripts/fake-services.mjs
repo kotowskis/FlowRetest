@@ -5,12 +5,16 @@
 //   node scripts/fake-services.mjs init    # key pair in .fake-services/, GitHub App and Stripe settings in .env.local
 //   node scripts/fake-services.mjs serve   # listen on 127.0.0.1:55390 (FAKE_SERVICES_PORT)
 //
+// FAKE_SERVICES_STATE=<file> keeps the fake Stripe's customers, subscriptions and invoices in that file across restarts
+// (test mode, scripts/test-mode.ts); without it they live in memory, as the tests expect.
+//
 // Installations: 1001 belongs to the organization "acme-agency": "agency-dev" administers its repository "flows",
 // "contractor" reads it and administers nothing; 1002 belongs to "someone-else". OAuth codes are "code-<login>" and
 // give the token "gho_<login>". GET /__calls lists every request the fake received, DELETE /__calls clears the list.
 import { createHmac, createPublicKey, createVerify, generateKeyPairSync } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { createServer } from 'node:http';
+import { dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = fileURLToPath(new URL('..', import.meta.url));
@@ -44,8 +48,24 @@ const PRICES = [
  * with payment_behavior=pending_if_incomplete stays pending; GET /__stripe dumps the state. As in Stripe, an
  * idempotency key reused with other parameters is refused.
  */
-function fakeStripe({ appUrl, baseOf }) {
+function fakeStripe({ appUrl, baseOf, stateFile }) {
   const state = { customers: new Map(), sessions: new Map(), subscriptions: new Map(), invoices: new Map(), idempotency: new Map(), deliveries: [] };
+  // Test mode keeps the objects across restarts, so seeded subscriptions still answer the billing page tomorrow.
+  const KEPT = ['customers', 'sessions', 'subscriptions', 'invoices', 'idempotency'];
+  if (stateFile && existsSync(stateFile)) {
+    const saved = JSON.parse(readFileSync(stateFile, 'utf8'));
+    for (const key of KEPT) state[key] = new Map(saved[key] ?? []);
+  }
+  const save = () => {
+    if (!stateFile) return;
+    try {
+      mkdirSync(dirname(stateFile), { recursive: true });
+      writeFileSync(stateFile, JSON.stringify(Object.fromEntries(KEPT.map((key) => [key, [...state[key]]]))));
+    } catch (e) {
+      // The answer is already sent; a failed save must not turn into a second one.
+      console.error(`fake Stripe state not saved to ${stateFile}: ${e instanceof Error ? e.message : e}`);
+    }
+  };
   // Ids continue across restarts of the fake, so a local database that keeps customers from earlier runs never sees
   // the same cus_/sub_ id twice.
   let n = Date.now();
@@ -258,7 +278,7 @@ function fakeStripe({ appUrl, baseOf }) {
     return err(res, 404, 'Unrecognized request URL');
   }
 
-  return { state, handle };
+  return { state, handle: (req, url, raw, res) => handle(req, url, raw, res).finally(save) };
 }
 // repositories: name -> who administers it; the other users see the installation with read access only.
 const INSTALLATIONS = [
@@ -281,11 +301,11 @@ function verifyJwt(token, publicKeyPem) {
 }
 
 /** Starts the fake on `port` (0 for any); resolves with its base URL, the recorded calls and a close function. */
-export async function startFakeServices({ port = 0, publicKeyPem, appUrl }) {
+export async function startFakeServices({ port = 0, publicKeyPem, appUrl, stateFile }) {
   const calls = [];
   let nextCheck = 1;
   let base = '';
-  const stripe = fakeStripe({ appUrl, baseOf: () => base });
+  const stripe = fakeStripe({ appUrl, baseOf: () => base, stateFile });
   const server = createServer((req, res) => {
     let raw = '';
     req.on('data', (c) => (raw += c));
@@ -378,7 +398,7 @@ export async function startFakeServices({ port = 0, publicKeyPem, appUrl }) {
   return { base, calls, stripe: stripe.state, close: () => new Promise((resolve) => server.close(() => resolve())) };
 }
 
-function ensureKeys() {
+export function ensureKeys() {
   mkdirSync(keyDir, { recursive: true });
   if (!existsSync(`${keyDir}/app.pem`)) {
     const { privateKey, publicKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
@@ -388,6 +408,25 @@ function ensureKeys() {
   return { privateKey: readFileSync(`${keyDir}/app.pem`, 'utf8'), publicKey: readFileSync(`${keyDir}/app.pub.pem`, 'utf8') };
 }
 
+/** The app's GitHub App, Slack and Stripe settings pointing at a fake on `port` (test mode passes them as env). */
+export function fakeEnv(port, privateKey) {
+  const base = `http://127.0.0.1:${port}`;
+  return {
+    GITHUB_APP_ID: FAKE.appId,
+    GITHUB_APP_SLUG: FAKE.slug,
+    GITHUB_APP_CLIENT_ID: FAKE.clientId,
+    GITHUB_APP_CLIENT_SECRET: FAKE.clientSecret,
+    GITHUB_APP_WEBHOOK_SECRET: FAKE.webhookSecret,
+    GITHUB_APP_PRIVATE_KEY: privateKey.trim(),
+    GITHUB_APP_API_URL: `${base}/api`,
+    GITHUB_APP_WEB_URL: base,
+    SLACK_WEBHOOK_HOSTS: `127.0.0.1:${port}`,
+    STRIPE_SECRET_KEY: FAKE.stripeKey,
+    STRIPE_WEBHOOK_SECRET: FAKE.stripeWebhookSecret,
+    STRIPE_API_URL: `${base}/stripe`,
+  };
+}
+
 const command = process.argv[2];
 if (command === 'init' || command === 'serve') {
   const port = Number(process.env.FAKE_SERVICES_PORT ?? 55390);
@@ -395,26 +434,13 @@ if (command === 'init' || command === 'serve') {
   if (command === 'init') {
     const envFile = `${root}.env.local`;
     const existing = existsSync(envFile) ? readFileSync(envFile, 'utf8').split(/\r?\n/).filter((l) => l && !/^(GITHUB_|STRIPE_|SLACK_WEBHOOK_HOSTS=)/.test(l)) : [];
-    const base = `http://127.0.0.1:${port}`;
-    const lines = [
-      `GITHUB_APP_ID=${FAKE.appId}`,
-      `GITHUB_APP_SLUG=${FAKE.slug}`,
-      `GITHUB_APP_CLIENT_ID=${FAKE.clientId}`,
-      `GITHUB_APP_CLIENT_SECRET=${FAKE.clientSecret}`,
-      `GITHUB_APP_WEBHOOK_SECRET=${FAKE.webhookSecret}`,
-      `GITHUB_APP_PRIVATE_KEY=${keys.privateKey.trim().replace(/\n/g, '\\n')}`,
-      `GITHUB_APP_API_URL=${base}/api`,
-      `GITHUB_APP_WEB_URL=${base}`,
-      `SLACK_WEBHOOK_HOSTS=127.0.0.1:${port}`,
-      `STRIPE_SECRET_KEY=${FAKE.stripeKey}`,
-      `STRIPE_WEBHOOK_SECRET=${FAKE.stripeWebhookSecret}`,
-      `STRIPE_API_URL=${base}/stripe`,
-    ];
+    // .env.local holds one line per value; the app reads the PEM with \n escapes as well.
+    const lines = Object.entries(fakeEnv(port, keys.privateKey)).map(([key, value]) => `${key}=${key === 'GITHUB_APP_PRIVATE_KEY' ? value.replace(/\n/g, '\\n') : value}`);
     writeFileSync(envFile, [...existing, ...lines, ''].join('\n'));
     console.log(`fake GitHub App and Stripe settings written to ${envFile}; start the fake with: node scripts/fake-services.mjs serve`);
   } else {
     const appUrl = (process.env.APP_URL ?? 'http://127.0.0.1:3100').replace(/\/+$/, '');
-    const fake = await startFakeServices({ port, publicKeyPem: keys.publicKey, appUrl });
+    const fake = await startFakeServices({ port, publicKeyPem: keys.publicKey, appUrl, stateFile: process.env.FAKE_SERVICES_STATE || undefined });
     console.log(`fake GitHub and Slack on ${fake.base}`);
   }
 }

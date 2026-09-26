@@ -1,4 +1,5 @@
 import type { Metadata } from 'next';
+import { TestModeBanner } from '@/components/test-mode-banner.tsx';
 import './globals.css';
 
 // Every page is rendered per request: the CSP nonce from proxy.ts only reaches scripts rendered with it.
@@ -13,7 +14,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en">
-      <body className="min-h-screen font-sans antialiased">{children}</body>
+      <body className="min-h-screen font-sans antialiased">
+        <TestModeBanner />
+        {children}
+      </body>
     </html>
   );
 }

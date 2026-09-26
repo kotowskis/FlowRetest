@@ -36,6 +36,15 @@ npm run dev -w @flowretest/web        # http://127.0.0.1:3100
 npm run test:integration -w @flowretest/web   # baza, API, Stripe, GitHub, Slack, PDF; wymaga db:start, działającej aplikacji i atrap
 ```
 
+Tryb testowy (ADR 0019) robi to wszystko jedną komendą i od razu zasila bazę danymi testowymi:
+
+```bash
+npm run test-mode              # http://127.0.0.1:3100/login, logowanie jednym kliknięciem
+npm run test-mode -- --reset   # kasuje lokalną bazę i stan atrapy Stripe, zasila od nowa
+```
+
+Wymaga tylko działającego Dockera. Skrypt stawia lokalną Supabase, atrapę GitHub, Slacka i Stripe'a (55390) oraz `next dev` z `FLOWRETEST_TEST_MODE=true` i przekazuje im ustawienia przez zmienne środowiskowe, bez zmian w `.env.local`. Na stronie logowania są cztery konta testowe (właściciel i członek Acme Agency na planie Agency, osoba zaproszona, właściciel Solo Studio na Free), na każdej stronie baner „Test mode”, maile idą do Mailpita. Na końcu skrypt wypisuje tokeny workspace'ów do `flowretest upload --url http://127.0.0.1:3100`. Flaga działa tylko na localhost: serwer z publicznym `APP_URL` albo Supabase w chmurze ją ignoruje. Stan między uruchomieniami (plik atrapy Stripe, tokeny) leży w `apps/web/.test-mode/`. Porty zajęte przez inny serwer: `--port 3101 --fake-port 55391`.
+
 Logowanie jest bez hasła: mail z sześciocyfrowym kodem i linkiem. Lokalnie maile trafiają do Mailpita pod `http://127.0.0.1:55324`. Po każdej nowej migracji w `apps/web/supabase/migrations/` trzeba uruchomić `npm run db:reset -w @flowretest/web` i `npm run db:types -w @flowretest/web`, a potem zacommitować `lib/database.types.ts`; job `web` w CI sprawdza zgodność (`db-types.mjs --check`).
 
 GitHub App i Slack lokalnie działają na atrapie: `node scripts/fake-services.mjs init` (w `apps/web`; klucz w `.fake-services/`, ustawienia dopisane do `.env.local`, po każdym `db:env` trzeba to powtórzyć), potem `node scripts/fake-services.mjs serve` i dopiero wtedy `npm run dev`. Atrapa zapisuje każde żądanie, `GET http://127.0.0.1:55390/__calls` je pokazuje.

@@ -2,7 +2,7 @@
 
 import { useActionState } from 'react';
 import { useHydrated } from '@/components/forms.tsx';
-import { sendCode, verifyCode, type LoginState } from './actions.ts';
+import { sendCode, signInAsTestAccount, verifyCode, type LoginState } from './actions.ts';
 
 export function LoginForm({ next, linkError }: { next?: string; linkError?: boolean }) {
   const [sent, send, sending] = useActionState(sendCode, { step: 'email', error: linkError ? 'That sign-in link is wrong or expired. Request a new code.' : undefined } as LoginState);
@@ -33,5 +33,30 @@ export function LoginForm({ next, linkError }: { next?: string; linkError?: bool
       )}
       {error ? <p role="alert" className="text-sm text-error">{error}</p> : null}
     </div>
+  );
+}
+
+/** Test mode only: one button per seeded account (lib/test-mode.ts); the page renders it only in test mode. */
+export function TestAccounts({ accounts, next }: { accounts: ReadonlyArray<{ email: string; role: string }>; next?: string }) {
+  const hydrated = useHydrated();
+  return (
+    <section aria-labelledby="test-accounts" className="mt-8 rounded-md border border-dashed border-diff/60 p-4">
+      <h2 id="test-accounts" className="text-sm font-semibold">Test accounts</h2>
+      <p className="mt-1 text-xs text-muted">Test mode signs in as seeded people without an email. Codes for any other address go to Mailpit.</p>
+      <ul className="mt-3 space-y-2">
+        {accounts.map((a) => (
+          <li key={a.email}>
+            <form action={signInAsTestAccount}>
+              <input type="hidden" name="email" value={a.email} />
+              <input type="hidden" name="next" value={next ?? ''} />
+              <button disabled={!hydrated} className="w-full rounded-md border border-line px-3 py-2 text-left hover:border-ink disabled:opacity-60">
+                <span className="block font-mono text-sm">{a.email}</span>
+                <span className="block text-xs text-muted">{a.role}</span>
+              </button>
+            </form>
+          </li>
+        ))}
+      </ul>
+    </section>
   );
 }
